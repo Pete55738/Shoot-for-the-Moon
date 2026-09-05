@@ -1,0 +1,21 @@
+# Netlify config for a house project.
+# Replace PROJECT with the app's file basename.
+
+[build]
+  # Everything outside app/ — docs/, CLAUDE.md, snapshots/ — stays off the
+  # public URL. Verify this at ship time by requesting /CLAUDE.md; it must 404.
+  publish = "app"
+
+  # The one sanctioned build step: the deploy stamp (CLAUDE.md §12). One sed,
+  # no toolchain, and it no-ops silently when the markers are absent — which is
+  # why 06-ship greps for them rather than trusting the build to complain.
+  command = "f=$(grep -rl '<!--REV-->' --include='*.html' app 2>/dev/null | head -1); if [ -n \"$f\" ]; then git fetch --unshallow 2>/dev/null || true; n=$(git rev-list --count HEAD 2>/dev/null || echo dev); t=$(git log -1 --format=%cI 2>/dev/null || echo unknown); sed -i \"s|<!--REV-->|(#$n)|\" \"$f\"; sed -i \"s|COMMIT_TIME_ISO|$t|\" \"$f\"; fi"
+
+# HTML files are named for what they are, never index.html.
+# This rewrite serves the named file at the site root.
+# status = 200 rewrites (URL bar keeps "/"); 301 would redirect and expose
+# the filename. Use 200.
+[[redirects]]
+  from = "/"
+  to = "/shoot-for-the-moon.html"
+  status = 200
