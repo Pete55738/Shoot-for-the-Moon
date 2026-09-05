@@ -1,7 +1,7 @@
 {
   "envelope": 1,
   "kind": "status",
-  "at": "2026-09-05T16:40:00Z",
+  "at": "2026-09-05T17:20:00Z",
   "payload": {
     "reference": "docs/studies/round-4/sheet.png + liftoff-sequence.png (provisional \u2014 built from the brain dumps, not user-picked)",
     "gates": {
@@ -9,7 +9,7 @@
       "consoleErrors": 0,
       "simClean": true
     },
-    "rounds": 11,
+    "rounds": 13,
     "subsystems": {
       "chrome": {
         "score": 8.5,
@@ -53,10 +53,8 @@
         ]
       },
       "ladder": {
-        "score": 8.5,
-        "open": [
-          "leader lines from tick to pushed label are faint"
-        ]
+        "score": 9.0,
+        "open": []
       },
       "tutorial": {
         "score": 8.5,
@@ -83,14 +81,27 @@
         ]
       },
       "missions": {
+        "score": 9.0,
+        "open": [
+          "flight is 10\u201321 s per mission; the hour-long game is T14"
+        ]
+      },
+      "orbit": {
+        "score": 9.0,
+        "open": []
+      },
+      "transfer": {
+        "score": 9.0,
+        "open": []
+      },
+      "moonview": {
         "score": 8.5,
         "open": [
-          "milestone flights have no distinct animation yet (T13c) \u2014 they reuse the vertical flight",
-          "whole game runs 62\u2013116 launches, ~25\u201345 min; the hour target is T14"
+          "ship draws on top of the Moon on the far half of the orbit"
         ]
       }
     },
-    "weakest": "missions",
-    "note": "Mission ladder built (T13/T19/T27\u2013T29). Five missions gated on delivered \u0394v and two pieces of equipment each; the shop splits ROCKET / EQUIPMENT with a live next-step hint; every milestone unlocks two more tiers; after the base is established every flight lands cargo and grows the population toward 10,000. The flight model is now multi-stage \u2014 equipment adds real stages, so \u0394v comes from the rocket equation. Sim PASS: base built in 62\u2013116 launches on every strategy."
+    "weakest": "moonview",
+    "note": "Pitch-over and the camera ladder (T13c/T15/T16/T30/T31). A flight is now a phase machine: ascent (physics replay) \u2192 gravity turn \u2192 Earth orbit \u2192 dotted transfer arc \u2192 lunar orbit \u2192 cargo drop \u2192 return \u2192 parachute, cross-fading between camera views so each mission zooms out one step and the Moon zooms back in. Budgets per mission: 10 s at mission 1, 21 s for the full Moon round trip, under the 30 s cap. The ladder re-scales: altitude, then distance to the Moon, then population toward 10,000. Zero console errors, 60\u201361 fps, sim PASS."
   }
 }
