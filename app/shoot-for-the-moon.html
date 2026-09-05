@@ -500,7 +500,7 @@ body {
   .datawin.away { opacity: .35; }
   .datawin[hidden], .checklist[hidden] { display: none; }
   /* T37 · what you are working toward, upper right — the player kept launching without knowing. */
-  .goalwin { position: absolute; right: .6rem; top: .6rem; width: min(13rem, 52%);
+  .goalwin { position: absolute; right: .6rem; top: .6rem; width: min(13rem, 46%); box-sizing: border-box;
              background: var(--h-surface-glass); border: 1px solid var(--h-border); border-radius: var(--radius);
              padding: .4rem .55rem; backdrop-filter: blur(6px); font-family: var(--wa-font-family-heading);
              font-size: var(--text-3xs); letter-spacing: .06em; text-transform: uppercase; color: var(--h-text-muted);
@@ -521,6 +521,7 @@ body {
   .goalwin .bar i { display: block; height: 100%; width: 0; background: var(--h-warning); }
   .goalwin.go .bar i { background: var(--h-positive); }
   @media (max-width: 860px) { .goalwin { width: min(10rem, 46%); font-size: var(--text-3xs); }
+    .checklist { width: min(11.5rem, 46%); }
     #ups { height: 18rem; } }
   /* T24 · the gimbal, bottom-left, only once the pad is clear */
   .gimbal { position: absolute; left: .6rem; bottom: .6rem; width: 13.4rem;
@@ -537,15 +538,15 @@ body {
   .gimbal .row b { color: var(--h-text); font-weight: var(--wa-font-weight-data); font-variant-numeric: tabular-nums; }
   @media (max-width: 860px) { .datawin { width: min(11rem, 50%); } .datawin tr:nth-child(n+6) { display: none; } }   /* phone: Vel · Alt · Cd · Drag · Thrust */
   /* T33 · on the ground this is the top-left window; mission control takes that slot once the flight starts. */
-  .checklist { position: absolute; left: .6rem; top: .6rem; width: min(16.5rem, 64%);
+  .checklist { position: absolute; left: .6rem; top: .6rem; width: min(16.5rem, 46%); box-sizing: border-box;
                background: var(--h-surface-glass); border: 1px solid var(--h-border); border-radius: var(--radius);
                padding: .45rem .55rem; font-family: var(--wa-font-family-heading); font-size: var(--text-3xs);
                letter-spacing: .06em; text-transform: uppercase; color: var(--h-text-muted);
                transition: opacity .3s; pointer-events: auto; }
   .checklist[hidden] { display: none; }
   .checklist .t { color: var(--h-accent); font-weight: 700; margin-bottom: .3rem; display: flex; justify-content: space-between; }
-  .checklist ol { margin: 0; padding: 0; list-style: none; }
-  .checklist li { padding: .12rem 0; display: flex; gap: .4rem; align-items: center; white-space: nowrap; overflow: hidden; }
+  .checklist ol { margin: 0; padding: 0; list-style: none; max-height: 8.4em; overflow: hidden; }
+  .checklist li { padding: 0; line-height: 1.4; display: flex; gap: .4rem; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .checklist li::before { content: '○'; color: var(--h-border); width: .9em; }
   .checklist li.doing::before { content: '◔'; color: var(--h-warning); }
   .checklist li.done::before { content: '●'; color: var(--h-positive); }
@@ -1574,11 +1575,18 @@ function drawPadScene(c, now) {
   if (!stars) stars = starField(140, 7);
   if (!moonScene) drawAtmosphere(c, DW, DH, km, now, stars);
   // ground / pad slides down and away as we climb; at height the Earth shows as a curve, then a ball.
-  const groundY = DH * 0.78 + sp * DH * 1.1;
+  /* A4 · the site is seen from ~30 degrees up: the horizon sits at DH*0.34 instead of DH*0.78,
+     which buys back the empty sky and leaves room for the whole complex. The plane slides off the
+     bottom of the frame as we climb — as a translate, so gy (and with it the cache key) never moves. */
+  const SITE_GY = DH * 0.34, siteSlide = sp * DH * 3.4;
+  const R0 = gproj(DW, DH, SITE_GY, 0, 0.42);          // the hold-down ring, on the pad axis
+  const padK = R0.k * 1.35, padY = R0.sy + siteSlide;   /* the hero gets a little more than true perspective */
+  const groundY = SITE_GY + siteSlide;
   if (groundY < DH + 40) {
-    drawFarm(c, groundY, DW, DH, now, km);
-    if (km < 1.5) { drawPad(c, groundY, DW, now, phase === 'turnaround' && turn ? turnP() : 1);
-      drawCrowd(c, groundY, DW, now, !!view.countdown || (phase === 'flight' && view.liftT >= 0 && view.liftT < 3)); }
+    c.save(); c.translate(0, siteSlide);
+    drawSite(c, DW, DH, SITE_GY, now, km);
+    if (km < 1.5) drawLife(c, DW, DH, SITE_GY, now, (S.launches || 0) * 7, phase);
+    c.restore();
   } else if (far > 0.3 && !moonScene) {
     drawEarth(c, DW, DH, far);
   }
@@ -1591,16 +1599,21 @@ function drawPadScene(c, now) {
   // rocket
   /* T38 · the rocket lifts off the pad it was built on. It used to jump to mid-frame the instant
      the phase changed; now it climbs from groundY to its flying station over the first 0.8 km. */
-  const flyStation = DH * 0.58, onPad = groundY - 4;
-  const rocketBase = moonScene ? DH * 0.62
-    : (phase === 'ready' || phase === 'turnaround') ? onPad
-    : lerp(onPad, flyStation, clamp(km / 0.8, 0, 1));
-  if (view.para > 0) { const d = rocketDims(S.tiers); drawChute(c, DW / 2, rocketBase - d.bodyH - d.noseH - 118, view.para, now); }
-  if (phase === 'turnaround' && turn) drawTurnaround(c, groundY, DW, DH, turnP(), S.tiers, now, drawRocket, rocketDims);
-  else if (view.ang || view.drift) { c.save(); c.translate(DW / 2 + view.drift, rocketBase); c.rotate(view.ang);
-    drawRocket(c, 0, 0, S.tiers, view.flame, phase === 'flight' && view.burning, now, { heat: view.heat }); c.restore(); }
-  else drawRocket(c, DW / 2, rocketBase, S.tiers, view.flame, phase === 'flight' && view.burning, now, { heat: view.heat });
-  if (phase === 'flight' && view.liftT >= 0 && view.liftT < 6 && groundY < DH + 40) drawLiftoffFX(c, groundY, DW, DH, view.liftT, DW / 2, rocketBase, now);
+  /* On the pad the ship stands in the projected plane, so it is drawn at the pad's scale (R0.k) and
+     grows to full size over the first 0.8 km as it climbs out of the perspective and toward the camera. */
+  const flyStation = DH * 0.58, onPad = padY, climb = clamp(km / 0.8, 0, 1);
+  const onGround = phase === 'ready' || phase === 'turnaround';
+  const rocketBase = moonScene ? DH * 0.62 : onGround ? onPad : lerp(onPad, flyStation, climb);
+  const rocketK = moonScene ? 1 : onGround ? padK : lerp(padK, 1, climb);
+  c.save(); c.translate(DW / 2 + (view.drift || 0), rocketBase); c.scale(rocketK, rocketK);
+  if (view.para > 0) { const d = rocketDims(S.tiers); drawChute(c, 0, -d.bodyH - d.noseH - 118, view.para, now); }
+  if (phase === 'turnaround' && turn) { c.translate(-DW / 2, 0); drawTurnaround(c, 4, DW, DH, turnP(), S.tiers, now, drawRocket, rocketDims); }
+  else { if (view.ang) c.rotate(view.ang);
+    drawRocket(c, 0, 0, S.tiers, view.flame, phase === 'flight' && view.burning, now, { heat: view.heat }); }
+  c.restore();
+  if (phase === 'flight' && view.liftT >= 0 && view.liftT < 6 && groundY < DH + 40) {
+    c.save(); c.translate(DW / 2, padY); c.scale(padK, padK); c.translate(-DW / 2, -padY);
+    drawLiftoffFX(c, padY, DW, DH, view.liftT, DW / 2, padY + (rocketBase - padY) / padK, now); c.restore(); }
   if (view.countdown) drawCountdown(c, DW, DH, view.countdown.n, view.countdown.frac, now);
   if (moonScene && S.modules > 0) drawMoonBase(c, DW, DH, S.modules, now - (view.moonAt || 0));
   if (moonScene && typeof drawRailgun === 'function' && railgunPay(S.population) > 0)
@@ -4462,6 +4475,904 @@ function drawCargoDrop(c, DW, DH, st, drawRocketFn, rocketDimsFn, drawBaseFn) {
 }
 
 
+
+/* ── W16 · the tilted launch site (A4) ──
+   The complex seen from ~30 degrees up. gproj() is the one ground projection every
+   round-6 section shares; x -1..+1 across the site, z 0 (front edge) .. 1 (horizon).
+   With gy = DH*0.34 the projected horizon lands at z = 0.626, so all ground content
+   stays under z 0.62 and therefore below gy. ── */
+/* ══════════ W16 · the tilted site ══════════
+   The launch complex seen from ~30 degrees up. Everything on the ground plane goes
+   through gproj(); nothing is placed in raw screen space except the horizon band
+   (hills / sea), which is beyond the ground plane by definition.
+   All static geometry is baked into one offscreen layer keyed by (DW, DH, gy, theme);
+   only beacons, floodlight glow, windsock, water and the sailboat are live.            */
+
+/* Ground projection (round 6). The site is seen from ~30° up.
+   x: −1 (far left) … +1 (far right) across the site.  z: 0 (front edge, nearest) … 1 (horizon).
+   Returns {sx, sy, k} — screen point and a scale factor for anything standing there. */
+function gproj(DW, DH, gy, x, z) {
+  const t = Math.pow(Math.max(0, Math.min(1, z)), 0.62);   // perspective compression toward the horizon
+  const k = 1 - 0.72 * t;                                   // things shrink to 28% at the horizon
+  const depth = gy + (DH - gy) * (1 - t) * 1.35;            // front edge is below the frame bottom
+  return { sx: DW / 2 + x * (DW * 0.78) * k, sy: gy + (depth - gy) * (1 - t) * 0 + (DH * 0.30) * t * -1 + (depth - gy), k };
+}
+
+/* ── cached static layers (technique copied from w12_layer) ───────────────────── */
+const w16_cache = new Map(), w16_seen = new Map();
+function siteInvalidate() { for (const e of w16_cache.values()) { e.cv.width = 0; e.cv.height = 0; } w16_cache.clear(); w16_seen.clear(); }
+function w16_layer(c, key, lw, lh, paint) {
+  if (!(lw > 0 && lh > 0) || typeof document === 'undefined') return false;
+  let e = w16_cache.get(key);
+  if (!e) {
+    const fam = key.slice(0, key.indexOf('|'));
+    if (w16_seen.get(fam) !== key) { w16_seen.set(fam, key); return false; }   // only cache a geometry that survived a frame
+    let sx = 1, sy = 1;
+    if (c.getTransform) { const m = c.getTransform(); sx = Math.abs(m.a) || 1; sy = Math.abs(m.d) || 1; }
+    const pw = Math.max(1, Math.ceil(lw * sx)), ph = Math.max(1, Math.ceil(lh * sy));
+    if (pw > 8192 || ph > 8192) return false;
+    let cv, k;
+    try { cv = document.createElement('canvas'); cv.width = pw; cv.height = ph; k = cv.getContext('2d'); } catch (err) { return false; }
+    if (!k) return false;
+    k.setTransform(sx, 0, 0, sy, 0, 0);
+    const before = drawCount; paint(k); drawCount = before;
+    e = { cv, sx, sy }; w16_cache.set(key, e);
+    while (w16_cache.size > 6) { const k0 = w16_cache.keys().next().value, e0 = w16_cache.get(k0); e0.cv.width = 0; e0.cv.height = 0; w16_cache.delete(k0); }
+  }
+  c.drawImage(e.cv, 0, 0, lw, lh); drawCount++;
+  return true;
+}
+function w16_theme() { return ART.ground + ART.groundDk + ART.pad + ART.skyLo; }
+function w16_r(i) { return (i * 9301 + 49297) % 233280 / 233280; }
+function w16_gradV(c, y0, y1, a, b) { const g = c.createLinearGradient(0, y0, 0, y1); g.addColorStop(0, a); g.addColorStop(1, b); return g; }
+function w16_gradH(c, x0, x1, a, b) { const g = c.createLinearGradient(x0, 0, x1, 0); g.addColorStop(0, a); g.addColorStop(1, b); return g; }
+function w16_ell(c, cx, cy, rx, ry) { c.moveTo(cx + rx, cy); c.ellipse(cx, cy, rx, ry, 0, 0, 7); }
+
+/* a ground-plane quad, corners (x0,z0)-(x1,z0)-(x1,z1)-(x0,z1) — sub-path only, caller fills */
+function w16_quad(c, P, x0, x1, z0, z1) {
+  const a = P(x0, z0), b = P(x1, z0), d = P(x1, z1), e = P(x0, z1);
+  c.moveTo(a.sx, a.sy); c.lineTo(b.sx, b.sy); c.lineTo(d.sx, d.sy); c.lineTo(e.sx, e.sy); c.closePath();
+}
+
+/* an extruded box standing on the ground plane: roof, the face toward the camera, and the
+   side turned toward frame centre. Reads as a building seen from above and behind. */
+function w16_box(c, P, x0, x1, z0, z1, h, top, front, side) {
+  const a = P(x0, z0), b = P(x1, z0), d = P(x1, z1), e = P(x0, z1);
+  const up = (p) => p.sy - h * p.k;
+  c.fillStyle = 'rgba(0,0,0,.16)';                                       // ground shadow, offset toward the camera
+  c.beginPath(); c.moveTo(a.sx - 3, a.sy + 2); c.lineTo(b.sx + 3, b.sy + 2); c.lineTo(d.sx + 2, d.sy + 1); c.lineTo(e.sx - 2, e.sy + 1); c.fill(); drawCount++;
+  c.fillStyle = front;                                                    // front (low-z) wall
+  c.beginPath(); c.moveTo(a.sx, a.sy); c.lineTo(b.sx, b.sy); c.lineTo(b.sx, up(b)); c.lineTo(a.sx, up(a)); c.fill(); drawCount++;
+  const rightSide = (x0 + x1) / 2 < 0;                                    // buildings left of centre show their right flank
+  c.fillStyle = side; c.beginPath();
+  if (rightSide) { c.moveTo(b.sx, b.sy); c.lineTo(d.sx, d.sy); c.lineTo(d.sx, up(d)); c.lineTo(b.sx, up(b)); }
+  else { c.moveTo(a.sx, a.sy); c.lineTo(e.sx, e.sy); c.lineTo(e.sx, up(e)); c.lineTo(a.sx, up(a)); }
+  c.fill(); drawCount++;
+  c.fillStyle = top; c.beginPath();                                       // roof
+  c.moveTo(a.sx, up(a)); c.lineTo(b.sx, up(b)); c.lineTo(d.sx, up(d)); c.lineTo(e.sx, up(e)); c.fill(); drawCount++;
+  return { a, b, d, e, up };
+}
+
+/* a round tank: shadow, body with a lit side, bright top cap, one hoop */
+function w16_tank(c, p, r, h) {
+  const R = r * p.k, H = h * p.k;
+  c.fillStyle = 'rgba(0,0,0,.16)'; c.beginPath(); c.ellipse(p.sx + 2, p.sy + 1, R * 1.1, R * 0.34, 0, 0, 7); c.fill(); drawCount++;
+  c.fillStyle = w16_gradH(c, p.sx - R, p.sx + R, '#E7ECF1', '#93A0AD');
+  c.beginPath(); c.moveTo(p.sx - R, p.sy); c.lineTo(p.sx - R, p.sy - H); c.lineTo(p.sx + R, p.sy - H); c.lineTo(p.sx + R, p.sy); c.ellipse(p.sx, p.sy, R, R * 0.30, 0, 0, Math.PI); c.fill(); drawCount++;
+  c.fillStyle = '#F5F8FA'; c.beginPath(); c.ellipse(p.sx, p.sy - H, R, R * 0.30, 0, 0, 7); c.fill(); drawCount++;
+  c.strokeStyle = 'rgba(90,105,120,.55)'; c.lineWidth = Math.max(0.6, 1 * p.k); c.beginPath(); c.ellipse(p.sx, p.sy - H * 0.55, R, R * 0.30, 0, 0.15, Math.PI - 0.15); c.stroke(); drawCount++;
+}
+
+/* ── the far farm ─────────────────────────────────────────────────────────────── */
+function w16_farm(c, P, DW, DH, gy) {
+  // horizon band: hills behind, a sliver of sea to the right of the barn
+  c.fillStyle = '#5E8FC4'; c.fillRect(DW * 0.58, gy - 3.5, DW * 0.42, 4); drawCount++;
+  c.fillStyle = '#7FA6C9'; c.beginPath(); c.ellipse(DW * 0.18, gy + 1, DW * 0.30, 12, 0, 0, 7); c.fill(); drawCount++;
+  c.fillStyle = '#6E9668'; c.beginPath(); c.ellipse(DW * 0.10, gy + 3, DW * 0.26, 10, 0, 0, 7); c.ellipse(DW * 0.44, gy + 4, DW * 0.14, 6, 0, 0, 7); c.fill(); drawCount++;
+  c.fillStyle = '#5F875A'; c.beginPath(); c.ellipse(DW * 0.30, gy + 6, DW * 0.20, 7, 0, 0, 7); c.fill(); drawCount++;
+  c.fillStyle = 'rgba(122,150,180,.55)'; c.beginPath();                                  // a far range, hazed by distance
+  c.moveTo(0, gy - 1); c.lineTo(DW * 0.06, gy - 15); c.lineTo(DW * 0.13, gy - 5); c.lineTo(DW * 0.21, gy - 21); c.lineTo(DW * 0.29, gy - 7); c.lineTo(DW * 0.36, gy - 13); c.lineTo(DW * 0.43, gy - 1); c.fill(); drawCount++;
+  c.fillStyle = 'rgba(78,96,116,.40)'; c.beginPath();                                    // a town on the far shore
+  for (let i = 0; i < 11; i++) { const x = DW * (0.63 + i * 0.028), h = 2 + w16_r(i + 31) * 4.5; c.rect(x, gy - 3 - h, DW * 0.016, h + 3); }
+  c.fill(); drawCount++;
+
+  // the fields: each strip its own crop, rows running back to the horizon
+  const crops = ['#679459', '#5B8A52', '#74A055', '#7E9A4C', '#4E7C46', '#86A053', '#63904F'];
+  for (let i = -11; i <= 10; i++) {
+    const r = w16_r(i + 40), zb = 0.472 + w16_r(i + 61) * 0.012;
+    c.fillStyle = crops[Math.floor(r * crops.length) % crops.length];
+    c.beginPath(); w16_quad(c, P, i * 0.15, i * 0.15 + 0.152, zb, 0.617); c.fill(); drawCount++;
+  }
+  c.strokeStyle = 'rgba(38,60,34,.30)'; c.lineWidth = 0.7; c.beginPath();   // drill rows inside each field
+  for (let i = -11; i <= 10; i++) { if (w16_r(i + 40) > 0.55) continue;
+    for (let j = 1; j < 4; j++) { const x = i * 0.15 + j * 0.038, a = P(x, 0.478), b = P(x, 0.612); c.moveTo(a.sx, a.sy); c.lineTo(b.sx, b.sy); } }
+  c.stroke(); drawCount++;
+  c.strokeStyle = 'rgba(30,50,28,.55)'; c.lineWidth = 1.2; c.beginPath();   // hedgerows between the fields
+  for (let i = -11; i <= 11; i += 2) { const a = P(i * 0.15, 0.472), b = P(i * 0.15, 0.617); c.moveTo(a.sx, a.sy); c.lineTo(b.sx, b.sy); }
+  c.stroke(); drawCount++;
+  // the pond, right, with its sky reflection
+  const pd = P(0.60, 0.545);
+  c.fillStyle = '#2E6A9C'; c.beginPath(); c.ellipse(pd.sx, pd.sy, 62 * pd.k, 15 * pd.k, 0, 0, 7); c.fill(); drawCount++;
+  c.fillStyle = w16_gradV(c, pd.sy - 14 * pd.k, pd.sy + 14 * pd.k, ART.skyLo, '#3F87C4');
+  c.beginPath(); c.ellipse(pd.sx, pd.sy, 56 * pd.k, 12 * pd.k, 0, 0, 7); c.fill(); drawCount++;
+
+  // barn, silo, poplars, far left on the horizon
+  const bn = P(-0.72, 0.575), bw = 62 * bn.k, bh = 30 * bn.k;
+  c.fillStyle = 'rgba(0,0,0,.16)'; c.beginPath(); c.ellipse(bn.sx + 4, bn.sy + 1, bw * 0.7, 3.5 * bn.k, 0, 0, 7); c.fill(); drawCount++;
+  c.fillStyle = w16_gradH(c, bn.sx - bw / 2, bn.sx + bw / 2, '#C24E42', '#8F3129'); c.fillRect(bn.sx - bw / 2, bn.sy - bh, bw, bh); drawCount++;
+  c.fillStyle = '#6E2A24'; c.beginPath(); c.moveTo(bn.sx - bw / 2 - 3, bn.sy - bh); c.lineTo(bn.sx - bw * 0.24, bn.sy - bh * 1.6); c.lineTo(bn.sx + bw * 0.20, bn.sy - bh * 1.75); c.lineTo(bn.sx + bw / 2 + 3, bn.sy - bh); c.fill(); drawCount++;
+  c.fillStyle = '#F3F4F6'; c.fillRect(bn.sx - bw * 0.10, bn.sy - bh * 0.66, bw * 0.20, bh * 0.66); c.fillRect(bn.sx - bw * 0.40, bn.sy - bh * 0.82, bw * 0.13, bh * 0.28); drawCount++;
+  const si = P(-0.55, 0.578), sr = 11 * si.k, sh = 46 * si.k;
+  c.fillStyle = w16_gradH(c, si.sx - sr, si.sx + sr, '#DCE3EA', '#93A0AD'); c.fillRect(si.sx - sr, si.sy - sh, sr * 2, sh); c.beginPath(); c.arc(si.sx, si.sy - sh, sr, Math.PI, 0); c.fill(); drawCount++;
+  // poplars + a tree line along the fence
+  const trees = [];
+  for (let i = 0; i < 13; i++) trees.push([lerp(-1.15, 1.15, i / 12) + (w16_r(i) - 0.5) * 0.06, 0.50 + w16_r(i + 5) * 0.02, 12 + w16_r(i + 9) * 7]);
+  c.fillStyle = 'rgba(0,0,0,.15)'; c.beginPath();
+  for (const [x, z, r] of trees) { const p = P(x, z); w16_ell(c, p.sx + 2, p.sy + 1, r * p.k * 0.9, r * p.k * 0.3); } c.fill(); drawCount++;
+  c.strokeStyle = '#6B4A2E'; c.lineWidth = 1.4; c.beginPath();
+  for (const [x, z, r] of trees) { const p = P(x, z); c.moveTo(p.sx, p.sy); c.lineTo(p.sx, p.sy - r * p.k * 0.9); } c.stroke(); drawCount++;
+  c.fillStyle = '#4E7C46'; c.beginPath();
+  for (const [x, z, r] of trees) { const p = P(x, z); w16_ell(c, p.sx, p.sy - r * p.k * 1.35, r * p.k, r * p.k * 0.95); } c.fill(); drawCount++;
+  c.fillStyle = '#5F9A55'; c.beginPath();
+  for (const [x, z, r] of trees) { const p = P(x, z); w16_ell(c, p.sx - r * p.k * 0.22, p.sy - r * p.k * 1.5, r * p.k * 0.66, r * p.k * 0.6); } c.fill(); drawCount++;
+  for (const dx of [-0.80, -0.76]) { const p = P(dx, 0.585); const h = 62 * p.k;
+    c.fillStyle = '#3F6B3C'; c.beginPath(); c.ellipse(p.sx, p.sy - h * 0.5, 5 * p.k, h * 0.5, 0, 0, 7); c.fill(); drawCount++; }
+
+  // perimeter fence along the back of the site
+  c.strokeStyle = 'rgba(215,205,180,.85)'; c.lineWidth = 1; c.beginPath();
+  for (let i = -14; i <= 14; i++) { const p = P(i * 0.085, 0.468); c.moveTo(p.sx, p.sy); c.lineTo(p.sx, p.sy - 11 * p.k); }
+  for (const h of [0.35, 0.72, 1]) {
+    const a = P(-1.19, 0.468), b = P(1.19, 0.468);
+    c.moveTo(a.sx, a.sy - 11 * a.k * h); c.lineTo(b.sx, b.sy - 11 * b.k * h);
+  }
+  c.stroke(); drawCount++;
+}
+
+/* ── roads ────────────────────────────────────────────────────────────────────── */
+function w16_roads(c, P) {
+  c.fillStyle = '#8A8579'; c.beginPath();
+  w16_quad(c, P, -0.15, 0.15, 0.00, 0.335);            // the crawlerway, straight at the camera
+  w16_quad(c, P, -1.25, 1.25, 0.165, 0.225);           // the perimeter road
+  w16_quad(c, P, -0.72, -0.44, 0.225, 0.42);           // spur to the assembly hangar
+  w16_quad(c, P, 0.50, 0.72, 0.225, 0.42);             // spur to the fuel farm
+  c.fill(); drawCount++;
+  c.fillStyle = 'rgba(255,255,255,.30)'; c.beginPath();  // centre dashes, foreshortened
+  for (let z = 0.02; z < 0.33; z += 0.038) { const a = P(-0.012, z), b = P(0.012, z), d = P(0.012, z + 0.018), e = P(-0.012, z + 0.018);
+    c.moveTo(a.sx, a.sy); c.lineTo(b.sx, b.sy); c.lineTo(d.sx, d.sy); c.lineTo(e.sx, e.sy); c.closePath(); }
+  c.fill(); drawCount++;
+}
+
+/* ── the pad ──────────────────────────────────────────────────────────────────── */
+function w16_pad(c, P, DW, gy) {
+  const AP = { x0: -0.38, x1: 0.38, z0: 0.305, z1: 0.475 };
+  const f = P(AP.x0, AP.z0), fr = P(AP.x1, AP.z0), br = P(AP.x1, AP.z1), bl = P(AP.x0, AP.z1);
+  // apron slab, with a thickness lip along the near edge
+  c.fillStyle = '#3A434D'; c.beginPath(); c.moveTo(f.sx, f.sy); c.lineTo(fr.sx, fr.sy); c.lineTo(fr.sx, fr.sy + 9); c.lineTo(f.sx, f.sy + 9); c.fill(); drawCount++;
+  c.fillStyle = w16_gradV(c, br.sy, f.sy, '#7C8792', ART.pad); c.beginPath();
+  c.moveTo(f.sx, f.sy); c.lineTo(fr.sx, fr.sy); c.lineTo(br.sx, br.sy); c.lineTo(bl.sx, bl.sy); c.fill(); drawCount++;
+  // slab joints
+  c.strokeStyle = 'rgba(30,36,44,.28)'; c.lineWidth = 0.9; c.beginPath();
+  for (let i = 1; i < 5; i++) { const x = lerp(AP.x0, AP.x1, i / 5), a = P(x, AP.z0), b = P(x, AP.z1); c.moveTo(a.sx, a.sy); c.lineTo(b.sx, b.sy); }
+  for (let i = 1; i < 3; i++) { const z = lerp(AP.z0, AP.z1, i / 3), a = P(AP.x0, z), b = P(AP.x1, z); c.moveTo(a.sx, a.sy); c.lineTo(b.sx, b.sy); }
+  c.stroke(); drawCount++;
+  // flame trench running toward the camera, with a lit inner wall
+  c.fillStyle = '#8E99A4'; c.beginPath(); w16_quad(c, P, -0.055, 0.055, 0.352, 0.442); c.fill(); drawCount++;   // trench coping
+  c.fillStyle = '#454E58'; c.beginPath(); w16_quad(c, P, -0.038, 0.038, 0.360, 0.434); c.fill(); drawCount++;   // the slot, in shadow
+  c.fillStyle = '#6E7A86'; c.beginPath(); w16_quad(c, P, -0.038, 0.038, 0.360, 0.398); c.fill(); drawCount++;   // the lit deflector ramp
+  c.strokeStyle = 'rgba(20,24,30,.30)'; c.lineWidth = 0.8; c.beginPath();                                       // grating bars
+  for (let i = 0; i <= 6; i++) { const z = lerp(0.360, 0.434, i / 6), a = P(-0.038, z), b = P(0.038, z); c.moveTo(a.sx, a.sy); c.lineTo(b.sx, b.sy); }
+  c.stroke(); drawCount++;
+  // hold-down ring where the rocket stands
+  const R0 = P(0, 0.42);
+  c.fillStyle = '#2A2F36'; c.beginPath(); c.ellipse(R0.sx, R0.sy, 34 * R0.k, 11 * R0.k, 0, 0, 7); c.fill(); drawCount++;
+  c.strokeStyle = '#F2C230'; c.lineWidth = 1.6 * R0.k + 0.4; c.beginPath(); c.ellipse(R0.sx, R0.sy, 44 * R0.k, 14 * R0.k, 0, 0, 7); c.stroke(); drawCount++;
+  // hazard chevrons on the near lip of the apron
+  c.fillStyle = '#F2C230'; c.beginPath();
+  for (let i = 0; i < 9; i++) { const x = lerp(AP.x0 + 0.02, AP.x1 - 0.06, i / 8), a = P(x, 0.312), b = P(x + 0.028, 0.312), d = P(x + 0.028, 0.33), e = P(x, 0.33);
+    if (Math.abs(x) < 0.09) continue; c.moveTo(a.sx, a.sy); c.lineTo(b.sx, b.sy); c.lineTo(d.sx, d.sy); c.lineTo(e.sx, e.sy); c.closePath(); }
+  c.fill(); drawCount++;
+
+  // pad number stencilled on the apron, a deluge tank and cable trays
+  { const n = P(-0.29, 0.335);
+    c.save(); c.fillStyle = 'rgba(255,255,255,.42)'; c.font = '800 ' + (26 * n.k).toFixed(1) + 'px ui-monospace, monospace';
+    c.textAlign = 'center'; c.textBaseline = 'middle'; c.setTransform(c.getTransform());
+    c.translate(n.sx, n.sy); c.scale(1, 0.5); c.fillText('39A', 0, 0); c.restore(); drawCount++; }
+  { const d = P(0.245, 0.455); w16_tank(c, d, 17, 30); }
+  c.strokeStyle = 'rgba(30,36,44,.35)'; c.lineWidth = 1.4; c.beginPath();
+  { const a = P(-0.36, 0.462), b = P(0.36, 0.462); c.moveTo(a.sx, a.sy); c.lineTo(b.sx, b.sy); }
+  c.stroke(); drawCount++;
+  w16_vehicle(c, P(-0.30, 0.315), 46, '#F2C230', '#9A7A18', false);
+  w16_vehicle(c, P(0.32, 0.322), 44, '#4FD9E6', '#2C7F8A', false);
+  // the gantry: a lattice tower left of the rocket, standing on the apron
+  const G = P(-0.175, 0.435), gh = 250 * G.k, gw = 20 * G.k;   /* 250: the height W19's catch tower assumes */
+  c.fillStyle = 'rgba(0,0,0,.18)'; c.beginPath(); c.ellipse(G.sx + 8, G.sy + 2, gw * 1.1, 4 * G.k, 0, 0, 7); c.fill(); drawCount++;
+  c.fillStyle = w16_gradH(c, G.sx - gw / 2, G.sx + gw / 2, '#AEB9C4', '#69757F');
+  c.fillRect(G.sx - gw / 2, G.sy - gh, gw * 0.18, gh); c.fillRect(G.sx + gw / 2 - gw * 0.18, G.sy - gh, gw * 0.18, gh); drawCount++;
+  c.strokeStyle = '#8A949E'; c.lineWidth = 1; c.beginPath();
+  for (let y = G.sy; y > G.sy - gh; y -= gh / 9) { c.moveTo(G.sx - gw / 2, y); c.lineTo(G.sx + gw / 2, y - gh / 9); c.moveTo(G.sx + gw / 2, y); c.lineTo(G.sx - gw / 2, y - gh / 9); c.moveTo(G.sx - gw / 2, y); c.lineTo(G.sx + gw / 2, y); }
+  c.stroke(); drawCount++;
+  c.fillStyle = '#69757F'; c.fillRect(G.sx - gw * 0.8, G.sy - gh - 4 * G.k, gw * 1.6, 4 * G.k); c.fillRect(G.sx - 1.2, G.sy - gh - 20 * G.k, 2.4, 16 * G.k); drawCount++;
+  // swing arm reaching to the rocket
+  c.fillStyle = '#8A949E'; c.beginPath();
+  c.moveTo(G.sx + gw / 2, G.sy - gh * 0.62); c.lineTo(R0.sx - 6 * G.k, G.sy - gh * 0.60); c.lineTo(R0.sx - 6 * G.k, G.sy - gh * 0.60 + 4 * G.k); c.lineTo(G.sx + gw / 2, G.sy - gh * 0.62 + 5 * G.k); c.fill(); drawCount++;
+  // a second, lower umbilical arm
+  c.fillStyle = '#69757F'; c.fillRect(G.sx + gw / 2, G.sy - gh * 0.26, (R0.sx - 10 * G.k) - (G.sx + gw / 2), 3.5 * G.k); drawCount++;
+
+  // the crawler crane, right of the pad
+  const K = P(0.30, 0.455), kh = 150 * K.k;
+  c.fillStyle = 'rgba(0,0,0,.16)'; c.beginPath(); c.ellipse(K.sx, K.sy + 1, 16 * K.k, 4 * K.k, 0, 0, 7); c.fill(); drawCount++;
+  c.fillStyle = '#D9A441'; c.fillRect(K.sx - 9 * K.k, K.sy - 12 * K.k, 18 * K.k, 12 * K.k); drawCount++;
+  c.strokeStyle = '#D9A441'; c.lineWidth = 1.2; c.beginPath();
+  c.moveTo(K.sx - 4 * K.k, K.sy - 10 * K.k); c.lineTo(K.sx - 4 * K.k, K.sy - kh); c.moveTo(K.sx + 4 * K.k, K.sy - 10 * K.k); c.lineTo(K.sx + 4 * K.k, K.sy - kh);
+  for (let y = K.sy - 12 * K.k; y > K.sy - kh; y -= 13 * K.k) { c.moveTo(K.sx - 4 * K.k, y); c.lineTo(K.sx + 4 * K.k, y - 13 * K.k); }
+  const bx = R0.sx + 14 * K.k, by = K.sy - kh, cj = K.sx + 40 * K.k, tip = K.sy - kh - 22 * K.k;   // hammerhead jib
+  c.moveTo(bx, by); c.lineTo(cj, by); c.moveTo(bx, by + 7 * K.k); c.lineTo(cj, by + 7 * K.k);
+  for (let x = bx; x < cj; x += 14 * K.k) { c.moveTo(x, by); c.lineTo(Math.min(cj, x + 14 * K.k), by + 7 * K.k); }
+  c.moveTo(K.sx, tip); c.lineTo(bx, by); c.moveTo(K.sx, tip); c.lineTo(cj, by); c.moveTo(K.sx, tip); c.lineTo(K.sx, by);
+  c.stroke(); drawCount++;
+  c.fillStyle = '#D9A441'; c.fillRect(cj - 14 * K.k, by, 14 * K.k, 8 * K.k); drawCount++;
+  c.strokeStyle = '#2A2F36'; c.lineWidth = 0.9; c.beginPath(); c.moveTo(bx + 22 * K.k, by + 7 * K.k); c.lineTo(bx + 22 * K.k, by + 46 * K.k); c.stroke(); drawCount++;
+  c.fillStyle = '#4A5561'; c.fillRect(bx + 19 * K.k, by + 46 * K.k, 6 * K.k, 6 * K.k); drawCount++;
+
+  // floodlight masts at the four apron corners
+  for (const [x, z] of [[-0.44, 0.31], [0.44, 0.31], [-0.44, 0.47], [0.44, 0.47]]) {
+    const p = P(x, z), h = 78 * p.k;
+    c.fillStyle = '#6B7783'; c.fillRect(p.sx - 1.2 * p.k, p.sy - h, 2.4 * p.k, h); c.fillRect(p.sx - 6 * p.k, p.sy - h - 5 * p.k, 12 * p.k, 5 * p.k); drawCount++;
+  }
+  /* the fuel truck lives in W17's drawLife — it drives in, hooks the hose and leaves. */
+  // flatbed parked left of the apron
+  w16_vehicle(c, P(-0.52, 0.365), 88, '#5F6B78', '#3A434D', false);
+}
+
+/* a truck seen from above-behind: shadow, deck/tank, cab, wheels */
+function w16_vehicle(c, p, len, col, dk, tanker) {
+  const L = len * p.k, H = 15 * p.k;
+  c.fillStyle = 'rgba(0,0,0,.18)'; c.beginPath(); c.ellipse(p.sx, p.sy + 1, L * 0.52, 4 * p.k, 0, 0, 7); c.fill(); drawCount++;
+  c.fillStyle = '#2A2F36'; c.beginPath();
+  for (const d of [-0.34, -0.02, 0.30]) w16_ell(c, p.sx + L * d, p.sy - 2 * p.k, 4.5 * p.k, 4 * p.k); c.fill(); drawCount++;
+  if (tanker) { c.fillStyle = w16_gradV(c, p.sy - H * 1.9, p.sy - H * 0.4, '#F5F8FA', '#9AA6B2');
+    c.beginPath(); c.roundRect(p.sx - L * 0.44, p.sy - H * 1.9, L * 0.72, H * 1.5, H * 0.7); c.fill(); drawCount++; }
+  else { c.fillStyle = dk; c.fillRect(p.sx - L * 0.46, p.sy - H * 0.85, L * 0.76, H * 0.45); drawCount++; }
+  c.fillStyle = w16_gradV(c, p.sy - H * 2.1, p.sy - H * 0.4, col, dk);
+  c.beginPath(); c.roundRect(p.sx + L * 0.28, p.sy - H * 1.95, L * 0.22, H * 1.6, 2 * p.k); c.fill(); drawCount++;
+  c.fillStyle = '#4FD9E6'; c.fillRect(p.sx + L * 0.32, p.sy - H * 1.8, L * 0.15, H * 0.5); drawCount++;
+}
+
+/* ── the grandstand ───────────────────────────────────────────────────────────── */
+function w16_stand(c, P) {
+  const x0 = -0.78, x1 = -0.47, z0 = 0.252, z1 = 0.302, steps = 4;
+  const shirts = ['#E0523A', '#FFC24D', '#4FD9E6', '#8AC46A', '#F3F4F6', '#B36BE0'];
+  const seats = [];
+  const base = P((x0 + x1) / 2, z0);
+  c.fillStyle = 'rgba(0,0,0,.18)'; c.beginPath(); c.ellipse(base.sx, base.sy + 3, (P(x1, z0).sx - P(x0, z0).sx) * 0.55, 6 * base.k, 0, 0, 7); c.fill(); drawCount++;
+  for (let s = 0; s < steps; s++) {
+    const za = lerp(z0, z1, s / steps), zb = lerp(z0, z1, (s + 1) / steps);
+    const a = P(x0, za), b = P(x1, za), d = P(x1, zb), e = P(x0, zb), rise = (s + 1) * 9 * a.k;
+    c.fillStyle = '#5A6470'; c.beginPath();                                        // riser
+    c.moveTo(a.sx, a.sy - (s ? s * 9 * a.k : 0)); c.lineTo(b.sx, b.sy - (s ? s * 9 * b.k : 0));
+    c.lineTo(b.sx, b.sy - rise); c.lineTo(a.sx, a.sy - rise); c.fill(); drawCount++;
+    c.fillStyle = w16_gradH(c, a.sx, b.sx, '#B99560', '#8C6B3E'); c.beginPath();    // plank
+    c.moveTo(a.sx, a.sy - rise); c.lineTo(b.sx, b.sy - rise); c.lineTo(d.sx, d.sy - rise); c.lineTo(e.sx, e.sy - rise); c.fill(); drawCount++;
+    const n = 9;
+    for (let i = 0; i < n; i++) { const t = (i + 0.5) / n, x = lerp(x0 + 0.02, x1 - 0.02, t), p = P(x, (za + zb) / 2);
+      seats.push({ x: p.sx, y: p.sy - rise - 1, k: p.k, col: Math.floor(w16_r(s * 20 + i) * 6), dark: w16_r(s * 20 + i + 7) > 0.5 }); }
+  }
+  shirts.forEach((col, kk) => { c.fillStyle = col; c.beginPath();
+    for (const f of seats) if (f.col === kk) c.roundRect(f.x - 4 * f.k, f.y - 9 * f.k, 8 * f.k, 9 * f.k, 2.5 * f.k); c.fill(); drawCount++; });
+  for (const dark of [false, true]) { c.fillStyle = dark ? '#8D5A3A' : '#F2C9A0'; c.beginPath();
+    for (const f of seats) if (f.dark === dark) w16_ell(c, f.x, f.y - 11.5 * f.k, 3.2 * f.k, 3.2 * f.k); c.fill(); drawCount++; }
+  // front rail + GO! banner
+  const a = P(x0, z0), b = P(x1, z0), mid = P((x0 + x1) / 2, z0 - 0.005);
+  c.fillStyle = '#5A6470'; c.fillRect(a.sx - 2, a.sy - 26 * a.k, 3 * a.k, 26 * a.k); c.fillRect(b.sx - 1, b.sy - 26 * b.k, 3 * b.k, 26 * b.k); drawCount++;
+  const bw = 76 * mid.k;
+  c.fillStyle = '#F3F4F6'; c.beginPath(); c.roundRect(mid.sx - bw / 2, mid.sy - 20 * mid.k, bw, 14 * mid.k, 2); c.fill(); drawCount++;
+  c.fillStyle = '#E0523A'; c.font = '800 ' + (11 * mid.k).toFixed(1) + 'px ui-monospace, monospace'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.fillText('GO!', mid.sx, mid.sy - 12.5 * mid.k); drawCount++;
+}
+
+/* ── the car park ─────────────────────────────────────────────────────────────── */
+function w16_carpark(c, P) {
+  const cols = ['#E0523A', '#4FD9E6', '#F3F4F6', '#FFC24D', '#5F6B78', '#8AC46A'];
+  c.fillStyle = 'rgba(58,67,77,.55)'; c.beginPath(); w16_quad(c, P, 0.46, 0.96, 0.258, 0.330); c.fill(); drawCount++;
+  c.strokeStyle = 'rgba(255,255,255,.25)'; c.lineWidth = 0.8; c.beginPath();
+  for (let i = 0; i <= 8; i++) { const x = lerp(0.48, 0.94, i / 8), a = P(x, 0.266), b = P(x, 0.322); c.moveTo(a.sx, a.sy); c.lineTo(b.sx, b.sy); }
+  c.stroke(); drawCount++;
+  const cars = [];
+  for (let row = 0; row < 2; row++) for (let i = 0; i < 8; i++) {
+    if (w16_r(row * 30 + i + 3) < 0.22) continue;
+    const p = P(lerp(0.495, 0.925, i / 7.4), 0.277 + row * 0.034);
+    cars.push({ p, col: Math.floor(w16_r(row * 13 + i) * 6) });
+  }
+  cols.forEach((col, kk) => { c.fillStyle = col; c.beginPath();
+    for (const cc of cars) if (cc.col === kk) c.roundRect(cc.p.sx - 5.5 * cc.p.k, cc.p.sy - 11 * cc.p.k, 11 * cc.p.k, 15 * cc.p.k, 2.5 * cc.p.k); c.fill(); drawCount++; });
+  c.fillStyle = 'rgba(20,26,34,.45)'; c.beginPath();
+  for (const cc of cars) c.roundRect(cc.p.sx - 4 * cc.p.k, cc.p.sy - 8 * cc.p.k, 8 * cc.p.k, 5 * cc.p.k, 1.2 * cc.p.k); c.fill(); drawCount++;
+}
+
+
+/* ── site furniture: lightning masts, water tower, bunker, container yard, helipad ── */
+function w16_masts(c, P) {
+  for (const x of [-0.36, 0.36]) {
+    const p = P(x, 0.492), h = 250 * p.k;
+    c.strokeStyle = '#9AA6B2'; c.lineWidth = 1.4; c.beginPath();
+    c.moveTo(p.sx, p.sy); c.lineTo(p.sx, p.sy - h);
+    c.moveTo(p.sx - 4 * p.k, p.sy); c.lineTo(p.sx, p.sy - h * 0.55); c.moveTo(p.sx + 4 * p.k, p.sy); c.lineTo(p.sx, p.sy - h * 0.55);
+    c.stroke(); drawCount++;
+    c.fillStyle = '#E0523A'; c.fillRect(p.sx - 1.6, p.sy - h * 0.72, 3.2, 4); drawCount++;
+  }
+  const a = P(-0.36, 0.492), b = P(0.36, 0.492), h = 250;
+  c.strokeStyle = 'rgba(150,162,175,.7)'; c.lineWidth = 0.9; c.beginPath();       // catenary between them
+  c.moveTo(a.sx, a.sy - h * a.k); c.quadraticCurveTo((a.sx + b.sx) / 2, a.sy - h * a.k + 26, b.sx, b.sy - h * b.k); c.stroke(); drawCount++;
+}
+function w16_watertower(c, P) {
+  const p = P(0.86, 0.345), h = 92 * p.k, R = 20 * p.k;
+  c.fillStyle = 'rgba(0,0,0,.16)'; c.beginPath(); c.ellipse(p.sx + 3, p.sy + 1, R * 0.9, 4 * p.k, 0, 0, 7); c.fill(); drawCount++;
+  c.strokeStyle = '#8A949E'; c.lineWidth = 1.4; c.beginPath();
+  for (const d of [-1, 1]) { c.moveTo(p.sx + d * R * 0.7, p.sy); c.lineTo(p.sx + d * R * 0.22, p.sy - h); }
+  c.moveTo(p.sx - R * 0.5, p.sy - h * 0.4); c.lineTo(p.sx + R * 0.5, p.sy - h * 0.4);
+  c.moveTo(p.sx - R * 0.6, p.sy - h * 0.2); c.lineTo(p.sx + R * 0.35, p.sy - h * 0.55);
+  c.moveTo(p.sx + R * 0.6, p.sy - h * 0.2); c.lineTo(p.sx - R * 0.35, p.sy - h * 0.55); c.stroke(); drawCount++;
+  c.fillStyle = w16_gradH(c, p.sx - R, p.sx + R, '#F5F8FA', '#9AA6B2');
+  c.beginPath(); c.ellipse(p.sx, p.sy - h, R, R * 0.62, 0, 0, 7); c.fill(); drawCount++;
+  c.fillStyle = '#E0523A'; c.beginPath(); c.ellipse(p.sx, p.sy - h - R * 0.36, R * 0.62, R * 0.22, 0, 0, 7); c.fill(); drawCount++;
+}
+function w16_bunker(c, P) {
+  const p = P(0.70, 0.208), w = 66 * p.k, h = 26 * p.k;
+  c.fillStyle = 'rgba(0,0,0,.16)'; c.beginPath(); c.ellipse(p.sx + 3, p.sy + 2, w * 0.62, 5 * p.k, 0, 0, 7); c.fill(); drawCount++;
+  c.fillStyle = w16_gradV(c, p.sy - h, p.sy, '#B7C2CC', '#7C8792'); c.fillRect(p.sx - w / 2, p.sy - h, w, h); drawCount++;
+  c.fillStyle = '#C9D3DC'; c.beginPath(); c.ellipse(p.sx, p.sy - h, w / 2, w * 0.14, 0, 0, 7); c.fill(); drawCount++;
+  c.fillStyle = '#2A3A4A'; c.fillRect(p.sx - w * 0.32, p.sy - h * 0.72, w * 0.64, h * 0.30); drawCount++;         // window band
+  c.strokeStyle = '#8A949E'; c.lineWidth = 1.2; c.beginPath();                                                     // antenna
+  c.moveTo(p.sx + w * 0.36, p.sy - h); c.lineTo(p.sx + w * 0.36, p.sy - h - 34 * p.k); c.stroke(); drawCount++;
+  c.fillStyle = '#DCE3EA'; c.beginPath(); c.arc(p.sx + w * 0.36, p.sy - h - 34 * p.k, 6 * p.k, Math.PI * 0.15, Math.PI * 1.15); c.fill(); drawCount++;
+}
+function w16_antennas(c, P) {
+  c.fillStyle = 'rgba(58,67,77,.30)'; c.beginPath(); w16_quad(c, P, 0.12, 0.40, 0.198, 0.252); c.fill(); drawCount++;
+  for (const [x, z, r] of [[0.20, 0.240, 22], [0.33, 0.226, 18], [0.16, 0.208, 15]]) {
+    const p = P(x, z), h = 34 * p.k, R = r * p.k;
+    c.strokeStyle = '#8A949E'; c.lineWidth = 1.2; c.beginPath(); c.moveTo(p.sx, p.sy); c.lineTo(p.sx, p.sy - h); c.stroke(); drawCount++;
+    c.fillStyle = '#DCE3EA'; c.beginPath(); c.ellipse(p.sx, p.sy - h - R * 0.4, R, R * 0.75, -0.5, 0, 7); c.fill(); drawCount++;
+    c.fillStyle = 'rgba(120,132,146,.5)'; c.beginPath(); c.ellipse(p.sx + R * 0.25, p.sy - h - R * 0.4, R * 0.55, R * 0.5, -0.5, 0, 7); c.fill(); drawCount++;
+  }
+  w16_box(c, P, 0.44, 0.58, 0.242, 0.268, 24, '#C24E42', '#C3CDD6', '#93A0AD');
+  w16_box(c, P, -0.42, -0.28, 0.238, 0.264, 22, '#5F6B78', '#C3CDD6', '#93A0AD');
+}
+function w16_yard(c, P) {
+  const cols = ['#C25A3A', '#3F7FA8', '#8AC46A', '#D9A441', '#5F6B78', '#B3564E'];
+  const boxes = [];
+  for (let row = 0; row < 3; row++) for (let i = 0; i < 5; i++) {
+    if (w16_r(row * 17 + i + 2) < 0.18) continue;
+    boxes.push({ x: -0.56 + i * 0.085, z: 0.126 + row * 0.028, st: w16_r(row * 7 + i) > 0.62 ? 2 : 1, col: Math.floor(w16_r(row * 11 + i + 5) * 6) });
+  }
+  c.fillStyle = 'rgba(58,67,77,.35)'; c.beginPath(); w16_quad(c, P, -0.60, -0.16, 0.112, 0.200); c.fill(); drawCount++;
+  boxes.sort((a, b) => b.z - a.z);
+  for (const b of boxes) {
+    const p = P(b.x, b.z), w = 42 * p.k, h = 17 * p.k * b.st, d = 12 * p.k;
+    c.fillStyle = 'rgba(0,0,0,.18)'; c.fillRect(p.sx - w / 2 + 3, p.sy - 2, w, 4); drawCount++;
+    c.fillStyle = cols[b.col]; c.fillRect(p.sx - w / 2, p.sy - h, w, h); drawCount++;
+    c.fillStyle = 'rgba(255,255,255,.22)'; c.fillRect(p.sx - w / 2, p.sy - h, w, h * 0.16); drawCount++;
+    c.fillStyle = 'rgba(255,255,255,.30)'; c.beginPath(); c.moveTo(p.sx - w / 2, p.sy - h); c.lineTo(p.sx - w / 2 + d, p.sy - h - d * 0.55); c.lineTo(p.sx + w / 2 + d, p.sy - h - d * 0.55); c.lineTo(p.sx + w / 2, p.sy - h); c.fill(); drawCount++;
+    c.strokeStyle = 'rgba(0,0,0,.22)'; c.lineWidth = 0.7; c.beginPath();
+    for (let q = 1; q < 6; q++) { const xx = p.sx - w / 2 + w * q / 6; c.moveTo(xx, p.sy - h); c.lineTo(xx, p.sy); } c.stroke(); drawCount++;
+  }
+}
+function w16_helipad(c, P) {
+  const p = P(0.46, 0.130);
+  c.fillStyle = 'rgba(58,67,77,.45)'; c.beginPath(); c.ellipse(p.sx, p.sy, 60 * p.k, 22 * p.k, 0, 0, 7); c.fill(); drawCount++;
+  c.strokeStyle = 'rgba(255,255,255,.6)'; c.lineWidth = 2 * p.k; c.beginPath(); c.ellipse(p.sx, p.sy, 46 * p.k, 17 * p.k, 0, 0, 7); c.stroke(); drawCount++;
+  c.fillStyle = 'rgba(255,255,255,.75)';
+  c.fillRect(p.sx - 16 * p.k, p.sy - 9 * p.k, 6 * p.k, 18 * p.k); c.fillRect(p.sx + 10 * p.k, p.sy - 9 * p.k, 6 * p.k, 18 * p.k); c.fillRect(p.sx - 12 * p.k, p.sy - 3 * p.k, 24 * p.k, 6 * p.k); drawCount++;
+  // two site trailers parked beside it
+  for (const [x, z] of [[0.74, 0.150], [0.84, 0.118]]) {
+    const q = P(x, z), w = 54 * q.k, h = 20 * q.k;
+    c.fillStyle = 'rgba(0,0,0,.18)'; c.fillRect(q.sx - w / 2 + 3, q.sy - 2, w, 4); drawCount++;
+    c.fillStyle = w16_gradV(c, q.sy - h, q.sy, '#F3F4F6', '#B9C4CF'); c.fillRect(q.sx - w / 2, q.sy - h, w, h); drawCount++;
+    c.fillStyle = '#4A5561'; c.fillRect(q.sx - w * 0.3, q.sy - h * 0.7, w * 0.18, h * 0.5); c.fillRect(q.sx + w * 0.1, q.sy - h * 0.7, w * 0.18, h * 0.5); drawCount++;
+  }
+}
+
+/* ── everything static, in one pass, back to front ───────────────────────────── */
+function w16_static(c, DW, DH, gy) {
+  const P = (x, z) => gproj(DW, DH, gy, x, z);
+  // the ground plane: bright near the horizon, deep at the front edge
+  const gg = c.createLinearGradient(0, gy, 0, DH);
+  gg.addColorStop(0, '#6E9C60'); gg.addColorStop(0.28, '#5B8A52'); gg.addColorStop(0.62, ART.ground); gg.addColorStop(1, '#375632');
+  c.fillStyle = gg; c.fillRect(0, gy, DW, DH - gy); drawCount++;
+
+  w16_farm(c, P, DW, DH, gy);
+
+  // the vehicle assembly hangar, left, with a roof rib and a tall door
+  const hg = w16_box(c, P, -1.00, -0.46, 0.378, 0.462, 82, '#8D99A6', '#B0BBC6', '#6B7783');
+  { const a = hg.a, b = hg.b, up = hg.up;
+    c.fillStyle = '#5A6470'; c.fillRect(lerp(a.sx, b.sx, 0.30), lerp(up(a), a.sy, 0.32), (b.sx - a.sx) * 0.34, a.sy - lerp(up(a), a.sy, 0.32)); drawCount++;
+    c.fillStyle = '#E0523A'; c.fillRect(lerp(a.sx, b.sx, 0.08), up(a) + 9, (b.sx - a.sx) * 0.16, 5); drawCount++;
+    c.strokeStyle = 'rgba(60,72,84,.45)'; c.lineWidth = 0.8; c.beginPath();
+    for (let i = 1; i < 7; i++) { const x = lerp(a.sx, b.sx, i / 7); c.moveTo(x, a.sy); c.lineTo(x, up(a)); } c.stroke(); drawCount++; }
+  // a low workshop beside it
+  w16_box(c, P, -0.42, -0.24, 0.40, 0.45, 30, '#7C8792', '#C3CDD6', '#9AA6B2');
+
+  // the fuel farm, right: four tanks, a pipe rack and a bund wall
+  c.fillStyle = 'rgba(58,67,77,.35)'; c.beginPath(); w16_quad(c, P, 0.60, 1.02, 0.395, 0.468); c.fill(); drawCount++;
+  for (const [x, z, r] of [[0.68, 0.455, 20], [0.86, 0.455, 20], [0.72, 0.415, 24], [0.94, 0.415, 24]]) w16_tank(c, P(x, z), r, 40);
+  c.strokeStyle = '#93A0AD'; c.lineWidth = 1.4; c.beginPath();
+  { const a = P(0.62, 0.40), b = P(0.98, 0.40); c.moveTo(a.sx, a.sy - 10 * a.k); c.lineTo(b.sx, b.sy - 10 * b.k);
+    for (let i = 0; i <= 5; i++) { const p = P(lerp(0.62, 0.98, i / 5), 0.40); c.moveTo(p.sx, p.sy); c.lineTo(p.sx, p.sy - 12 * p.k); } }
+  c.stroke(); drawCount++;
+
+  w16_watertower(c, P);
+  // mown stripes across the near lawn — the cheapest strong perspective cue there is
+  c.fillStyle = 'rgba(255,255,255,.040)'; c.beginPath();
+  for (let i = -13; i <= 12; i += 2) w16_quad(c, P, i * 0.115, i * 0.115 + 0.115, 0.005, 0.462);
+  c.fill(); drawCount++;
+  // a drainage creek running across the front, with a culvert under the crawlerway
+  c.fillStyle = '#3C6F9B'; c.beginPath();
+  w16_quad(c, P, -1.3, -0.16, 0.088, 0.104); w16_quad(c, P, 0.16, 1.3, 0.088, 0.104); c.fill(); drawCount++;
+  c.fillStyle = 'rgba(255,255,255,.22)'; c.beginPath();
+  w16_quad(c, P, -1.3, -0.16, 0.092, 0.097); w16_quad(c, P, 0.16, 1.3, 0.092, 0.097); c.fill(); drawCount++;
+  c.fillStyle = '#6E7A86'; c.beginPath(); w16_quad(c, P, -0.19, 0.19, 0.084, 0.108); c.fill(); drawCount++;
+  w16_roads(c, P);
+  w16_carpark(c, P);
+  c.strokeStyle = '#7A6248'; c.lineWidth = 1.3; c.beginPath();
+  for (let i = 0; i < 7; i++) { const x = -0.86 + i * 0.29, q = P(x, 0.196), h = 44 * q.k;
+    c.moveTo(q.sx, q.sy); c.lineTo(q.sx, q.sy - h); c.moveTo(q.sx - 7 * q.k, q.sy - h * 0.86); c.lineTo(q.sx + 7 * q.k, q.sy - h * 0.86); }
+  c.stroke(); drawCount++;
+  c.strokeStyle = 'rgba(60,66,74,.45)'; c.lineWidth = 0.7; c.beginPath();
+  for (let i = 0; i < 6; i++) { const a = P(-0.86 + i * 0.29, 0.196), b = P(-0.86 + (i + 1) * 0.29, 0.196);
+    c.moveTo(a.sx, a.sy - 44 * a.k * 0.86); c.quadraticCurveTo((a.sx + b.sx) / 2, a.sy - 44 * a.k * 0.70, b.sx, b.sy - 44 * b.k * 0.86); }
+  c.stroke(); drawCount++;
+  w16_masts(c, P);
+  w16_pad(c, P, DW, gy);
+  w16_bunker(c, P);
+  w16_antennas(c, P);
+  w16_stand(c, P);
+  w16_yard(c, P);
+  w16_helipad(c, P);
+
+  // three flagpoles on the near verge, left of the crawlerway (W17 ripples its own)
+  for (const x of [-0.26, -0.21, -0.16]) {
+    const p = P(x, 0.145), h = 46 * p.k;
+    c.strokeStyle = '#DDE3EA'; c.lineWidth = 1.2; c.beginPath(); c.moveTo(p.sx, p.sy); c.lineTo(p.sx, p.sy - h); c.stroke(); drawCount++;
+  }
+  // foreground hedge band along the very front — the depth cue that frames the shot
+  c.fillStyle = '#274520'; c.beginPath();
+  for (let i = -18; i <= 18; i++) { const p = P(i * 0.075, 0.012); w16_ell(c, p.sx, p.sy + 10, 30 * p.k, 12 * p.k); }
+  c.fill(); drawCount++;
+  c.fillStyle = '#33591F'; c.beginPath();
+  for (let i = -18; i <= 18; i++) { const p = P(i * 0.075 + 0.035, 0.016); w16_ell(c, p.sx, p.sy + 4, 22 * p.k, 8 * p.k); }
+  c.fill(); drawCount++;
+}
+
+/* ── the live frame ───────────────────────────────────────────────────────────── */
+function drawSite(c, DW, DH, gy, now, km) {
+  if (DW <= 0 || DH <= 0 || gy > DH) return;
+  const P = (x, z) => gproj(DW, DH, gy, x, z);
+  const kk = clamp((km || 0) / 1.5, 0, 1), slide = kk * 34;
+  c.save();
+  if (slide) c.translate(0, slide);
+  const key = 'site|' + Math.round(DW) + '|' + Math.round(DH) + '|' + Math.round(gy) + '|' + w16_theme();
+  if (!w16_layer(c, key, DW, DH, k2 => w16_static(k2, DW, DH, gy))) w16_static(c, DW, DH, gy);
+
+  // live: sea glint and a sailboat on the horizon sliver
+  const gl = Math.sin(now / 900) * 6;
+  c.fillStyle = 'rgba(255,255,255,.55)'; c.fillRect(DW * 0.72 + gl, gy - 2.4, 12, 0.9); c.fillRect(DW * 0.90 - gl, gy - 1.2, 8, 0.9); drawCount++;
+  { const bx = DW * 0.80 + Math.sin(now / 4000) * 16, by = gy - 1.5;
+    c.fillStyle = '#F3F4F6'; c.beginPath(); c.moveTo(bx, by - 6); c.lineTo(bx + 3, by - 1); c.lineTo(bx, by - 1); c.fill(); drawCount++; }
+  // live: pond ripple
+  const pd = P(0.60, 0.545), wob = Math.sin(now / 700) * 3;
+  c.fillStyle = 'rgba(255,255,255,.34)'; c.beginPath();
+  c.ellipse(pd.sx - 14 * pd.k + wob, pd.sy - 3 * pd.k, 20 * pd.k, 1.6 * pd.k, 0, 0, 7);
+  c.ellipse(pd.sx + 16 * pd.k - wob, pd.sy + 4 * pd.k, 14 * pd.k, 1.3 * pd.k, 0, 0, 7); c.fill(); drawCount++;
+  // live: floodlight glow at the four masts
+  for (const [x, z] of [[-0.44, 0.31], [0.44, 0.31], [-0.44, 0.47], [0.44, 0.47]]) {
+    const p = P(x, z), y = p.sy - 78 * p.k, r = 22 * p.k;
+    const lg = c.createRadialGradient(p.sx, y, 1, p.sx, y, r);
+    lg.addColorStop(0, 'rgba(255,244,194,.5)'); lg.addColorStop(1, 'rgba(255,244,194,0)');
+    c.fillStyle = lg; c.beginPath(); c.arc(p.sx, y, r, 0, 7); c.fill(); drawCount++;
+  }
+  // live: beacons on the gantry and the crane
+  const G = P(-0.175, 0.435), K = P(0.30, 0.455);
+  c.fillStyle = Math.sin(now / 350) > 0.2 ? '#FF4D4D' : '#7A2E28';
+  c.beginPath(); c.arc(G.sx, G.sy - 250 * G.k - 22 * G.k, 2.2, 0, 7); c.fill(); drawCount++;
+  c.fillStyle = Math.sin(now / 500) > 0 ? '#FF4D4D' : '#7A2E28';
+  c.beginPath(); c.arc(K.sx, K.sy - 150 * K.k - 11 * K.k, 2, 0, 7); c.fill(); drawCount++;
+  // live: the windsock on the gantry mast
+  { const wf = Math.sin(now / 300) * 0.13, s = Math.max(0.55, G.k);
+    c.save(); c.translate(G.sx + 2, G.sy - 250 * G.k - 14 * G.k); c.rotate(wf); c.scale(s, s);
+    c.fillStyle = '#FF8A3D'; c.beginPath(); c.moveTo(0, -1); c.lineTo(17, 1.5); c.lineTo(17, 5); c.lineTo(0, 5.5); c.fill();
+    c.fillStyle = '#F3F4F6'; c.fillRect(5, 0.2, 4, 4.6); c.restore(); drawCount += 2; }
+  // live: American flags on the three poles
+  for (let i = 0; i < 3; i++) {
+    const p = P([-0.26, -0.21, -0.16][i], 0.145), h = 46 * p.k, w = 18 * p.k, hh = 11 * p.k;
+    const wv = Math.sin(now / 260 + i * 1.3) * 0.8 * p.k;
+    c.fillStyle = '#E0523A'; c.beginPath(); c.moveTo(p.sx, p.sy - h); c.quadraticCurveTo(p.sx + w * 0.5, p.sy - h - 1.5 + wv, p.sx + w, p.sy - h + wv);
+    c.lineTo(p.sx + w, p.sy - h + hh + wv); c.quadraticCurveTo(p.sx + w * 0.5, p.sy - h + hh - 1.5 + wv, p.sx, p.sy - h + hh); c.fill(); drawCount++;
+    c.fillStyle = '#2F4E8F'; c.fillRect(p.sx, p.sy - h, w * 0.42, hh * 0.55); drawCount++;
+  }
+  c.restore();
+}
+
+/* ── W17 · pad life (A5): nine small events on their own clocks ── */
+/* ─────────────────────────────────────────────────────────────────────────
+   W17 · the little city — small events on their own clocks, all on gproj.
+   drawLife(c, DW, DH, gy, now, seed, phase)   phase: 'ready'|'turnaround'|'flight'
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* gproj is defined once, in the W16 section above. */
+
+/* ── private helpers ──────────────────────────────────────────────────── */
+var W17_ZMAX = 0.55;                    // deepest z that still lands below gy
+function w17_rnd(i) { return ((i * 9301 + 49297) % 233280) / 233280; }
+function w17_cyc(now, period, off) { var p = ((now / 1000) / period + (off || 0)) % 1; return p < 0 ? p + 1 : p; }
+function w17_seg(p, a, b) { return Math.max(0, Math.min(1, (p - a) / (b - a))); }
+function w17_ease(t) { return t * t * (3 - 2 * t); }
+
+/* a little person, feet at (sx, sy), ~16*k tall.
+   o = { shirt, hat, walk (radians, 0 = standing), arm: 'swing'|'up'|'watch'|'wave'|'carry', flip } */
+function w17_person(c, sx, sy, k, o) {
+  o = o || {};
+  var h = 23 * k, w = 7.4 * k, lw = Math.max(1, 2.9 * k);
+  var shirt = o.shirt || '#D8563E', hipY = -h * 0.42, shoY = -h * 0.70;
+  c.save();
+  c.translate(sx, sy);
+  c.lineCap = 'round';
+  c.lineWidth = lw;
+  /* legs */
+  var s = Math.sin(o.walk || 0) * (o.walk ? 0.9 : 0.25);
+  c.strokeStyle = '#33405A';
+  c.beginPath();
+  c.moveTo(0, hipY); c.lineTo(s * w, 0);
+  c.moveTo(0, hipY); c.lineTo(-s * w, 0);
+  c.stroke(); drawCount++;
+  /* arms */
+  c.strokeStyle = shirt;
+  c.beginPath();
+  if (o.arm === 'up') { c.moveTo(0, shoY); c.lineTo(w * 0.85, shoY - h * 0.42); c.moveTo(0, shoY); c.lineTo(-w * 0.6, shoY - h * 0.30); }
+  else if (o.arm === 'watch') { c.moveTo(0, shoY); c.lineTo(w * 0.75, shoY - h * 0.16); c.moveTo(0, shoY); c.lineTo(-w * 0.7, hipY); }
+  else if (o.arm === 'wave') { c.moveTo(0, shoY); c.lineTo(w * (0.7 + 0.35 * Math.sin(o.walk || 0)), shoY - h * 0.45); c.moveTo(0, shoY); c.lineTo(-w * 0.7, hipY); }
+  else if (o.arm === 'carry') { c.moveTo(0, shoY); c.lineTo(w * 0.5, shoY - h * 0.22); c.moveTo(0, shoY); c.lineTo(-w * 0.5, shoY - h * 0.22); }
+  else { c.moveTo(0, shoY); c.lineTo(-s * w * 0.9, hipY + h * 0.06); c.moveTo(0, shoY); c.lineTo(s * w * 0.9, hipY + h * 0.06); }
+  c.stroke(); drawCount++;
+  /* torso */
+  c.fillStyle = shirt;
+  c.beginPath();
+  c.moveTo(-w * 0.52, shoY - h * 0.03); c.lineTo(w * 0.52, shoY - h * 0.03);
+  c.lineTo(w * 0.42, hipY); c.lineTo(-w * 0.42, hipY); c.closePath();
+  c.fill(); drawCount++;
+  /* head */
+  var hr = h * 0.15;
+  c.fillStyle = '#F0C89A';
+  c.beginPath(); c.arc(0, shoY - hr * 1.15, hr, 0, 6.2832); c.fill(); drawCount++;
+  if (o.hat) {
+    c.fillStyle = o.hat;
+    c.beginPath();
+    c.arc(0, shoY - hr * 1.35, hr * 1.05, Math.PI, 0);
+    c.lineTo(hr * 1.5, shoY - hr * 1.15); c.lineTo(-hr * 1.5, shoY - hr * 1.15);
+    c.closePath(); c.fill(); drawCount++;
+  }
+  c.restore();
+}
+
+/* a sheep, standing (or tucked under an arm when carried) */
+function w17_sheep(c, sx, sy, k, bob) {
+  var w = 21 * k, h = 13 * k;
+  c.save(); c.translate(sx, sy);
+  c.strokeStyle = '#3A3F4A'; c.lineWidth = Math.max(1, 2.2 * k); c.lineCap = 'round';
+  c.beginPath();
+  c.moveTo(-w * 0.26, -h * 0.62); c.lineTo(-w * 0.30, 0);
+  c.moveTo(w * 0.18, -h * 0.62); c.lineTo(w * 0.22, 0);
+  c.stroke(); drawCount++;
+  c.fillStyle = '#F2F1EC';                       /* fleece: three lobes, not a cloud */
+  c.beginPath();
+  c.ellipse(-w * 0.06, -h * 0.95, w * 0.46, h * 0.52, 0, 0, 6.2832);
+  c.ellipse(-w * 0.34, -h * 1.10, w * 0.20, h * 0.28, 0, 0, 6.2832);
+  c.ellipse(w * 0.20, -h * 1.12, w * 0.20, h * 0.28, 0, 0, 6.2832);
+  c.fill();
+  c.strokeStyle = 'rgba(58,63,74,.55)'; c.lineWidth = Math.max(0.7, 1.1 * k); c.stroke(); drawCount++;
+  var hy = -h * 0.92 + (bob || 0) * h * 0.45;    /* head clears the body to the right */
+  c.fillStyle = '#3A3F4A';
+  c.beginPath();
+  c.ellipse(w * 0.50, hy, w * 0.20, h * 0.26, 0.35, 0, 6.2832);
+  c.ellipse(w * 0.36, hy - h * 0.26, w * 0.10, h * 0.14, -0.6, 0, 6.2832);   /* ear */
+  c.fill(); drawCount++;
+  c.restore();
+}
+
+/* rippling flag on a pole; sy is the pole foot */
+function w17_flag(c, sx, sy, k, now, off) {
+  var ph = 46 * k, fw = 21 * k, fh = 13 * k;
+  c.save(); c.translate(sx, sy);
+  var wv = function (u) { return Math.sin(u * 5.5 + now / 150 + off * 3) * fh * 0.22 * u; };
+  c.fillStyle = '#C4392C';
+  c.beginPath();
+  c.moveTo(0, -ph);
+  for (var i = 0; i <= 6; i++) { var u = i / 6; c.lineTo(fw * u, -ph + wv(u)); }
+  for (var j = 6; j >= 0; j--) { var v = j / 6; c.lineTo(fw * v, -ph + fh + wv(v)); }
+  c.closePath(); c.fill(); drawCount++;
+  c.strokeStyle = '#F6F3EE'; c.lineWidth = Math.max(0.7, fh * 0.13);
+  c.beginPath();
+  for (var s = 0; s < 2; s++) {
+    var yy = -ph + fh * (0.33 + 0.34 * s);
+    c.moveTo(0, yy + wv(0));
+    for (var q = 1; q <= 6; q++) { var uu = q / 6; c.lineTo(fw * uu, yy + wv(uu)); }
+  }
+  c.stroke(); drawCount++;
+  c.fillStyle = '#2E4C86';
+  c.beginPath();
+  c.moveTo(0, -ph); c.lineTo(fw * 0.42, -ph + wv(0.42));
+  c.lineTo(fw * 0.42, -ph + fh * 0.55 + wv(0.42)); c.lineTo(0, -ph + fh * 0.55);
+  c.closePath(); c.fill(); drawCount++;
+  c.restore();
+}
+
+/* windsock on a mast */
+function w17_windsock(c, sx, sy, k, now) {
+  var mh = 40 * k, sw = 24 * k, sh = 10 * k;
+  var sway = Math.sin(now / 700) * 0.16 + 0.10;
+  c.save(); c.translate(sx, sy - mh);
+  c.strokeStyle = '#B9C4CF'; c.lineWidth = Math.max(0.9, 1.5 * k);
+  c.beginPath(); c.moveTo(0, 0); c.lineTo(0, mh); c.stroke(); drawCount++;
+  c.rotate(sway);
+  for (var i = 0; i < 3; i++) {
+    var a = i / 3, b = (i + 1) / 3;
+    c.fillStyle = i % 2 ? '#F6F3EE' : '#E0523A';
+    c.beginPath();
+    c.moveTo(sw * a, -sh * 0.5 * (1 - a * 0.45));
+    c.lineTo(sw * b, -sh * 0.5 * (1 - b * 0.45));
+    c.lineTo(sw * b, sh * 0.5 * (1 - b * 0.45));
+    c.lineTo(sw * a, sh * 0.5 * (1 - a * 0.45));
+    c.closePath(); c.fill(); drawCount++;
+  }
+  c.restore();
+}
+
+/* tractor towing a plough; dir −1 faces left */
+function w17_tractor(c, sx, sy, k, dir, now) {
+  var u = 18 * k;
+  c.save(); c.translate(sx, sy); c.scale(dir, 1);
+  c.fillStyle = 'rgba(0,0,0,.18)';
+  c.beginPath(); c.ellipse(0, 0, u * 1.5, u * 0.22, 0, 0, 6.2832); c.fill(); drawCount++;
+  /* plough behind */
+  c.strokeStyle = '#6B7480'; c.lineWidth = Math.max(0.9, 1.8 * k);
+  c.beginPath(); c.moveTo(-u * 0.9, -u * 0.35); c.lineTo(-u * 1.7, -u * 0.28); c.lineTo(-u * 1.7, -u * 0.02); c.stroke(); drawCount++;
+  /* body */
+  c.fillStyle = '#3F8F45';
+  c.beginPath();
+  c.moveTo(-u * 0.95, -u * 0.30); c.lineTo(u * 0.95, -u * 0.30);
+  c.lineTo(u * 0.95, -u * 0.72); c.lineTo(u * 0.05, -u * 0.72);
+  c.lineTo(u * 0.05, -u * 0.55); c.lineTo(-u * 0.95, -u * 0.55);
+  c.closePath(); c.fill(); drawCount++;
+  /* cab */
+  c.fillStyle = '#2F6E35';
+  c.fillRect(-u * 0.80, -u * 1.35, u * 0.72, u * 0.72); drawCount++;
+  c.fillStyle = '#9FD3F5';
+  c.fillRect(-u * 0.70, -u * 1.26, u * 0.52, u * 0.42); drawCount++;
+  /* wheels */
+  c.fillStyle = '#2B2F38';
+  c.beginPath();
+  c.arc(-u * 0.62, -u * 0.28, u * 0.46, 0, 6.2832);
+  c.arc(u * 0.72, -u * 0.20, u * 0.28, 0, 6.2832);
+  c.fill(); drawCount++;
+  /* exhaust puff */
+  var pf = (now / 260) % 1;
+  c.fillStyle = 'rgba(220,220,215,' + (0.5 * (1 - pf)).toFixed(3) + ')';
+  c.beginPath(); c.arc(u * 0.30, -u * (1.5 + pf * 1.1), u * (0.16 + pf * 0.22), 0, 6.2832); c.fill(); drawCount++;
+  c.restore();
+}
+
+/* fuel bowser: cab + drum + wheels */
+function w17_truck(c, sx, sy, k, dir) {
+  var u = 16 * k;
+  c.save(); c.translate(sx, sy); c.scale(dir, 1);
+  c.fillStyle = '#C9CFD6';
+  c.beginPath(); c.ellipse(-u * 0.35, -u * 0.85, u * 1.15, u * 0.52, 0, 0, 6.2832); c.fill(); drawCount++;
+  c.fillStyle = '#E0523A';
+  c.beginPath();
+  c.moveTo(u * 0.85, -u * 0.22); c.lineTo(u * 1.75, -u * 0.22);
+  c.lineTo(u * 1.75, -u * 0.95); c.lineTo(u * 1.35, -u * 1.30);
+  c.lineTo(u * 0.85, -u * 1.30); c.closePath(); c.fill(); drawCount++;
+  c.fillStyle = '#9FD3F5';
+  c.fillRect(u * 1.22, -u * 1.18, u * 0.42, u * 0.36); drawCount++;
+  c.fillStyle = '#2B2F38';
+  c.beginPath();
+  c.arc(-u * 0.95, -u * 0.20, u * 0.30, 0, 6.2832);
+  c.arc(u * 0.20, -u * 0.20, u * 0.30, 0, 6.2832);
+  c.arc(u * 1.42, -u * 0.20, u * 0.30, 0, 6.2832);
+  c.fill(); drawCount++;
+  c.restore();
+}
+
+/* golf cart */
+function w17_cart(c, sx, sy, k, dir) {
+  var u = 13 * k;
+  c.save(); c.translate(sx, sy); c.scale(dir, 1);
+  c.fillStyle = '#F6F3EE';
+  c.fillRect(-u * 1.0, -u * 0.95, u * 2.0, u * 0.55); drawCount++;
+  c.strokeStyle = '#F6F3EE'; c.lineWidth = Math.max(0.8, 1.4 * k);
+  c.beginPath();
+  c.moveTo(-u * 0.85, -u * 0.95); c.lineTo(-u * 0.85, -u * 1.85); c.lineTo(u * 0.85, -u * 1.85); c.lineTo(u * 0.85, -u * 0.95);
+  c.stroke(); drawCount++;
+  c.fillStyle = '#4FD9E6';
+  c.beginPath(); c.arc(u * 0.05, -u * 1.25, u * 0.34, 0, 6.2832); c.fill(); drawCount++;
+  c.fillStyle = '#2B2F38';
+  c.beginPath();
+  c.arc(-u * 0.65, -u * 0.22, u * 0.30, 0, 6.2832);
+  c.arc(u * 0.72, -u * 0.22, u * 0.30, 0, 6.2832);
+  c.fill(); drawCount++;
+  c.restore();
+}
+
+/* fighter jet crossing high, with a vapour trail. dir −1 = flying left */
+function w17_jet(c, sx, sy, s, dir, fade) {
+  c.save(); c.translate(sx, sy); c.scale(dir * s, s);
+  /* trail */
+  var g = c.createLinearGradient(-170, 0, 0, 0);
+  g.addColorStop(0, 'rgba(255,255,255,0)');
+  g.addColorStop(1, 'rgba(255,255,255,' + (0.72 * fade).toFixed(3) + ')');
+  c.strokeStyle = g; c.lineWidth = 3.4; c.lineCap = 'round';
+  c.beginPath(); c.moveTo(-170, 2.5); c.lineTo(-9, 1.6); c.moveTo(-150, -2.5); c.lineTo(-9, -1.6); c.stroke(); drawCount++;
+  c.globalAlpha = fade;
+  c.fillStyle = '#5C6874';
+  c.beginPath();                       /* wings */
+  c.moveTo(-2, 0); c.lineTo(-16, 9); c.lineTo(-6, 9); c.lineTo(6, 1);
+  c.lineTo(-6, -9); c.lineTo(-16, -9); c.closePath(); c.fill(); drawCount++;
+  c.fillStyle = '#8A97A4';
+  c.beginPath();                       /* fuselage */
+  c.moveTo(22, 0); c.lineTo(2, 3.2); c.lineTo(-18, 2.6); c.lineTo(-20, -2.6); c.lineTo(2, -3.2); c.closePath(); c.fill(); drawCount++;
+  c.fillStyle = '#22303E';
+  c.beginPath(); c.moveTo(11, -1.2); c.lineTo(4, -4.6); c.lineTo(0, -1.2); c.closePath(); c.fill(); drawCount++;
+  c.restore();
+}
+
+/* a V of birds, one stroke */
+function w17_birds(c, sx, sy, s, now, n) {
+  c.save();
+  c.strokeStyle = 'rgba(40,48,60,.72)'; c.lineWidth = Math.max(0.9, 1.5 * s); c.lineCap = 'round';
+  c.beginPath();
+  for (var i = 0; i < n; i++) {
+    var col = i % 2 ? 1 : -1, row = Math.floor(i / 2) + (i % 2);
+    var bx = sx - row * 11 * s, by = sy + col * row * 5 * s;
+    var f = Math.sin(now / 150 + i * 1.3) * 2.6 * s;
+    c.moveTo(bx - 4 * s, by + f); c.lineTo(bx, by - f * 0.4); c.lineTo(bx + 4 * s, by + f);
+  }
+  c.stroke(); drawCount++;
+  c.restore();
+}
+
+/* ── the main event loop ──────────────────────────────────────────────── */
+function drawLife(c, DW, DH, gy, now, seed, phase) {
+  var S = seed || 0, flight = phase === 'flight', turn = phase === 'turnaround';
+  var P = function (x, z) { return gproj(DW, DH, gy, x, z); };
+  c.save();
+  c.lineJoin = 'round';
+
+  /* ── 1 · TRACTOR working the crop rows · 26 s ─────────────────────── */
+  (function () {
+    var p = w17_cyc(now, 26, w17_rnd(S + 1));
+    var row = p < 0.5 ? 0.505 : 0.545, u = p < 0.5 ? p * 2 : (1 - p) * 2;
+    var dir = p < 0.5 ? 1 : -1;
+    var x = -0.52 + 1.04 * u;
+    var g = P(x, row);
+    w17_tractor(c, g.sx, g.sy, g.k, dir, now);
+  })();
+
+  /* ── 2 · FIGHTER JET crossing high and fast · 22 s (5 s visible) ──── */
+  (function () {
+    var p = w17_cyc(now, 22, w17_rnd(S + 2));
+    if (p > 0.24) return;
+    var u = p / 0.24;
+    var x = DW * (0.74 - 0.50 * u);            /* stays clear of the reserved top corners */
+    var y = gy * (0.28 + 0.10 * Math.sin(u * 3));
+    var fade = Math.min(1, Math.min(u, 1 - u) / 0.25);
+    w17_jet(c, x, y, Math.max(0.55, DW / 950), -1, fade);
+  })();
+
+  /* ── 3 · BIRDS · 15 s (9 s visible) ──────────────────────────────── */
+  (function () {
+    var p = w17_cyc(now, 15, w17_rnd(S + 3));
+    if (p > 0.6) return;
+    var u = p / 0.6;
+    var x = DW * (0.70 - 0.42 * u), y = gy * (0.66 + 0.12 * Math.sin(u * 4 + 1));
+    w17_birds(c, x, y, Math.max(0.6, DW / 950), now, 5);
+  })();
+
+  /* ── 4 · FLAGS · continuous ripple ───────────────────────────────── */
+  (function () {
+    var spots = [[-0.42, 0.36], [0.46, 0.26]], gs = [P(spots[0][0], spots[0][1]), P(spots[1][0], spots[1][1])];
+    c.strokeStyle = '#D6DCE3'; c.lineWidth = Math.max(0.9, 1.6 * gs[0].k);
+    c.beginPath();
+    for (var i = 0; i < 2; i++) { c.moveTo(gs[i].sx, gs[i].sy); c.lineTo(gs[i].sx, gs[i].sy - 46 * gs[i].k); }
+    c.stroke(); drawCount++;
+    for (var j = 0; j < 2; j++) w17_flag(c, gs[j].sx, gs[j].sy, gs[j].k, now, j * 0.7 + w17_rnd(S + 4 + j));
+  })();
+
+
+  /* ── 6 · FUEL TRUCK + DRIVER · 44 s full cycle ──────────────────── */
+  (function () {
+    var p = w17_cyc(now, 44, w17_rnd(S + 6));
+    if (flight) p = 0.985;                       /* nobody refuels a flying rocket */
+    if (turn) p = 0.34 + 0.10 * w17_cyc(now, 18, 0);
+    var Z = 0.26, PARK = -0.30, HOSE = -0.13, BACK = -0.50;
+    var tx, dir = 1, driver = null, hose = 0;
+
+    if (p < 0.10) { tx = -1.15 + (PARK + 1.15) * w17_ease(p / 0.10); }
+    else if (p < 0.92) {
+      tx = PARK;
+      var q = (p - 0.10) / 0.82;                 /* 0..1 across the parked stretch */
+      if (q < 0.08) driver = { x: PARK + 0.05 * (q / 0.08), arm: 'swing', walk: now / 90 };
+      else if (q < 0.24) { var w1 = (q - 0.08) / 0.16; driver = { x: PARK + 0.05 + (HOSE - PARK - 0.05) * w1, arm: 'swing', walk: now / 90 }; hose = w1; }
+      else if (q < 0.40) { driver = { x: HOSE, arm: 'up', walk: 0 }; hose = 1; }
+      else if (q < 0.52) { var w2 = (q - 0.40) / 0.12; driver = { x: HOSE + (BACK - HOSE) * w2, arm: 'swing', walk: now / 90 }; hose = 1; }
+      else if (q < 0.76) { driver = { x: BACK, arm: 'watch', walk: 0 }; hose = 1; }
+      else if (q < 0.90) { var w3 = (q - 0.76) / 0.14; driver = { x: BACK + (PARK - BACK) * w3, arm: 'swing', walk: now / 90 }; hose = 1 - w3; }
+      else driver = null;
+    } else { tx = PARK + (1.25 - PARK) * w17_ease((p - 0.92) / 0.08); }
+
+    if (tx > -1.15 && tx < 1.25) {
+      var g = P(tx, Z);
+      if (hose > 0) {                            /* hose from the drum toward the pad */
+        var a = P(tx + 0.06, Z), b = P(HOSE + 0.10 * hose, Z - 0.015);
+        c.strokeStyle = '#2E3440'; c.lineWidth = Math.max(1, 2.2 * g.k); c.lineCap = 'round';
+        c.beginPath(); c.moveTo(a.sx, a.sy - 10 * g.k);
+        c.quadraticCurveTo((a.sx + b.sx) / 2, a.sy + 5 * g.k, b.sx, b.sy - 3 * g.k);
+        c.stroke(); drawCount++;
+      }
+      w17_truck(c, g.sx, g.sy, g.k, 1);
+      if (driver) {
+        var d = P(driver.x, Z - 0.02);
+        w17_person(c, d.sx, d.sy, d.k, { shirt: '#F0A93B', hat: '#F6F3EE', arm: driver.arm, walk: driver.walk });
+      }
+    }
+  })();
+
+  /* ── 7 · PAD ↔ GRANDSTAND walker · 30 s ─────────────────────────── */
+  (function () {
+    var p = w17_cyc(now, 30, w17_rnd(S + 7));
+    var A = [-0.04, 0.31], B = [-0.50, 0.235], x, z, walk = now / 95, arm = 'swing';
+    if (p < 0.36) { var u = w17_ease(p / 0.36); x = A[0] + (B[0] - A[0]) * u; z = A[1] + (B[1] - A[1]) * u; }
+    else if (p < 0.58) { x = B[0]; z = B[1]; walk = 0; arm = flight ? 'up' : 'wave'; }
+    else if (p < 0.94) { var v = w17_ease((p - 0.58) / 0.36); x = B[0] + (A[0] - B[0]) * v; z = B[1] + (A[1] - B[1]) * v; }
+    else { x = A[0]; z = A[1]; walk = 0; arm = flight ? 'up' : 'watch'; }
+    if (arm === 'wave') walk = now / 160;
+    var g = P(x, z);
+    w17_person(c, g.sx, g.sy, g.k, { shirt: '#4FD9E6', hat: '#F6F3EE', arm: arm, walk: walk });
+  })();
+
+  /* ── 8 · SHEPHERD collects a sheep · 36 s ───────────────────────── */
+  (function () {
+    var p = w17_cyc(now, 36, w17_rnd(S + 8));
+    var SX = 0.54, SZ = 0.36, HOME = 0.88;   /* clear of the apron, which owns x +-0.38 */
+    var px, pz = SZ, carry = false, walk = now / 95, arm = 'swing';
+    if (p < 0.30) { var u = w17_ease(p / 0.30); px = HOME + (SX + 0.06 - HOME) * u; }
+    else if (p < 0.40) { px = SX + 0.06; walk = 0; arm = 'carry'; }
+    else if (p < 0.72) { var v = w17_ease((p - 0.40) / 0.32); px = SX + 0.06 + (HOME - SX - 0.06) * v; carry = true; arm = 'carry'; }
+    else { px = null; }
+    /* the sheep waits where it grazes until it is picked up */
+    if (p < 0.35) {
+      var s0 = P(SX, SZ);
+      w17_sheep(c, s0.sx, s0.sy, s0.k * 1.35, Math.sin(now / 620) * 0.5 + 0.5);
+    }
+    if (px !== null) {
+      var g = P(px, pz);
+      w17_person(c, g.sx, g.sy, g.k, { shirt: '#8B6B4A', arm: arm, walk: walk });
+      if (carry) w17_sheep(c, g.sx + 4 * g.k, g.sy - 13.5 * g.k, g.k * 0.8, 0.35);
+    }
+  })();
+
+  /* ── 9 · GOLF CART on the perimeter road · 19 s ─────────────────── */
+  (function () {
+    var p = w17_cyc(now, 19, w17_rnd(S + 9));
+    var L = -0.55, R = 0.55, ZF = 0.19, ZB = 0.50, x, z, dir = 1;
+    if (p < 0.34) { x = L + (R - L) * (p / 0.34); z = ZF; dir = 1; }
+    else if (p < 0.46) { x = R; z = ZF + (ZB - ZF) * ((p - 0.34) / 0.12); dir = -1; }
+    else if (p < 0.86) { x = R + (L - R) * ((p - 0.46) / 0.40); z = ZB; dir = -1; }
+    else { x = L; z = ZB + (ZF - ZB) * ((p - 0.86) / 0.14); dir = 1; }
+    var g = P(x, z);
+    w17_cart(c, g.sx, g.sy, g.k, dir);
+  })();
+
+  c.restore();
+}
+
 /* ── W18 · the ship HUD: side elevation and engine plate ── */
 /* ── W18 · the ship HUD ──
    Two tiny instruments for the bottom-left corner:
@@ -4991,6 +5902,7 @@ document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () =>
     const bg = getComputedStyle(root).getPropertyValue('--h-bg').trim();
     document.querySelectorAll('meta[name="theme-color"]').forEach(m => { m.removeAttribute('media'); m.setAttribute('content', bg); });
     if (typeof w12_invalidate === 'function') w12_invalidate();
+    if (typeof siteInvalidate === 'function') siteInvalidate();
     drawGround(); drawScene(); drawLadder(); };
   b.addEventListener('click', () => { const t = cur() === 'dark' ? 'light' : 'dark'; root.setAttribute('data-theme', t);
     try { localStorage.setItem('theme', t); } catch (e) {} paint(); });
@@ -5097,7 +6009,8 @@ window.DEV = { jump: sc => requirePat() && devJump(sc), sim: () => requirePat() 
 function paintAll() { replan(); paintWindows(); paintMoney(); paintShop(); paintBadge(); paintLaunch(); paintGauges(); paintLog(); paintRegister(); drawScene(); }
 load();
 drawGround(); sizeScene(); paintAll();
-addEventListener('resize', () => { if (typeof w12_invalidate === 'function') w12_invalidate(); drawGround(); sizeScene(); drawScene(); drawLadder(); });
+addEventListener('resize', () => { if (typeof w12_invalidate === 'function') w12_invalidate();
+  if (typeof siteInvalidate === 'function') siteInvalidate(); drawGround(); sizeScene(); drawScene(); drawLadder(); });
 { const want = (location.hash || '').replace('#', ''); const b = document.querySelector('.tab[data-p="' + want + '"]'); if (b && !b.hidden) b.click(); }
 { let done = null; try { done = localStorage.getItem(TOUR_KEY); } catch (e) {} if (!done && !location.hash) setTimeout(tourStart, 400); }
 </script>
