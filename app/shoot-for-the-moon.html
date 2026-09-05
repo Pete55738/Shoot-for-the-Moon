@@ -3147,21 +3147,8 @@ function drawTurnaround(c, gy, DW, DH, p, t, now, drawRocketFn, rocketDimsFn) {
 
 function w10_rand(i) { return ((i * 9301 + 49297) % 233280) / 233280; }
 
-/* cubic bezier point + tangent */
-function w10_bez(P, t) {
-  const u = 1 - t, a = u * u * u, b = 3 * u * u * t, d = 3 * u * t * t, e = t * t * t;
-  return {
-    x: a * P[0].x + b * P[1].x + d * P[2].x + e * P[3].x,
-    y: a * P[0].y + b * P[1].y + d * P[2].y + e * P[3].y
-  };
-}
-function w10_bezT(P, t) {
-  const u = 1 - t, a = 3 * u * u, b = 6 * u * t, d = 3 * t * t;
-  return {
-    x: a * (P[1].x - P[0].x) + b * (P[2].x - P[1].x) + d * (P[3].x - P[2].x),
-    y: a * (P[1].y - P[0].y) + b * (P[2].y - P[1].y) + d * (P[3].y - P[2].y)
-  };
-}
+/* The cubic-bezier helpers went with the bowed transfer arc they served; the free-return
+   path is parametric (jrnyFree) and needs no control points. */
 
 function w10_stars(c, DW, DH, now) {
   c.save();
