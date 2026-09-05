@@ -68,6 +68,27 @@ Identity unchanged: steel-blue, starfield, altitude ladder. Art direction is now
     scene is the exception at 46 fps — fill rate rather than draw count, since
     removing any one large translucent element puts it back over 60.
 
+11. Round nineteen, the altitude readout (A9). The user declined to give
+    direction — "you pick how to make that better since we know the full game
+    now" — so this is a design decision, recorded here as one. The old readout
+    was a log-scale altimeter, which was right when the game was "go high". The
+    game is a five-rung ladder, and after the first mission "249 MI" tells the
+    player nothing about where they stand in it. The column now shows the
+    journey: six stations from the pad to a Moon base of 10,000, filled as far
+    as you have come, with one caption carrying whichever number still means
+    something (best altitude, then distance to the Moon, then population).
+
+    Two things fell out of it. The fill inside the current rung is delivered Δv
+    against the next mission's requirement — so the column answers "how far
+    through the whole game am I", which nothing else did. And it reads the box
+    it is given: vertical on desktop, horizontal on a phone, where the strip is
+    full width and the old vertical line threw that width away. Reclaiming the
+    height also brought the shop above the fold on a phone.
+
+    Rejected: keeping the altimeter and adding mission ticks to it (the two
+    scales fight — a log altitude axis puts LEO and the Moon almost on top of
+    each other), and a plain percentage bar (no sense of place).
+
 ## What to decide in the design cycle
 
 - **Art direction**, shown as pictures: keep hi-res vector, or move to rendered 2D (blur halos, glow, multiply shadows) for warmth. The brain dump said "goofy, fun graphics" — the vector look is clean but not yet goofy.

@@ -9,7 +9,7 @@
       "consoleErrors": 0,
       "simClean": true
     },
-    "rounds": 23,
+    "rounds": 24,
     "subsystems": {
       "chrome": {
         "score": 8.5,
@@ -54,8 +54,10 @@
         ]
       },
       "ladder": {
-        "score": 9.0,
-        "open": []
+        "score": 9.5,
+        "open": [
+          "the breathing next-station ring only animates while the game ticks, so it is still on the pad"
+        ]
       },
       "tutorial": {
         "score": 8.5,
