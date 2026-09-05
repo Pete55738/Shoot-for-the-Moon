@@ -499,6 +499,29 @@ body {
   .datawin td.v small { color: var(--h-text-muted); font-weight: 600; margin-left: .2rem; }
   .datawin.away { opacity: .35; }
   .datawin[hidden], .checklist[hidden] { display: none; }
+  /* T37 · what you are working toward, upper right — the player kept launching without knowing. */
+  .goalwin { position: absolute; right: .6rem; top: .6rem; width: min(13rem, 52%);
+             background: var(--h-surface-glass); border: 1px solid var(--h-border); border-radius: var(--radius);
+             padding: .4rem .55rem; backdrop-filter: blur(6px); font-family: var(--wa-font-family-heading);
+             font-size: var(--text-3xs); letter-spacing: .06em; text-transform: uppercase; color: var(--h-text-muted);
+             text-shadow: 0 1px 2px rgb(0 0 0 / .5); }
+  .goalwin[hidden] { display: none; }
+  .goalwin .t { display: flex; justify-content: space-between; color: var(--h-accent); font-weight: 700; margin-bottom: .2rem; }
+  .goalwin .t #gw-tag { color: var(--h-warning); }
+  .goalwin.go .t #gw-tag { color: var(--h-positive); }
+  .goalwin .todo { margin: 0; padding: 0; list-style: none; }
+  .goalwin .todo li { display: flex; gap: .35rem; align-items: baseline; line-height: 1.4; color: var(--h-text-muted); }
+  .goalwin .todo li::before { content: '☐'; color: var(--h-border); }
+  .goalwin .todo li.on::before { content: '☑'; color: var(--h-positive); }
+  .goalwin .todo li.on { color: var(--h-text); text-decoration: line-through; text-decoration-color: var(--h-border); }
+  .goalwin .todo li.now { color: var(--h-warning); }
+  .goalwin .todo li.now::before { content: '▸'; color: var(--h-warning); }
+  .goalwin .dv { margin-top: .15rem; font-variant-numeric: tabular-nums; }
+  .goalwin .bar { height: 4px; background: var(--h-bg); border: 1px solid var(--h-border); border-radius: 999px; overflow: hidden; margin-top: .25rem; }
+  .goalwin .bar i { display: block; height: 100%; width: 0; background: var(--h-warning); }
+  .goalwin.go .bar i { background: var(--h-positive); }
+  @media (max-width: 860px) { .goalwin { width: min(10rem, 46%); font-size: var(--text-3xs); }
+    #ups { height: 18rem; } }
   /* T24 · the gimbal, bottom-left, only once the pad is clear */
   .gimbal { position: absolute; left: .6rem; bottom: .6rem; width: 7.2rem;
             background: var(--h-surface-glass); border: 1px solid var(--h-border); border-radius: var(--radius);
@@ -526,26 +549,29 @@ body {
   .checklist li.done::before { content: '●'; color: var(--h-positive); }
   .checklist li.done { color: var(--h-text); }
   .checklist li.doing { color: var(--h-text); }
+  .checklist li.mishap { color: var(--h-warning); }
+  .checklist li.mishap::before { content: '⚠'; color: var(--h-warning); }
+  .checklist li.mishap.done::before { content: '●'; color: var(--h-positive); }
   .checklist .bar { margin-top: .35rem; }
 
-  #launch { position: absolute; right: .8rem; bottom: .8rem; pointer-events: auto; cursor: pointer;
-            width: 8.2rem; height: 8.2rem; border-radius: 50%; border: 3px solid var(--h-accent);
-            background: radial-gradient(circle at 50% 35%, var(--h-accent-strong), var(--h-accent) 70%);
+  /* A bar, not a disc — the circle covered a quarter of the scene. */
+  #launch { position: absolute; right: .7rem; bottom: .7rem; pointer-events: auto; cursor: pointer;
+            width: 11rem; padding: .55rem .8rem; border-radius: var(--radius-lg); border: 2px solid var(--h-accent);
+            background: linear-gradient(180deg, var(--h-accent-strong), var(--h-accent));
             color: var(--h-on-accent); font-family: var(--wa-font-family-heading); font-weight: 800;
-            font-size: 1.15rem; letter-spacing: .12em; text-transform: uppercase; line-height: 1.2;
-            box-shadow: 0 0 0 6px var(--h-accent-soft), 0 12px 30px rgb(0 0 0 / .5);
-            transition: transform .08s ease, filter .2s; }
+            font-size: 1.05rem; letter-spacing: .12em; text-transform: uppercase; line-height: 1.15;
+            box-shadow: 0 6px 18px rgb(0 0 0 / .45); transition: transform .08s ease, filter .2s, box-shadow .2s; }
   #launch:hover:not(:disabled) { transform: scale(1.03); }
   #launch:active:not(:disabled) { transform: scale(.96); }
   #launch:disabled { cursor: default; filter: grayscale(.9) brightness(.7); box-shadow: 0 8px 20px rgb(0 0 0 / .4); }
   #launch.away { opacity: .22; transform: scale(.8); transition: opacity .4s, transform .4s; }
-  #launch small { display: block; font-size: var(--text-3xs); letter-spacing: .14em; font-weight: 600; margin-top: .2rem; }
+  #launch small { display: block; font-size: var(--text-3xs); letter-spacing: .1em; font-weight: 600; margin-top: .15rem; opacity: .85; }
   #launch.ready { animation: pulse 1.6s ease-in-out infinite; }
   #launch.armed { border-color: var(--h-warning); background: radial-gradient(circle at 50% 35%, #FFE3A3, var(--h-warning) 70%); }
-  #launch.armed small { font-size: var(--text-3xs); letter-spacing: .08em; white-space: normal; line-height: 1.15; padding: 0 .6rem; }
-  @keyframes pulse { 0%,100% { box-shadow: 0 0 0 6px var(--h-accent-soft), 0 12px 30px rgb(0 0 0 / .5); }
-                     50% { box-shadow: 0 0 0 14px transparent, 0 12px 30px rgb(0 0 0 / .5); } }
-  @media (max-width: 860px) { #launch { width: 6.6rem; height: 6.6rem; font-size: 1rem; } }
+  #launch.armed small { font-size: var(--text-3xs); letter-spacing: .06em; white-space: normal; line-height: 1.15; }
+  @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 var(--h-accent-soft), 0 6px 18px rgb(0 0 0 / .45); }
+                     50% { box-shadow: 0 0 0 9px transparent, 0 6px 18px rgb(0 0 0 / .45); } }
+  @media (max-width: 860px) { #launch { width: 9rem; font-size: .95rem; padding: .5rem .6rem; } }
 
   /* Shop — one visible track per thing; tier bundles its stat gains. */
   .shop { display: flex; flex-direction: column; gap: .5rem; }
@@ -566,11 +592,24 @@ body {
   .hint { font-family: var(--wa-font-family-heading); font-size: var(--text-3xs); letter-spacing: .06em; text-transform: uppercase;
           color: var(--h-warning); line-height: 1.4; padding: 0 .2rem; }
   .hint.ok { color: var(--h-positive); }
+  /* The shop is always the same height whichever tab you are on, and it scrolls inside itself,
+     so the page never grows and the two tabs never jump. */
+  #ups { height: 23.5rem; overflow-y: auto; display: flex; flex-direction: column; gap: .5rem; padding-right: .15rem; }
+  #ups::-webkit-scrollbar { width: 5px; }
+  #ups::-webkit-scrollbar-thumb { background: var(--h-border); border-radius: 999px; }
   .up { background: var(--h-surface-glass); border: 1px solid var(--h-border); border-radius: var(--radius-lg);
-        padding: .5rem .6rem; display: grid; grid-template-columns: 1fr auto; gap: .15rem .6rem; align-items: center; }
+        padding: .5rem .6rem; display: grid; grid-template-columns: 1fr auto; gap: .15rem .6rem; align-items: center;
+        flex: none; }
+  /* Bought: a third of the height, no description, no pips — it is done, it just needs to be listed. */
+  .up.done { padding: .28rem .6rem; opacity: .72; }
+  .up.done .d, .up.done .pips { display: none; }
+  .up.done .n { font-size: var(--text-3xs); }
+  .up.done .buy { padding: .18rem .45rem; font-size: var(--text-3xs); }
   .up .n { font-family: var(--wa-font-family-heading); font-size: var(--text-2xs); letter-spacing: .08em;
            text-transform: uppercase; color: var(--h-text); font-weight: 700; }
-  .up .d { font-size: var(--text-3xs); color: var(--h-text-muted); grid-column: 1 / -1; line-height: 1.4; }
+  /* One line of explanation, never two — this column has a height budget. */
+  .up .d { font-size: var(--text-3xs); color: var(--h-text-muted); grid-column: 1 / -1; line-height: 1.4;
+           white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .up .pips { display: flex; gap: 2px; grid-column: 1 / -1; margin: .15rem 0; }
   .up .pips i { flex: 1; height: 4px; background: var(--h-bg); border: 1px solid var(--h-border); border-radius: 2px; }
   .up .pips i.on { background: var(--h-accent); border-color: var(--h-accent); }
@@ -686,6 +725,12 @@ body {
             <div class="t"><span id="cl-title">Readiness</span><span id="cl-t">T−15s</span></div>
             <ol id="cl-list"></ol>
             <div class="bar"><i id="cl-bar"></i></div>
+          </div>
+          <div class="goalwin" id="goalwin" hidden aria-label="Next mission">
+            <div class="t"><span id="gw-title">Next</span><span id="gw-tag"></span></div>
+            <ol class="todo" id="gw-todo"></ol>
+            <div class="bar"><i id="gw-bar"></i></div>
+            <div class="dv" id="gw-dv"></div>
           </div>
           <div class="gimbal" id="gimbal" hidden aria-label="Attitude and gimbal">
             <canvas id="gimbal-c"></canvas>
@@ -884,11 +929,11 @@ const BASE_MODULES = ['Habitat', 'Solar array', 'Greenhouse', 'Comms dish', 'Obs
            moonorbit · land · cargo (pods drop) · back (return leg) · descent (parachute home). */
 const FLIGHT_PLAN = {
   0: [['ascent', 3.0], ['coast', 2.2], ['descent', 2.6]],
-  1: [['ascent', 2.2], ['pitch', 1.0], ['orbit', 3.4], ['reentry', 1.4], ['descent', 2.0]],
-  2: [['ascent', 1.8], ['pitch', 0.8], ['orbit', 1.4], ['transfer', 4.4], ['back', 2.6], ['descent', 1.8]],
-  3: [['ascent', 1.6], ['pitch', 0.7], ['orbit', 1.2], ['transfer', 4.0], ['moonorbit', 3.6], ['back', 3.2], ['descent', 1.6]],
-  4: [['ascent', 1.6], ['pitch', 0.7], ['orbit', 1.0], ['transfer', 3.8], ['moonorbit', 2.2], ['land', 3.8], ['back', 2.8], ['descent', 1.5]],
-  5: [['ascent', 1.5], ['pitch', 0.6], ['orbit', 1.0], ['transfer', 4.2], ['moonorbit', 1.8], ['cargo', 5.6], ['back', 3.6], ['descent', 1.5]],
+  1: [['ascent', 2.2], ['pitch', 1.8], ['orbit', 3.2], ['reentry', 1.4], ['descent', 2.0]],
+  2: [['ascent', 2.0], ['pitch', 1.6], ['orbit', 1.2], ['transfer', 4.4], ['back', 2.6], ['descent', 1.8]],
+  3: [['ascent', 1.8], ['pitch', 1.5], ['orbit', 1.0], ['transfer', 4.0], ['moonorbit', 3.4], ['back', 3.0], ['descent', 1.6]],
+  4: [['ascent', 1.8], ['pitch', 1.5], ['orbit', 0.9], ['transfer', 3.6], ['moonorbit', 2.0], ['land', 3.6], ['back', 2.6], ['descent', 1.5]],
+  5: [['ascent', 1.7], ['pitch', 1.4], ['orbit', 0.9], ['transfer', 4.0], ['moonorbit', 1.7], ['cargo', 5.4], ['back', 3.4], ['descent', 1.5]],
 };
 const FADE_S = 0.45;                // cross-fade between camera views; reads as a zoom-out
 /* T17 · once the base passes RAILGUN_POP it fires one cargo shipment home per turnaround.
@@ -1083,7 +1128,12 @@ const fmtMoney = n => { const a = Math.abs(n);
   return '$' + (a >= 1e9 ? (n / 1e9).toFixed(2) + 'B' : a >= 1e6 ? (n / 1e6).toFixed(2) + 'M' : a >= 1e4 ? (n / 1e3).toFixed(1) + 'k' : Math.round(n).toLocaleString('en-US')); };
 /* Display is imperial (T1); the sim and balance stay SI. Conversion happens here and nowhere else. */
 const KM_TO_MI = 0.621371, MS_TO_MPH = 2.236936;
-const fmtMi = km => { const mi = km * KM_TO_MI; return km >= MOON_KM ? 'MOON' : mi >= 10000 ? Math.round(mi).toLocaleString('en-US') : mi >= 100 ? mi.toFixed(0) : mi >= 10 ? mi.toFixed(1) : mi.toFixed(2); };
+/* Miles, and past a thousand it reads 1.5K … 239K — the Moon is 239,000 and a full number is unreadable at this size. */
+const fmtMi = km => { const mi = km * KM_TO_MI;
+  return km >= MOON_KM ? 'MOON'
+    : mi >= 10000 ? Math.round(mi / 1000) + 'K'
+    : mi >= 1000 ? (mi / 1000).toFixed(1) + 'K'
+    : mi >= 100 ? mi.toFixed(0) : mi >= 10 ? mi.toFixed(1) : mi.toFixed(2); };
 const fmtKm = fmtMi;
 const fmtV = v => { const mph = v * MS_TO_MPH; return mph >= 10000 ? Math.round(mph / 1000).toLocaleString('en-US') + 'k mph' : Math.round(mph).toLocaleString('en-US') + ' mph'; };
 
@@ -1179,6 +1229,12 @@ function runFlight(f, onApogee, onLanded, mission) {
   const CD = [[3, 0.4], [2, 0.4], [1, 0.4], [0, 0.35]], cdDur = CD.reduce((a, c) => a + c[1], 0);
   const total = plan.reduce((a, x) => a + x[1], 0);
   const N = f.samples.length, orbitKm = view.mission >= 1 ? MISSIONS[view.mission].orbitKm : f.apogeeKm;
+  /* An orbital flight climbs to its orbit, it does not fly the sim's vertical profile — that number is
+     hundreds of km and made the gauge sprint up and then fall back during the turn. Keep the sample
+     shape, scale it to the orbit. Sub-orbital hops still read their true apogee. */
+  const climbTop = view.mission >= 1 ? Math.min(orbitKm, 400) * 0.55 : f.apogeeKm;
+  const sampleTop = Math.max(0.001, (f.samples[N - 1] || [1])[0] / 1000);
+  const kmOf = h => view.mission >= 1 ? h / sampleTop * climbTop : h;
   let paid = false;
   const t0 = performance.now();
   cancelAnimationFrame(anim);
@@ -1212,12 +1268,15 @@ function runFlight(f, onApogee, onLanded, mission) {
 
     if (ph.name === 'ascent') {
       const i = Math.min(N - 1, Math.floor(p * (N - 1))), sm = f.samples[i] || [0, 0, 1, 1];
-      view.km = sm[0] / 1000; view.v = sm[1]; view.fuel = sm[2]; view.burning = sm[3] > 0.05; view.flame = sm[3];
+      view.km = kmOf(sm[0] / 1000); view.v = sm[1]; view.fuel = sm[2]; view.burning = sm[3] > 0.05; view.flame = sm[3];
       view.forces = sm.length > 4 ? { thrust: sm[4], drag: sm[5], mass: sm[6], g: sm[7] } : null;
       view.liftT = t; view.ang = 0; view.heat = 0; view.para = 0;
     } else if (ph.name === 'pitch') {          /* the gravity turn: tilt over and slide out of frame */
-      view.ang = p * 1.15; view.drift = p * p * 90; view.burning = true; view.flame = 1 - p * 0.3;
-      view.km = lerp(f.burnoutKm, orbitKm * 0.6, easeOut(p)); view.v = lerp(f.burnoutV, 7800, p);
+      /* gradual, and it keeps rising while it leans — no snap to horizontal */
+      const e = p * p * (3 - 2 * p);                      // smoothstep
+      view.ang = e * 1.30; view.drift = e * 110; view.burning = true; view.flame = 1 - p * 0.3;
+      view.km = lerp(climbTop, view.mission >= 1 ? Math.min(orbitKm, 400) : f.apogeeKm, easeOut(p));   // keeps climbing while it leans
+      view.v = lerp(f.burnoutV, 7800, p);
       view.forces = forcesAt(S.tiers, view.km * 1000, view.v, 0); view.liftT = -1;
     } else if (ph.name === 'coast') {          /* sub-orbital only */
       const e = easeOut(p);
@@ -1298,7 +1357,21 @@ const TASK_POOL = [
   ['Polish the nose cone', 1.5, 'clean'], ['Straighten the flag', 1, 'clean'],
 ];
 const TURNAROUND_S = 15;
-const STAGE_LABEL = { recover: 'Recovery', clean: 'Cleaning', stack: 'Stacking', fuel: 'Fuelling', check: 'Checks', paper: 'Paperwork' };
+const STAGE_LABEL = { recover: 'Recovery', clean: 'Cleaning', stack: 'Stacking', fuel: 'Fuelling', check: 'Checks', paper: 'Paperwork', mishap: 'Problem' };
+/* T36 · every rebuild something goes wrong. One of these per turnaround, picked by the seeded RNG,
+   so the same launch always hits the same one. [what happened, what they do about it, extra seconds, what shows on the pad] */
+const MISHAPS = [
+  ['The fuel truck explodes',        'Sweep it up · a new truck rolls in',   3.0, 'truck'],
+  ['The crane drops the nose cone',  'Dent it back out with a mallet',       2.5, 'drop'],
+  ['A cow wanders onto the pad',     'Escort the cow off the pad',           2.0, 'cow'],
+  ['The gantry jams half-swung',     'Hit the gantry until it swings',       2.5, 'gantry'],
+  ['A fuel hose bursts',             'Wrestle the hose · mop the slab',      2.5, 'hose'],
+  ['The flight computer blue-screens', 'Turn it off and on again. Twice.',   2.0, 'computer'],
+  ['A bird has nested in engine 3',  'Rehome the bird, respectfully',        2.0, 'bird'],
+  ['The paperwork blows away',       'Chase the paperwork across the field', 2.0, 'paper'],
+  ['The capsule lands in the pond',  'Wade in after the capsule',            3.0, 'pond'],
+  ['Coffee spilled in the trench',   'Mop the trench · brew more coffee',    1.5, 'coffee'],
+];
 let turn = null; // { tasks:[{name,dur,start}], t0, total }
 function startTurnaround() {
   phase = 'turnaround';
@@ -1307,13 +1380,18 @@ function startTurnaround() {
   for (const st of ORDER) { const bucket = TASK_POOL.filter(t => t[2] === st);
     const n = 1 + (rng() < 0.45 ? 1 : 0);
     for (let k = 0; k < n && bucket.length && picks.length < 8; k++) picks.push(bucket.splice(Math.floor(rng() * bucket.length), 1)[0]); }
+  /* One thing always goes wrong (T36). It lands after the stacking has started. */
+  const mishap = MISHAPS[Math.floor(rng() * MISHAPS.length)];
+  const at = Math.min(picks.length, 3 + Math.floor(rng() * 2));
+  picks.splice(at, 0, [mishap[0], mishap[2] * 0.45, 'mishap'], [mishap[1], mishap[2] * 0.55, 'mishap']);
   const sum = picks.reduce((a, p) => a + p[1], 0);
+  const total = TURNAROUND_S + mishap[2];        // a mishap costs you the seconds it costs you
   let acc = 0;
-  const tasks = picks.map(([name, d, stage]) => { const dur = d / sum * TURNAROUND_S; const o = { name, dur, start: acc, stage }; acc += dur; return o; });
-  turn = { tasks, t0: performance.now(), total: TURNAROUND_S, crew: tasks.map(() => [0.2 + rng() * 0.6, rng()]) };
+  const tasks = picks.map(([name, d, stage]) => { const dur = d / sum * total; const o = { name, dur, start: acc, stage }; acc += dur; return o; });
+  turn = { tasks, t0: performance.now(), total, mishap: mishap[3], crew: tasks.map(() => [0.2 + rng() * 0.6, rng()]) };
   /* Repaint the shop here: it was last painted at apogee, with buying locked mid-flight. */
   showChecklist(); paintLaunch(); paintWindows(); paintShop(); paintBadge();
-  if (REDUCED) { turn.t0 -= TURNAROUND_S * 1000; }
+  if (REDUCED) { turn.t0 -= turn.total * 1000; }   // fast-forward the mishap too, not just the base turnaround
   tickTurnaround();
 }
 function turnElapsed() { return turn ? (performance.now() - turn.t0) / 1000 : 0; }
@@ -1328,7 +1406,7 @@ function tickTurnaround() {
   let cur = null;
   turn.tasks.forEach((tk, i) => { const li = items[i]; if (!li) return;
     const st = el >= tk.start + tk.dur ? 'done' : el >= tk.start ? 'doing' : '';
-    li.className = st; if (st === 'doing') cur = tk; });
+    li.className = (li.dataset.mishap ? 'mishap ' : '') + st; if (st === 'doing') cur = tk; });
   $('cl-title').textContent = cur ? (STAGE_LABEL[cur.stage] || 'Readiness') : 'Readiness';
   $('launch-sub').textContent = 'ready in ' + Math.ceil(left) + 's';
   drawScene(); if (Math.floor(el * 4) !== Math.floor((el - 0.05) * 4)) { paintDataWin(); paintWindows(); }
@@ -1342,7 +1420,8 @@ function finishTurnaround() {
 }
 function showChecklist() {
   const ol = $('cl-list'); ol.textContent = '';
-  for (const tk of turn.tasks) { const li = document.createElement('li'); li.textContent = tk.name; ol.appendChild(li); }
+  for (const tk of turn.tasks) { const li = document.createElement('li'); li.textContent = tk.name;
+    if (tk.stage === 'mishap') li.dataset.mishap = '1'; ol.appendChild(li); }
   $('cl-title').textContent = 'Readiness'; $('checklist').hidden = false;
 }
 function hideChecklist() { $('checklist').hidden = true; }
@@ -1363,8 +1442,38 @@ function paintReady() {
   $('cl-bar').style.width = (rows.filter(r => r[1]).length / rows.length * 100) + '%';
   $('checklist').hidden = false;
 }
+/* T37 · the goal panel: the mission you are working toward and what it still needs. */
+function paintGoal() {
+  const g = $('goalwin');
+  if (S.mission >= 5) {
+    g.hidden = false; g.classList.add('go');
+    $('gw-title').textContent = 'Moon base'; $('gw-tag').textContent = 'BUILDING';
+    const ol = $('gw-todo'); ol.textContent = '';
+    for (const [text, on] of [['Base established', true], ['Grow to 10,000 people', S.population >= 10000], ['Keep landing cargo', false]]) {
+      const li = document.createElement('li'); li.className = on ? 'on' : ''; li.textContent = text; ol.appendChild(li); }
+    $('gw-dv').textContent = S.population.toLocaleString('en-US') + ' people · ' + S.cargoT + ' t landed';
+    $('gw-bar').style.width = (S.population / MISSIONS[5].population * 100) + '%';
+    return;
+  }
+  const next = MISSIONS[S.mission + 1], p = plan || replan(), am = armedMission();
+  const dvOk = p.f.dv >= next.dvReq;
+  g.hidden = false; g.classList.toggle('go', !!am);
+  $('gw-title').textContent = 'Shooting for ' + next.short;
+  $('gw-tag').textContent = am ? 'GO' : 'TO DO';
+  /* A checklist: the two pieces of equipment, then the rocket, then launch. First unchecked row is the one to do. */
+  const rows = next.equip.map(id => ({ text: 'Buy ' + EQUIPMENT[id].name, on: !!S.equipment[id] }));
+  rows.push({ text: 'Δv ' + (p.f.dv / 1000).toFixed(1) + ' of ' + (next.dvReq / 1000).toFixed(1) + ' km/s', on: dvOk });
+  rows.push({ text: next.flight, on: false });
+  const first = rows.findIndex(r => !r.on);
+  const ol = $('gw-todo'); ol.textContent = '';
+  rows.forEach((r, i) => { const li = document.createElement('li');
+    li.className = r.on ? 'on' : i === first ? 'now' : ''; li.textContent = r.text; ol.appendChild(li); });
+  $('gw-dv').textContent = next.name;
+  $('gw-bar').style.width = clamp(p.f.dv / next.dvReq, 0, 1) * 100 + '%';
+}
 /* T33 · which window owns which corner, by phase. */
 function paintWindows() {
+  paintGoal();
   const flying = phase === 'flight' || phase === 'descent';
   $('datawin').hidden = !flying;
   if (!flying && phase === 'ready') paintReady();
@@ -1493,7 +1602,12 @@ function drawPadScene(c, now) {
   if (phase === 'descent' && view.heat > 0) drawReentry(c, DW, DH, km, view.v, now);
   if (moonScene) drawMoonSurface(c, DW, DH, now);
   // rocket
-  const rocketBase = moonScene ? DH * 0.62 : (phase === 'ready' || phase === 'turnaround') ? groundY - 4 : DH * 0.58;
+  /* T38 · the rocket lifts off the pad it was built on. It used to jump to mid-frame the instant
+     the phase changed; now it climbs from groundY to its flying station over the first 0.8 km. */
+  const flyStation = DH * 0.58, onPad = groundY - 4;
+  const rocketBase = moonScene ? DH * 0.62
+    : (phase === 'ready' || phase === 'turnaround') ? onPad
+    : lerp(onPad, flyStation, clamp(km / 0.8, 0, 1));
   if (view.para > 0) { const d = rocketDims(S.tiers); drawChute(c, DW / 2, rocketBase - d.bodyH - d.noseH - 118, view.para, now); }
   if (phase === 'turnaround' && turn) drawTurnaround(c, groundY, DW, DH, turnP(), S.tiers, now, drawRocket, rocketDims);
   else if (view.ang || view.drift) { c.save(); c.translate(DW / 2 + view.drift, rocketBase); c.rotate(view.ang);
@@ -3001,197 +3115,13 @@ function drawTurnaround(c, gy, DW, DH, p, t, now, drawRocketFn, rocketDimsFn) {
 /* ── W9 · Earth orbit ── */
 /* W9 · Earth orbit view — orbitview.js */
 
-function w9_rand(i) { return ((i * 9301 + 49297) % 233280) / 233280; }
 
 /* stars: three alpha tiers, one path each (3 draws) */
-function w9_stars(c, DW, DH, now) {
-  for (let tier = 0; tier < 3; tier++) {
-    c.beginPath();
-    for (let i = tier; i < 66; i += 3) {
-      const x = w9_rand(i * 3 + 1) * DW;
-      const y = w9_rand(i * 7 + 5) * DH;
-      const tw = 0.75 + 0.25 * Math.sin(now / 900 + i * 1.7);
-      const r = (0.5 + w9_rand(i * 11 + 3) * 1.1) * tw;
-      c.moveTo(x + r, y); c.arc(x, y, r, 0, 6.2832);
-    }
-    c.fillStyle = 'rgba(255,255,255,' + (0.28 + tier * 0.22) + ')';
-    c.fill(); drawCount++;
-  }
-}
 
 /* one cloud swirl, already inside the Earth clip; lon in radians */
-function w9_swirl(c, cx, cy, R, lon, lat, size, alpha) {
-  const s = Math.sin(lon);
-  if (Math.cos(lon) < -0.15) return;            // on the far side
-  const fore = Math.max(0, Math.cos(lon));
-  const x = cx + s * R * 0.72;
-  const y = cy + lat * R;
-  const w = size * R * (0.35 + 0.65 * fore), h = size * R * 0.42;
-  c.save();
-  c.translate(x, y);
-  c.rotate(lat * 0.7);
-  c.globalAlpha = alpha * (0.55 + 0.45 * fore);
-  c.fillStyle = '#FFFFFF';
-  c.beginPath();
-  c.ellipse(0, 0, w, h, 0, 0, 6.2832);
-  c.ellipse(w * 0.55, -h * 0.55, w * 0.5, h * 0.6, 0, 0, 6.2832);
-  c.ellipse(-w * 0.6, h * 0.3, w * 0.45, h * 0.55, 0, 0, 6.2832);
-  c.fill(); drawCount++;
-  c.restore();
-}
 
 /* a blobby continent, inside the Earth clip */
-function w9_land(c, cx, cy, R, lon, lat, size) {
-  if (Math.cos(lon) < -0.1) return;
-  const fore = Math.max(0, Math.cos(lon));
-  const x = cx + Math.sin(lon) * R * 0.68;
-  const y = cy + lat * R;
-  const w = size * R * fore, h = size * R * 0.8;
-  c.save();
-  c.translate(x, y);
-  c.fillStyle = '#4E8B4A';
-  c.beginPath();
-  c.ellipse(0, 0, w, h, 0.4, 0, 6.2832);
-  c.ellipse(w * 0.7, h * 0.8, w * 0.6, h * 0.5, -0.3, 0, 6.2832);
-  c.ellipse(-w * 0.5, -h * 0.7, w * 0.5, h * 0.45, 0.2, 0, 6.2832);
-  c.fill(); drawCount++;
-  c.restore();
-}
 
-function drawOrbitView(c, DW, DH, st, drawRocketFn, rocketDimsFn) {
-  const now = st.now || 0;
-  const zoom = clamp(st.zoom || 0, 0, 1);
-  const angle = st.angle || 0;
-  const heat = clamp(st.heat || 0, 0, 1);
-  const t = st.tiers || { engine: 3, tank: 3, aero: 3, hull: 3, payload: 3 };
-
-  /* ---- space ---- */
-  c.save();
-  c.fillStyle = ART.space; c.fillRect(0, 0, DW, DH); drawCount++;
-  w9_stars(c, DW, DH, now);
-
-  /* ---- Earth ---- */
-  const R = DH * lerp(0.275, 0.40, zoom);
-  const cx = DW * 0.54, cy = DH * 0.62 + R * 0.10;
-
-  const earth = () => {
-    // atmosphere rim glow
-    const gl = c.createRadialGradient(cx, cy, R * 0.97, cx, cy, R * 1.10);
-    gl.addColorStop(0, 'rgba(159,211,245,0.75)');
-    gl.addColorStop(0.45, 'rgba(120,180,235,0.28)');
-    gl.addColorStop(1, 'rgba(90,150,220,0)');
-    c.fillStyle = gl;
-    c.beginPath(); c.arc(cx, cy, R * 1.10, 0, 6.2832); c.fill(); drawCount++;
-
-    // ocean ball, lit from upper-left
-    const og = c.createRadialGradient(cx - R * 0.42, cy - R * 0.45, R * 0.08, cx, cy, R * 1.05);
-    og.addColorStop(0, '#6FB4E8');
-    og.addColorStop(0.5, ART.skyHi);
-    og.addColorStop(1, '#12335C');
-    c.fillStyle = og;
-    c.beginPath(); c.arc(cx, cy, R, 0, 6.2832); c.fill(); drawCount++;
-
-    c.save();
-    c.beginPath(); c.arc(cx, cy, R, 0, 6.2832); c.clip();
-
-    const spin = now / 26000;
-    w9_land(c, cx, cy, R, spin + 0.2, -0.34, 0.20);
-    w9_land(c, cx, cy, R, spin + 1.1, 0.30, 0.15);
-    w9_land(c, cx, cy, R, spin + 2.6, 0.02, 0.17);
-    w9_land(c, cx, cy, R, spin + 4.3, -0.12, 0.13);
-    w9_land(c, cx, cy, R, spin + 5.4, 0.42, 0.11);
-
-    const sw = now / 17000;
-    w9_swirl(c, cx, cy, R, sw + 0.9, -0.55, 0.20, 0.9);
-    w9_swirl(c, cx, cy, R, sw + 2.0, 0.14, 0.24, 0.8);
-    w9_swirl(c, cx, cy, R, sw + 3.6, 0.58, 0.17, 0.85);
-    w9_swirl(c, cx, cy, R, sw + 5.2, -0.20, 0.15, 0.7);
-
-    // soft lit limb all round (the terminator below kills it on the night side)
-    const rim = c.createRadialGradient(cx, cy, R * 0.90, cx, cy, R);
-    rim.addColorStop(0, 'rgba(190,225,255,0)');
-    rim.addColorStop(1, 'rgba(205,235,255,0.34)');
-    c.fillStyle = rim;
-    c.beginPath(); c.arc(cx, cy, R, 0, 6.2832); c.fill(); drawCount++;
-
-    // terminator: night falls on the lower-right
-    const tg = c.createLinearGradient(cx - R * 0.5, cy - R * 0.55, cx + R * 1.0, cy + R * 0.9);
-    tg.addColorStop(0.0, 'rgba(3,7,18,0)');
-    tg.addColorStop(0.36, 'rgba(3,7,18,0.10)');
-    tg.addColorStop(0.62, 'rgba(3,7,18,0.62)');
-    tg.addColorStop(0.84, 'rgba(4,9,22,0.90)');
-    tg.addColorStop(1.0, 'rgba(4,9,22,0.96)');
-    c.fillStyle = tg; c.fillRect(cx - R, cy - R, R * 2, R * 2); drawCount++;
-    c.restore();
-  };
-
-  /* ---- orbit + ship ---- */
-  const rx = R * 1.34, ry = R * 0.52;
-  const ox = cx, oy = cy - R * 0.06;
-  const sx = ox + rx * Math.cos(angle);
-  const sy = oy - ry * Math.sin(angle);
-  const behind = Math.sin(angle) > 0;              // far side of the ball
-
-  const drawArc = (a0, a1, alpha) => {
-    c.save();
-    c.setLineDash([5, 6]);
-    c.lineDashOffset = -now / 90;
-    c.strokeStyle = 'rgba(190,220,255,' + alpha + ')';
-    c.lineWidth = 1.2;
-    c.beginPath();
-    c.ellipse(ox, oy, rx, ry, 0, -a1, -a0);
-    c.stroke(); drawCount++;
-    c.restore();
-  };
-
-  const ship = () => {
-    const dims = rocketDimsFn(t);
-    const s = (DH * 0.068) / dims.totalH;
-    const vx = -rx * Math.sin(angle), vy = -ry * Math.cos(angle);
-    const rot = Math.atan2(vy, vx) + Math.PI / 2;
-    c.save();
-    c.translate(sx, sy);
-    c.rotate(rot);
-    c.scale(s, s);
-
-    if (heat > 0) {
-      // plasma wake trailing behind (local +y is behind the ship)
-      const L = dims.totalH * (2.4 + 3.2 * heat);
-      const pg = c.createLinearGradient(0, 0, 0, L);
-      pg.addColorStop(0, 'rgba(255,244,194,' + (0.85 * heat) + ')');
-      pg.addColorStop(0.35, 'rgba(255,140,60,' + (0.5 * heat) + ')');
-      pg.addColorStop(1, 'rgba(224,82,58,0)');
-      c.fillStyle = pg;
-      c.beginPath();
-      c.moveTo(-dims.bodyW * 0.7, dims.bodyH * 0.2);
-      c.quadraticCurveTo(-dims.bodyW * 1.6, L * 0.6, 0, L);
-      c.quadraticCurveTo(dims.bodyW * 1.6, L * 0.6, dims.bodyW * 0.7, dims.bodyH * 0.2);
-      c.closePath(); c.fill(); drawCount++;
-    }
-
-    drawRocketFn(c, 0, dims.bodyH / 2, t, heat > 0 ? 0 : 0.45, heat === 0, now, { heat: heat });
-
-    if (heat > 0) {
-      // leading-edge glow on the nose
-      const ny = -dims.bodyH / 2 - dims.noseH;
-      const hg = c.createRadialGradient(0, ny, 1, 0, ny, dims.bodyW * 2.2);
-      hg.addColorStop(0, 'rgba(255,255,235,' + (0.95 * heat) + ')');
-      hg.addColorStop(0.45, 'rgba(255,170,70,' + (0.6 * heat) + ')');
-      hg.addColorStop(1, 'rgba(255,120,40,0)');
-      c.fillStyle = hg;
-      c.beginPath(); c.arc(0, ny, dims.bodyW * 2.2, 0, 6.2832); c.fill(); drawCount++;
-    }
-    c.restore();
-  };
-
-  drawArc(0, Math.PI, 0.30);            // far half, behind the ball
-  if (behind) ship();
-  earth();
-  drawArc(Math.PI, Math.PI * 2, 0.75);  // near half, in front
-  if (!behind) ship();
-
-  c.restore();
-}
 
 /* ── W10 · Earth to the Moon ── */
 /* W10 · Earth to the Moon — transfer view */
@@ -3425,242 +3355,17 @@ function drawTransferView(c, DW, DH, st, drawRocketFn, rocketDimsFn) {
 /* ── W11 · the Moon, close ── */
 /* ── W11 · the Moon, close ── drawMoonApproach, drawCargoDrop ── */
 
-const W11_MOONLIT = '#DDE1E6', W11_MOONMID = '#B4B9C0', W11_MOONDK = '#6E747C', W11_SHADOW = '#2A2F36';
 
-function w11_rnd(i) { return ((i * 9301 + 49297) % 233280) / 233280; }
 
-function w11_stars(c, DW, DH, now, n) {
-  c.fillStyle = '#FFFFFF';
-  c.beginPath();
-  for (let i = 0; i < n; i++) {
-    const x = w11_rnd(i * 3 + 7) * DW, y = w11_rnd(i * 5 + 13) * DH;
-    const r = 0.5 + w11_rnd(i * 7 + 3) * 1.1;
-    c.moveTo(x + r, y); c.arc(x, y, r, 0, 7);
-  }
-  c.globalAlpha = 0.55 + Math.sin(now / 900) * 0.12;
-  c.fill(); drawCount++;
-  c.globalAlpha = 1;
-}
 
 /* small blue marble, used as a sky ornament */
-function w11_earth(c, x, y, r, now) {
-  const g = c.createRadialGradient(x - r * 0.4, y - r * 0.4, r * 0.15, x, y, r);
-  g.addColorStop(0, '#5C9BDD'); g.addColorStop(0.65, '#2F6FB7'); g.addColorStop(1, '#123B66');
-  c.fillStyle = 'rgba(159,211,245,.28)'; c.beginPath(); c.arc(x, y, r * 1.22, 0, 7); c.fill(); drawCount++;
-  c.fillStyle = g; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill(); drawCount++;
-  c.save(); c.beginPath(); c.arc(x, y, r, 0, 7); c.clip();
-  c.fillStyle = '#4E8B4A'; c.beginPath();
-  c.ellipse(x - r * 0.25, y - r * 0.15, r * 0.42, r * 0.28, 0.5, 0, 7);
-  c.ellipse(x + r * 0.35, y + r * 0.35, r * 0.30, r * 0.20, -0.3, 0, 7);
-  c.fill(); drawCount++;
-  c.fillStyle = 'rgba(255,255,255,.55)'; c.beginPath();
-  c.ellipse(x + r * 0.1 + Math.sin(now / 6000) * r * 0.1, y - r * 0.5, r * 0.45, r * 0.13, 0.25, 0, 7);
-  c.ellipse(x - r * 0.3, y + r * 0.45, r * 0.38, r * 0.11, -0.2, 0, 7);
-  c.fill(); drawCount++;
-  c.fillStyle = 'rgba(5,9,18,.45)'; c.beginPath(); c.ellipse(x + r * 0.95, y + r * 0.15, r * 0.85, r * 1.05, 0, 0, 7); c.fill(); drawCount++;
-  c.restore();
-}
 
 /* the ship, drawn small along a heading (radians, 0 = +x) */
-function w11_ship(c, x, y, heading, targetH, st, drawRocketFn, rocketDimsFn, flame, opts) {
-  const d = rocketDimsFn(st.tiers), s = targetH / Math.max(1, d.totalH);
-  c.save();
-  c.translate(x, y);
-  c.rotate(heading + Math.PI / 2);
-  c.scale(s, s);
-  drawRocketFn(c, 0, d.totalH * 0.5, st.tiers, flame, flame > 0.02, st.now, opts || {});
-  c.restore();
-}
 
 /* ─────────────────────────── approach ─────────────────────────── */
-function drawMoonApproach(c, DW, DH, st, drawRocketFn, rocketDimsFn) {
-  const now = st.now, zoom = clamp(st.zoom || 0, 0, 1);
-  c.save();
-  c.fillStyle = ART.space; c.fillRect(0, 0, DW, DH); drawCount++;
-  w11_stars(c, DW, DH, now, 46);
-  w11_earth(c, DW * 0.86, DH * 0.13, 14 + zoom * 3, now);
-
-  const cx = DW * 0.5, cy = DH * 0.60;
-  const R = lerp(Math.min(DW, DH) * 0.40, Math.min(DW, DH) * 0.62, zoom);
-
-  /* orbit ellipse — far half first (behind the moon) */
-  const rx = Math.min(R * 1.34, DW * 0.40), ry = Math.min(R * 0.46, DH * 0.26), tilt = -0.22;
-  const orbit = (a) => {
-    const ca = Math.cos(a), sa = Math.sin(a);
-    const ox = rx * ca, oy = -ry * sa;   // screen y is down: negate so angle runs counter-clockwise
-    return { x: cx + ox * Math.cos(tilt) - oy * Math.sin(tilt), y: cy + ox * Math.sin(tilt) + oy * Math.cos(tilt) };
-  };
-  const drawArc = (a0, a1, alpha) => {
-    c.strokeStyle = 'rgba(200,220,255,' + alpha + ')'; c.lineWidth = 1; c.setLineDash([5, 5]);
-    c.beginPath();
-    for (let k = 0; k <= 40; k++) { const p = orbit(lerp(a0, a1, k / 40)); k ? c.lineTo(p.x, p.y) : c.moveTo(p.x, p.y); }
-    c.stroke(); drawCount++; c.setLineDash([]);
-  };
-  drawArc(0, Math.PI, 0.22);                // far half (behind the moon, upper on screen)
-
-  /* the Moon */
-  const halo = c.createRadialGradient(cx, cy, R * 0.9, cx, cy, R * 1.14);
-  halo.addColorStop(0, 'rgba(220,228,240,.22)'); halo.addColorStop(1, 'rgba(220,228,240,0)');
-  c.fillStyle = halo; c.beginPath(); c.arc(cx, cy, R * 1.14, 0, 7); c.fill(); drawCount++;
-
-  const g = c.createRadialGradient(cx - R * 0.45, cy - R * 0.45, R * 0.1, cx, cy, R * 1.05);
-  g.addColorStop(0, W11_MOONLIT); g.addColorStop(0.55, W11_MOONMID); g.addColorStop(1, W11_MOONDK);
-  c.fillStyle = g; c.beginPath(); c.arc(cx, cy, R, 0, 7); c.fill(); drawCount++;
-
-  c.save();
-  c.beginPath(); c.arc(cx, cy, R, 0, 7); c.clip();
-  /* maria — big soft dark patches, turning with the craters */
-  const spin = now / 14000;
-  c.fillStyle = 'rgba(112,118,126,.26)';
-  c.beginPath();
-  for (let i = 0; i < 5; i++) {
-    const a = spin * 0.7 + i * 1.35, rr = R * (0.22 + w11_rnd(i * 11 + 2) * 0.5);
-    const px = cx + Math.cos(a) * rr, py = cy + Math.sin(a) * rr * 0.8;
-    c.moveTo(px + R * 0.2, py); c.ellipse(px, py, R * (0.10 + w11_rnd(i + 5) * 0.09), R * (0.07 + w11_rnd(i + 9) * 0.07), a, 0, 7);
-  }
-  c.fill(); drawCount++;
-  /* craters — turn under the ship */
-  for (let i = 0; i < 17; i++) {
-    const lonPhase = (w11_rnd(i * 13 + 1) * 6.283 + spin) % 6.283;
-    const lat = (w11_rnd(i * 17 + 5) - 0.5) * 1.7;
-    const cosL = Math.cos(lonPhase);
-    if (cosL < -0.05) continue;                     // on the far side
-    const px = cx + Math.sin(lonPhase) * R * Math.cos(lat);
-    const py = cy + Math.sin(lat) * R;
-    const rr = R * (0.035 + w11_rnd(i * 19 + 3) * 0.075) * (0.4 + cosL * 0.6);
-    c.fillStyle = 'rgba(90,96,104,.45)'; c.beginPath(); c.ellipse(px, py, rr, rr * 0.72, 0, 0, 7); c.fill(); drawCount++;
-    c.fillStyle = 'rgba(255,255,255,.30)'; c.beginPath(); c.ellipse(px - rr * 0.18, py - rr * 0.2, rr * 0.72, rr * 0.5, 0, 0, 7); c.fill(); drawCount++;
-  }
-  /* terminator */
-  const t = c.createLinearGradient(cx - R, cy, cx + R, cy);
-  t.addColorStop(0, 'rgba(42,47,54,0)'); t.addColorStop(0.55, 'rgba(42,47,54,.12)'); t.addColorStop(1, 'rgba(10,14,22,.80)');
-  c.fillStyle = t; c.fillRect(cx - R, cy - R, R * 2, R * 2); drawCount++;
-  c.restore();
-
-  /* limb light */
-  c.strokeStyle = 'rgba(255,255,255,.35)'; c.lineWidth = 1.2;
-  c.beginPath(); c.arc(cx, cy, R - 0.6, Math.PI * 0.85, Math.PI * 1.85); c.stroke(); drawCount++;
-
-  drawArc(Math.PI, Math.PI * 2, 0.5);       // near half (lower on screen), in front
-
-  /* the ship */
-  const a = st.angle || 0;
-  const pos = orbit(a), nxt = orbit(a + 0.06);
-  const heading = Math.atan2(nxt.y - pos.y, nxt.x - pos.x);
-  /* thruster trail */
-  c.strokeStyle = 'rgba(255,179,71,.35)'; c.lineWidth = 2;
-  c.beginPath();
-  for (let k = 0; k <= 8; k++) { const p = orbit(a - k * 0.035); k ? c.lineTo(p.x, p.y) : c.moveTo(p.x, p.y); }
-  c.stroke(); drawCount++;
-  w11_ship(c, pos.x, pos.y, heading, 32, st, drawRocketFn, rocketDimsFn, 0.32 + Math.sin(now / 120) * 0.06);
-  c.restore();
-}
 
 /* ─────────────────────────── cargo drop ─────────────────────────── */
-function w11_pod(c, x, y, s, tilt) {
-  c.save(); c.translate(x, y); c.rotate(tilt); c.scale(s, s);
-  c.fillStyle = 'rgba(0,0,0,.18)';
-  const g = c.createLinearGradient(-7, -8, 7, 8);
-  g.addColorStop(0, '#EEF2F6'); g.addColorStop(1, '#9AA5B1');
-  c.fillStyle = g;
-  c.beginPath(); c.moveTo(-6, -7); c.lineTo(6, -7); c.lineTo(8, 2); c.lineTo(-8, 2); c.closePath(); c.fill(); drawCount++;
-  c.fillStyle = ART.nose; c.fillRect(-6.5, -3, 13, 2.6); drawCount++;
-  c.fillStyle = '#4FD9E6'; c.beginPath(); c.arc(0, -4.6, 1.8, 0, 7); c.fill(); drawCount++;
-  c.strokeStyle = '#7A8794'; c.lineWidth = 1.4;
-  c.beginPath(); c.moveTo(-6, 2); c.lineTo(-8, 7); c.moveTo(6, 2); c.lineTo(8, 7); c.stroke(); drawCount++;
-  c.restore();
-}
 
-function drawCargoDrop(c, DW, DH, st, drawRocketFn, rocketDimsFn, drawBaseFn) {
-  const now = st.now, cargo = clamp(st.cargo || 0, 0, 1), modules = clamp(st.modules || 0, 0, 5);
-  const gy = DH * 0.70;
-  c.save();
-  /* sky */
-  const sky = c.createLinearGradient(0, 0, 0, gy);
-  sky.addColorStop(0, ART.space); sky.addColorStop(1, '#0D1524');
-  c.fillStyle = sky; c.fillRect(0, 0, DW, gy + 2); drawCount++;
-  w11_stars(c, DW, gy, now, 34);
-  w11_earth(c, DW * 0.80, DH * 0.16, 20, now);
-
-  /* the ground scrolls; it settles as the drop completes */
-  const ease = cargo * cargo * (3 - 2 * cargo);
-  const scroll = (1 - ease) * DW * 0.9 + (1 - ease) * (now / 26) % DW;
-
-  /* far hills on the horizon */
-  c.fillStyle = '#7E858E';
-  c.beginPath(); c.moveTo(-2, gy + 6);
-  for (let i = 0; i <= 16; i++) {
-    const x = -2 + (i / 16) * (DW + 4);
-    const h = 4 + Math.abs(Math.sin(i * 1.1 + 0.6)) * (6 + w11_rnd(i * 23 + 4) * 9);
-    c.lineTo(x, gy + 4 - h);
-  }
-  c.lineTo(DW + 2, gy + 6); c.closePath(); c.fill(); drawCount++;
-
-  const gg = c.createLinearGradient(0, gy - 6, 0, DH);
-  gg.addColorStop(0, W11_MOONLIT); gg.addColorStop(0.35, W11_MOONMID); gg.addColorStop(1, W11_MOONDK);
-  c.fillStyle = gg;
-  c.beginPath(); c.moveTo(0, DH); c.lineTo(0, gy + 4);
-  for (let x = 0; x <= DW; x += DW / 12) c.lineTo(x, gy + Math.sin((x + scroll) / 90) * 3 + Math.sin((x + scroll) / 33) * 1.4);
-  c.lineTo(DW, DH); c.closePath(); c.fill(); drawCount++;
-
-  /* scrolling surface craters */
-  c.save();
-  c.beginPath(); c.rect(0, gy, DW, DH - gy); c.clip();
-  for (let i = 0; i < 12; i++) {
-    const bx = ((w11_rnd(i * 29 + 6) * DW * 1.6 - scroll * (0.6 + w11_rnd(i) * 0.6)) % (DW * 1.6) + DW * 1.6) % (DW * 1.6) - DW * 0.3;
-    const by = gy + 8 + w11_rnd(i * 31 + 2) * (DH - gy - 10);
-    const rr = 5 + w11_rnd(i * 37 + 8) * 14;
-    const dep = (by - gy) / Math.max(1, DH - gy);
-    c.fillStyle = 'rgba(90,96,104,.35)'; c.beginPath(); c.ellipse(bx, by, rr, rr * 0.34, 0, 0, 7); c.fill(); drawCount++;
-    c.fillStyle = 'rgba(255,255,255,.28)'; c.beginPath(); c.ellipse(bx, by - rr * 0.10 - dep, rr * 0.86, rr * 0.24, 0, 0, 7); c.fill(); drawCount++;
-  }
-  c.restore();
-
-  /* the base — its own ground line is DH*0.66; shift it onto ours and slide it in */
-  const baseShift = DW * 0.02 + (1 - ease) * DW * 0.75;
-  c.save();
-  c.translate(baseShift, gy - DH * 0.66 + 4);
-  drawBaseFn(c, DW, DH, modules, now + 4000);   // +4000 keeps the base past its landing-dust window
-  c.restore();
-
-  /* the ship, hovering high-right, nose up, drifting down as it empties */
-  const sx = DW * 0.66, sy = lerp(DH * 0.24, DH * 0.34, ease);
-  const bob = Math.sin(now / 700) * 2;
-  w11_ship(c, sx, sy + bob, -Math.PI / 2 + 0.12, 34, st, drawRocketFn, rocketDimsFn, 0.22 + Math.sin(now / 90) * 0.05);
-
-  /* pods */
-  const n = clamp(Math.round(modules) || 3, 3, 5);
-  for (let i = 0; i < n; i++) {
-    const t0 = i * (0.6 / n), u = clamp((cargo - t0) / 0.42, 0, 1);
-    if (u <= 0) continue;
-    const landX = DW * (0.50 + 0.26 * (n === 1 ? 0.5 : i / (n - 1)));
-    const landY = gy + 22 + (i % 2) * 16 + (i % 3) * 4;
-    const fall = u * u;                                  // accelerate then hold
-    const px = lerp(sx + 6, landX, u);
-    const py = u >= 1 ? landY : lerp(sy + 8, landY, fall);
-    if (u < 1) {
-      /* retro puff in the last third */
-      if (u > 0.66) {
-        const k = (u - 0.66) / 0.34;
-        c.fillStyle = 'rgba(255,244,194,' + (0.55 * (1 - k * 0.4)) + ')';
-        c.beginPath(); c.ellipse(px, py + 9 + k * 3, 3 + k * 3, 5 + k * 4, 0, 0, 7); c.fill(); drawCount++;
-      }
-      w11_pod(c, px, py, 1, lerp(0.5, 0, u));
-    } else {
-      /* landed: shadow, dust ring, pod */
-      c.fillStyle = 'rgba(0,0,0,.20)'; c.beginPath(); c.ellipse(px + 2, landY + 8, 11, 3.2, 0, 0, 7); c.fill(); drawCount++;
-      const dustAge = clamp((cargo - (t0 + 0.42)) / 0.18, 0, 1);
-      if (dustAge < 1) {
-        c.fillStyle = 'rgba(220,225,232,' + (0.5 * (1 - dustAge)) + ')';
-        c.beginPath();
-        for (const s of [-1, 1]) c.ellipse(px + s * (10 + dustAge * 16), landY + 7, 8 + dustAge * 8, 3.5, 0, 0, 7);
-        c.fill(); drawCount++;
-      }
-      w11_pod(c, px, landY, 1, 0);
-    }
-  }
-  c.restore();
-}
 
 /* ── W12 · cached static layers (same picture, a fifth of the draw calls) ── */
 /* ══════════ W12 · performance pass on the farm, the pad and the grandstand ══════════
@@ -4227,6 +3932,549 @@ function drawShipmentArc(c, DW, DH, p, now) {
   c.restore();
 }
 
+/* ── W9+W14 · Earth orbit, journey geometry ── */
+/* W14 · Earth orbit, revised — orbitview2.js (round 5 journey geometry) */
+
+/* Shared journey geometry (round 5). Earth lower-left, Moon upper-right, always. */
+function jrnyEarth(DW, DH, zoom) { return { x: DW * 0.20, y: DH * 0.88, r: Math.min(DW, DH) * (0.30 + 0.16 * (zoom || 0)) }; }
+function jrnyMoon(DW, DH, zoom)  { return { x: DW * 0.80, y: DH * 0.18, r: Math.min(DW, DH) * (0.10 + 0.34 * (zoom || 0)) }; }
+
+function w9_rand(i) { return ((i * 9301 + 49297) % 233280) / 233280; }
+
+/* stars: three alpha tiers, one path each (3 draws) */
+function w9_stars(c, DW, DH, now) {
+  for (let tier = 0; tier < 3; tier++) {
+    c.beginPath();
+    for (let i = tier; i < 66; i += 3) {
+      const x = w9_rand(i * 3 + 1) * DW;
+      const y = w9_rand(i * 7 + 5) * DH;
+      const tw = 0.75 + 0.25 * Math.sin(now / 900 + i * 1.7);
+      const r = (0.5 + w9_rand(i * 11 + 3) * 1.1) * tw;
+      c.moveTo(x + r, y); c.arc(x, y, r, 0, 6.2832);
+    }
+    c.fillStyle = 'rgba(255,255,255,' + (0.28 + tier * 0.22) + ')';
+    c.fill(); drawCount++;
+  }
+}
+
+/* one cloud swirl, already inside the Earth clip; lon in radians */
+function w9_swirl(c, cx, cy, R, lon, lat, size, alpha) {
+  const s = Math.sin(lon);
+  if (Math.cos(lon) < -0.15) return;            // on the far side
+  const fore = Math.max(0, Math.cos(lon));
+  const x = cx + s * R * 0.72;
+  const y = cy + lat * R;
+  const w = size * R * (0.35 + 0.65 * fore), h = size * R * 0.42;
+  c.save();
+  c.translate(x, y);
+  c.rotate(lat * 0.7);
+  c.globalAlpha = alpha * (0.55 + 0.45 * fore);
+  c.fillStyle = '#FFFFFF';
+  c.beginPath();
+  c.ellipse(0, 0, w, h, 0, 0, 6.2832);
+  c.ellipse(w * 0.55, -h * 0.55, w * 0.5, h * 0.6, 0, 0, 6.2832);
+  c.ellipse(-w * 0.6, h * 0.3, w * 0.45, h * 0.55, 0, 0, 6.2832);
+  c.fill(); drawCount++;
+  c.restore();
+}
+
+/* a blobby continent, inside the Earth clip */
+function w9_land(c, cx, cy, R, lon, lat, size) {
+  if (Math.cos(lon) < -0.1) return;
+  const fore = Math.max(0, Math.cos(lon));
+  const x = cx + Math.sin(lon) * R * 0.68;
+  const y = cy + lat * R;
+  const w = size * R * fore, h = size * R * 0.8;
+  c.save();
+  c.translate(x, y);
+  c.fillStyle = '#4E8B4A';
+  c.beginPath();
+  c.ellipse(0, 0, w, h, 0.4, 0, 6.2832);
+  c.ellipse(w * 0.7, h * 0.8, w * 0.6, h * 0.5, -0.3, 0, 6.2832);
+  c.ellipse(-w * 0.5, -h * 0.7, w * 0.5, h * 0.45, 0.2, 0, 6.2832);
+  c.fill(); drawCount++;
+  c.restore();
+}
+
+function drawOrbitView(c, DW, DH, st, drawRocketFn, rocketDimsFn) {
+  const now = st.now || 0;
+  const zoom = clamp(st.zoom || 0, 0, 1);
+  const angle = st.angle || 0;
+  const heat = clamp(st.heat || 0, 0, 1);
+  const t = st.tiers || { engine: 3, tank: 3, aero: 3, hull: 3, payload: 3 };
+
+  /* ---- space ---- */
+  c.save();
+  c.fillStyle = ART.space; c.fillRect(0, 0, DW, DH); drawCount++;
+  w9_stars(c, DW, DH, now);
+
+  /* ---- Earth: lower-left, canonical journey geometry ---- */
+  const E = jrnyEarth(DW, DH, zoom);
+  const R = E.r, cx = E.x, cy = E.y;
+
+  const earth = () => {
+    // atmosphere rim glow
+    const gl = c.createRadialGradient(cx, cy, R * 0.97, cx, cy, R * 1.12);
+    gl.addColorStop(0, 'rgba(159,211,245,0.75)');
+    gl.addColorStop(0.45, 'rgba(120,180,235,0.28)');
+    gl.addColorStop(1, 'rgba(90,150,220,0)');
+    c.fillStyle = gl;
+    c.beginPath(); c.arc(cx, cy, R * 1.12, 0, 6.2832); c.fill(); drawCount++;
+
+    // ocean ball, lit from the upper-RIGHT (the sun is out where the ship is going)
+    const og = c.createRadialGradient(cx + R * 0.42, cy - R * 0.45, R * 0.08, cx, cy, R * 1.05);
+    og.addColorStop(0, '#6FB4E8');
+    og.addColorStop(0.5, ART.skyHi);
+    og.addColorStop(1, '#12335C');
+    c.fillStyle = og;
+    c.beginPath(); c.arc(cx, cy, R, 0, 6.2832); c.fill(); drawCount++;
+
+    c.save();
+    c.beginPath(); c.arc(cx, cy, R, 0, 6.2832); c.clip();
+
+    const spin = now / 26000;
+    w9_land(c, cx, cy, R, spin + 0.2, -0.34, 0.20);
+    w9_land(c, cx, cy, R, spin + 1.1, 0.30, 0.15);
+    w9_land(c, cx, cy, R, spin + 2.6, 0.02, 0.17);
+    w9_land(c, cx, cy, R, spin + 4.3, -0.12, 0.13);
+    w9_land(c, cx, cy, R, spin + 5.4, 0.42, 0.11);
+
+    const sw = now / 17000;
+    w9_swirl(c, cx, cy, R, sw + 0.9, -0.55, 0.20, 0.9);
+    w9_swirl(c, cx, cy, R, sw + 2.0, 0.14, 0.24, 0.8);
+    w9_swirl(c, cx, cy, R, sw + 3.6, 0.58, 0.17, 0.85);
+    w9_swirl(c, cx, cy, R, sw + 5.2, -0.20, 0.15, 0.7);
+
+    // soft lit limb all round (the terminator below kills it on the night side)
+    const rim = c.createRadialGradient(cx, cy, R * 0.90, cx, cy, R);
+    rim.addColorStop(0, 'rgba(190,225,255,0)');
+    rim.addColorStop(1, 'rgba(205,235,255,0.34)');
+    c.fillStyle = rim;
+    c.beginPath(); c.arc(cx, cy, R, 0, 6.2832); c.fill(); drawCount++;
+
+    // terminator: night falls to the lower-LEFT, away from the sun
+    const tg = c.createLinearGradient(cx + R * 0.55, cy - R * 0.55, cx - R * 1.0, cy + R * 0.9);
+    tg.addColorStop(0.0, 'rgba(3,7,18,0)');
+    tg.addColorStop(0.38, 'rgba(3,7,18,0.10)');
+    tg.addColorStop(0.64, 'rgba(3,7,18,0.60)');
+    tg.addColorStop(0.86, 'rgba(4,9,22,0.90)');
+    tg.addColorStop(1.0, 'rgba(4,9,22,0.96)');
+    c.fillStyle = tg; c.fillRect(cx - R, cy - R, R * 2, R * 2); drawCount++;
+    c.restore();
+  };
+
+  /* ---- orbit: a big circle about Earth, radius E.r * 1.45, travelled
+     counter-clockwise. Seen nearly edge-on and in perspective, so the far
+     (left) half foreshortens in toward the globe and passes behind it. ---- */
+  const orb = R * 1.45;                  // the orbit radius, in its own plane
+  // The plane is tilted away from the camera, so on screen it projects to an
+  // ellipse whose centre rides up and to the right of the globe: the far (left)
+  // half runs behind the ball, the near (right) half swings out into open space.
+  // (raised and squashed so the low arc clears the LAUNCH corner)
+  const ox = cx + orb * 0.40, oy = cy - orb * 0.40;
+  const rx = orb * 0.78, ry = orb * 0.52;
+  const w14_pt = (a) => [ox + rx * Math.cos(a), oy - ry * Math.sin(a)];
+  const P = w14_pt(angle);
+  const sx = P[0], sy = P[1];
+  const behind = Math.cos(angle) < 0;                  // far half, behind the ball
+
+  const drawArc = (a0, a1, alpha, w) => {
+    c.save();
+    c.setLineDash([5, 6]);
+    c.lineDashOffset = -now / 90;
+    c.strokeStyle = 'rgba(190,220,255,' + alpha + ')';
+    c.lineWidth = w;
+    c.beginPath();
+    for (let i = 0; i <= 48; i++) {
+      const q = w14_pt(a0 + (a1 - a0) * (i / 48));
+      if (i === 0) c.moveTo(q[0], q[1]); else c.lineTo(q[0], q[1]);
+    }
+    c.stroke(); drawCount++;
+    c.restore();
+  };
+
+  const ship = () => {
+    const dims = rocketDimsFn(t);
+    const s = (DH * 0.075) / dims.totalH;
+    // tangent measured off the real path, so the nose always leads the travel
+    const A = w14_pt(angle - 0.02), B = w14_pt(angle + 0.02);
+    const rot = Math.atan2(B[1] - A[1], B[0] - A[0]) + Math.PI / 2;  // art points up (-y)
+    c.save();
+    c.translate(sx, sy);
+    c.rotate(rot);
+    c.scale(s, s);
+
+    if (heat > 0) {
+      // plasma wake trailing behind (local +y is behind the ship)
+      const L = dims.totalH * (2.4 + 3.2 * heat);
+      const pg = c.createLinearGradient(0, 0, 0, L);
+      pg.addColorStop(0, 'rgba(255,244,194,' + (0.85 * heat) + ')');
+      pg.addColorStop(0.35, 'rgba(255,140,60,' + (0.5 * heat) + ')');
+      pg.addColorStop(1, 'rgba(224,82,58,0)');
+      c.fillStyle = pg;
+      c.beginPath();
+      c.moveTo(-dims.bodyW * 0.7, dims.bodyH * 0.2);
+      c.quadraticCurveTo(-dims.bodyW * 1.6, L * 0.6, 0, L);
+      c.quadraticCurveTo(dims.bodyW * 1.6, L * 0.6, dims.bodyW * 0.7, dims.bodyH * 0.2);
+      c.closePath(); c.fill(); drawCount++;
+    }
+
+    drawRocketFn(c, 0, dims.bodyH / 2, t, heat > 0 ? 0 : 0.45, heat === 0, now, { heat: heat });
+
+    if (heat > 0) {
+      // leading-edge glow on the nose
+      const ny = -dims.bodyH / 2 - dims.noseH;
+      const hg = c.createRadialGradient(0, ny, 1, 0, ny, dims.bodyW * 2.2);
+      hg.addColorStop(0, 'rgba(255,255,235,' + (0.95 * heat) + ')');
+      hg.addColorStop(0.45, 'rgba(255,170,70,' + (0.6 * heat) + ')');
+      hg.addColorStop(1, 'rgba(255,120,40,0)');
+      c.fillStyle = hg;
+      c.beginPath(); c.arc(0, ny, dims.bodyW * 2.2, 0, 6.2832); c.fill(); drawCount++;
+    }
+    c.restore();
+  };
+
+  drawArc(Math.PI / 2, Math.PI * 1.5, 0.24, 1.1);        // far half, behind the ball
+  /* The far half runs behind the globe. Drawn there it simply vanishes for half the orbit,
+     so it is drawn behind AND a faint ghost goes over the ball — you always know where the ship is. */
+  if (behind) ship();
+  earth();
+  drawArc(-Math.PI / 2, Math.PI / 2, 0.72, 1.3);         // near half, in front
+  if (!behind) ship();
+  else { c.save(); c.globalAlpha = 0.36; ship(); c.restore(); }
+
+  c.restore();
+}
+
+/* ── W11+W15 · the Moon, figure eight ── */
+/* ── W15 · the Moon, close, with a figure eight ── drawMoonApproach, drawCargoDrop ── */
+
+/* Shared journey geometry (round 5). Earth lower-left, Moon upper-right, always. */
+
+const W11_MOONLIT = '#DDE1E6', W11_MOONMID = '#B4B9C0', W11_MOONDK = '#6E747C', W11_SHADOW = '#2A2F36';
+
+function w11_rnd(i) { return ((i * 9301 + 49297) % 233280) / 233280; }
+
+function w11_stars(c, DW, DH, now, n) {
+  c.fillStyle = '#FFFFFF';
+  c.beginPath();
+  for (let i = 0; i < n; i++) {
+    const x = w11_rnd(i * 3 + 7) * DW, y = w11_rnd(i * 5 + 13) * DH;
+    const r = 0.5 + w11_rnd(i * 7 + 3) * 1.1;
+    c.moveTo(x + r, y); c.arc(x, y, r, 0, 7);
+  }
+  c.globalAlpha = 0.55 + Math.sin(now / 900) * 0.12;
+  c.fill(); drawCount++;
+  c.globalAlpha = 1;
+}
+
+/* small blue marble, used as a sky ornament */
+function w11_earth(c, x, y, r, now) {
+  const g = c.createRadialGradient(x - r * 0.4, y - r * 0.4, r * 0.15, x, y, r);
+  g.addColorStop(0, '#5C9BDD'); g.addColorStop(0.65, '#2F6FB7'); g.addColorStop(1, '#123B66');
+  c.fillStyle = 'rgba(159,211,245,.28)'; c.beginPath(); c.arc(x, y, r * 1.22, 0, 7); c.fill(); drawCount++;
+  c.fillStyle = g; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill(); drawCount++;
+  c.save(); c.beginPath(); c.arc(x, y, r, 0, 7); c.clip();
+  c.fillStyle = '#4E8B4A'; c.beginPath();
+  c.ellipse(x - r * 0.25, y - r * 0.15, r * 0.42, r * 0.28, 0.5, 0, 7);
+  c.ellipse(x + r * 0.35, y + r * 0.35, r * 0.30, r * 0.20, -0.3, 0, 7);
+  c.fill(); drawCount++;
+  c.fillStyle = 'rgba(255,255,255,.55)'; c.beginPath();
+  c.ellipse(x + r * 0.1 + Math.sin(now / 6000) * r * 0.1, y - r * 0.5, r * 0.45, r * 0.13, 0.25, 0, 7);
+  c.ellipse(x - r * 0.3, y + r * 0.45, r * 0.38, r * 0.11, -0.2, 0, 7);
+  c.fill(); drawCount++;
+  c.fillStyle = 'rgba(5,9,18,.45)'; c.beginPath(); c.ellipse(x + r * 0.95, y + r * 0.15, r * 0.85, r * 1.05, 0, 0, 7); c.fill(); drawCount++;
+  c.restore();
+}
+
+/* the ship, drawn small along a heading (radians, 0 = +x) */
+function w11_ship(c, x, y, heading, targetH, st, drawRocketFn, rocketDimsFn, flame, opts) {
+  const d = rocketDimsFn(st.tiers), s = targetH / Math.max(1, d.totalH);
+  c.save();
+  c.translate(x, y);
+  c.rotate(heading + Math.PI / 2);
+  c.scale(s, s);
+  drawRocketFn(c, 0, d.totalH * 0.5, st.tiers, flame, flame > 0.02, st.now, opts || {});
+  c.restore();
+}
+
+/* ───────────────── the Moon body (shared by the approach) ───────────────── */
+function w15_moonBody(c, cx, cy, R, now) {
+  const halo = c.createRadialGradient(cx, cy, R * 0.9, cx, cy, R * 1.16);
+  halo.addColorStop(0, 'rgba(220,228,240,.22)'); halo.addColorStop(1, 'rgba(220,228,240,0)');
+  c.fillStyle = halo; c.beginPath(); c.arc(cx, cy, R * 1.16, 0, 7); c.fill(); drawCount++;
+
+  const g = c.createRadialGradient(cx - R * 0.45, cy - R * 0.45, R * 0.1, cx, cy, R * 1.05);
+  g.addColorStop(0, W11_MOONLIT); g.addColorStop(0.55, W11_MOONMID); g.addColorStop(1, W11_MOONDK);
+  c.fillStyle = g; c.beginPath(); c.arc(cx, cy, R, 0, 7); c.fill(); drawCount++;
+
+  c.save();
+  c.beginPath(); c.arc(cx, cy, R, 0, 7); c.clip();
+  const spin = now / 14000;
+  /* maria */
+  c.fillStyle = 'rgba(112,118,126,.26)';
+  c.beginPath();
+  for (let i = 0; i < 5; i++) {
+    const a = spin * 0.7 + i * 1.35, rr = R * (0.22 + w11_rnd(i * 11 + 2) * 0.5);
+    const px = cx + Math.cos(a) * rr, py = cy + Math.sin(a) * rr * 0.8;
+    c.moveTo(px + R * 0.2, py); c.ellipse(px, py, R * (0.10 + w11_rnd(i + 5) * 0.09), R * (0.07 + w11_rnd(i + 9) * 0.07), a, 0, 7);
+  }
+  c.fill(); drawCount++;
+  /* craters — turn under the ship. Batched: two paths, not two per crater. */
+  c.fillStyle = 'rgba(90,96,104,.45)'; c.beginPath();
+  const keep = [];
+  for (let i = 0; i < 17; i++) {
+    const lonPhase = (w11_rnd(i * 13 + 1) * 6.283 + spin) % 6.283;
+    const lat = (w11_rnd(i * 17 + 5) - 0.5) * 1.7;
+    const cosL = Math.cos(lonPhase);
+    if (cosL < -0.05) continue;
+    const px = cx + Math.sin(lonPhase) * R * Math.cos(lat);
+    const py = cy + Math.sin(lat) * R;
+    const rr = R * (0.035 + w11_rnd(i * 19 + 3) * 0.075) * (0.4 + cosL * 0.6);
+    keep.push([px, py, rr]);
+    c.moveTo(px + rr, py); c.ellipse(px, py, rr, rr * 0.72, 0, 0, 7);
+  }
+  c.fill(); drawCount++;
+  c.fillStyle = 'rgba(255,255,255,.30)'; c.beginPath();
+  for (const k of keep) { c.moveTo(k[0] + k[2] * 0.54, k[1] - k[2] * 0.2); c.ellipse(k[0] - k[2] * 0.18, k[1] - k[2] * 0.2, k[2] * 0.72, k[2] * 0.5, 0, 0, 7); }
+  c.fill(); drawCount++;
+  /* terminator */
+  const t = c.createLinearGradient(cx - R, cy, cx + R, cy);
+  t.addColorStop(0, 'rgba(42,47,54,0)'); t.addColorStop(0.55, 'rgba(42,47,54,.12)'); t.addColorStop(1, 'rgba(10,14,22,.80)');
+  c.fillStyle = t; c.fillRect(cx - R, cy - R, R * 2, R * 2); drawCount++;
+  c.restore();
+
+  c.strokeStyle = 'rgba(255,255,255,.35)'; c.lineWidth = 1.2;
+  c.beginPath(); c.arc(cx, cy, R - 0.6, Math.PI * 0.85, Math.PI * 1.85); c.stroke(); drawCount++;
+}
+
+/* ─────────────────────────── approach — the figure eight ───────────────────────────
+   Lemniscate of Gerono/Bernoulli form given in the contract:
+     x = cx + a·cos t / (1 + sin²t)
+     y = cy + b·sin t·cos t / (1 + sin²t)         (negated on screen so t rises counter-clockwise)
+   t = st.angle. The RIGHT lobe (|t| < π/2) passes IN FRONT of the Moon; the LEFT lobe
+   (π/2 < t < 3π/2) passes BEHIND it — drawn before the disc so the Moon occludes it. */
+function w15_eight(cx, cy, a, b, t) {
+  const s = Math.sin(t), co = Math.cos(t), d = 1 + s * s;
+  return { x: cx + a * co / d, y: cy - b * s * co / d };
+}
+function w15_front(t) { const m = ((t % 6.283185) + 6.283185) % 6.283185; return m < Math.PI / 2 || m > Math.PI * 1.5; }
+
+function drawMoonApproach(c, DW, DH, st, drawRocketFn, rocketDimsFn) {
+  const now = st.now, zoom = clamp(st.zoom || 0, 0, 1);
+  c.save();
+  c.fillStyle = ART.space; c.fillRect(0, 0, DW, DH); drawCount++;
+  w11_stars(c, DW, DH, now, 46);
+
+  /* home, far away, at the journey's Earth corner */
+  const E = jrnyEarth(DW, DH, 0);
+  w11_earth(c, E.x, Math.min(E.y, DH * 0.90), 9 + (1 - zoom) * 2, now);
+
+  /* the Moon: jrnyMoon's upper-right slot, growing and drifting to the middle as we close in */
+  const M = jrnyMoon(DW, DH, zoom);
+  const R = Math.min(Math.max(M.r, Math.min(DW, DH) * (0.20 + 0.11 * zoom)), DW * 0.22, DH * 0.28);
+  /* a proper lemniscate: b ≈ a keeps the lobes pointed (b much larger rounds them into two circles) */
+  const a = R * 1.78, b = R * 1.62;                    /* ±a wide, ±0.354·b tall */
+  const cx = clamp(lerp(M.x, DW * 0.50, zoom), a + 6, DW - a - 6);
+  const cy = clamp(lerp(M.y, DH * 0.50, zoom), R + 10, DH - R - 10);
+
+  const P = (t) => w15_eight(cx, cy, a, b, t);
+  const strokeSeg = (t0, t1, alpha, w) => {
+    c.strokeStyle = 'rgba(200,220,255,' + alpha + ')'; c.lineWidth = w; c.setLineDash([5, 5]);
+    c.beginPath();
+    for (let k = 0; k <= 44; k++) { const p = P(lerp(t0, t1, k / 44)); k ? c.lineTo(p.x, p.y) : c.moveTo(p.x, p.y); }
+    c.stroke(); drawCount++; c.setLineDash([]);
+  };
+
+  const ang = st.angle || 0;
+  const onFront = w15_front(ang);
+
+  /* trail: the stretch just flown, warm */
+  const trail = () => {
+    c.strokeStyle = 'rgba(255,179,71,.40)'; c.lineWidth = 2; c.setLineDash([]);
+    c.beginPath();
+    for (let k = 0; k <= 9; k++) { const p = P(ang - k * 0.045); k ? c.lineTo(p.x, p.y) : c.moveTo(p.x, p.y); }
+    c.stroke(); drawCount++;
+  };
+
+  /* ── behind the Moon ── */
+  strokeSeg(Math.PI / 2, Math.PI * 1.5, 0.20);          /* the far lobe, faint */
+  if (!onFront) { trail(); }
+  const posB = P(ang), nxtB = P(ang + 0.05), hdgB = Math.atan2(nxtB.y - posB.y, nxtB.x - posB.x);
+  if (!onFront) w11_ship(c, posB.x, posB.y, hdgB, 30, st, drawRocketFn, rocketDimsFn, 0.30 + Math.sin(now / 120) * 0.06);
+
+  /* ── the Moon itself ── */
+  w15_moonBody(c, cx, cy, R, now);
+
+  /* on the far lobe the Moon has just eaten the ship — keep a dim ghost so it is not lost */
+  if (!onFront && Math.hypot(posB.x - cx, posB.y - cy) < R + 14) {
+    c.save(); c.globalAlpha = 0.34;
+    w11_ship(c, posB.x, posB.y, hdgB, 30, st, drawRocketFn, rocketDimsFn, 0);
+    c.restore();
+  }
+
+  /* ── in front of the Moon ── */
+  strokeSeg(-Math.PI / 2, Math.PI / 2, 0.62, 1.2);      /* the near lobe, bright */
+  if (onFront) {
+    trail();
+    const pos = P(ang), nxt = P(ang + 0.05);
+    w11_ship(c, pos.x, pos.y, Math.atan2(nxt.y - pos.y, nxt.x - pos.x), 30, st, drawRocketFn, rocketDimsFn, 0.30 + Math.sin(now / 120) * 0.06);
+  }
+  c.restore();
+}
+
+/* ─────────────────────────── cargo drop ─────────────────────────── */
+function w11_pod(c, x, y, s, tilt) {
+  c.save(); c.translate(x, y); c.rotate(tilt); c.scale(s, s);
+  const g = c.createLinearGradient(-7, -8, 7, 8);
+  g.addColorStop(0, '#EEF2F6'); g.addColorStop(1, '#9AA5B1');
+  c.fillStyle = g;
+  c.beginPath(); c.moveTo(-6, -7); c.lineTo(6, -7); c.lineTo(8, 2); c.lineTo(-8, 2); c.closePath(); c.fill(); drawCount++;
+  c.fillStyle = ART.nose; c.fillRect(-6.5, -3, 13, 2.6); drawCount++;
+  c.fillStyle = '#4FD9E6'; c.beginPath(); c.arc(0, -4.6, 1.8, 0, 7); c.fill(); drawCount++;
+  c.strokeStyle = '#7A8794'; c.lineWidth = 1.4;
+  c.beginPath(); c.moveTo(-6, 2); c.lineTo(-8, 7); c.moveTo(6, 2); c.lineTo(8, 7); c.stroke(); drawCount++;
+  c.restore();
+}
+
+function drawCargoDrop(c, DW, DH, st, drawRocketFn, rocketDimsFn, drawBaseFn) {
+  const now = st.now, cargo = clamp(st.cargo || 0, 0, 1), modules = clamp(st.modules || 0, 0, 5);
+  const gy = DH * 0.70;
+  c.save();
+  /* sky */
+  const sky = c.createLinearGradient(0, 0, 0, gy);
+  sky.addColorStop(0, ART.space); sky.addColorStop(1, '#0D1524');
+  c.fillStyle = sky; c.fillRect(0, 0, DW, gy + 2); drawCount++;
+  w11_stars(c, DW, gy, now, 34);
+
+  /* home is small and far now — at the journey's Earth x, up in the sky */
+  const E = jrnyEarth(DW, DH, 0);
+  w11_earth(c, E.x, gy * 0.26, 13, now);
+
+  /* the ground scrolls; it settles as the drop completes */
+  const ease = cargo * cargo * (3 - 2 * cargo);
+  const scroll = (1 - ease) * DW * 0.9 + (1 - ease) * (now / 26) % DW;
+
+  /* far hills on the horizon */
+  c.fillStyle = '#7E858E';
+  c.beginPath(); c.moveTo(-2, gy + 6);
+  for (let i = 0; i <= 16; i++) {
+    const x = -2 + (i / 16) * (DW + 4);
+    const h = 4 + Math.abs(Math.sin(i * 1.1 + 0.6)) * (6 + w11_rnd(i * 23 + 4) * 9);
+    c.lineTo(x, gy + 4 - h);
+  }
+  c.lineTo(DW + 2, gy + 6); c.closePath(); c.fill(); drawCount++;
+
+  const gg = c.createLinearGradient(0, gy - 6, 0, DH);
+  gg.addColorStop(0, W11_MOONLIT); gg.addColorStop(0.35, W11_MOONMID); gg.addColorStop(1, W11_MOONDK);
+  c.fillStyle = gg;
+  c.beginPath(); c.moveTo(0, DH); c.lineTo(0, gy + 4);
+  for (let x = 0; x <= DW; x += DW / 12) c.lineTo(x, gy + Math.sin((x + scroll) / 90) * 3 + Math.sin((x + scroll) / 33) * 1.4);
+  c.lineTo(DW, DH); c.closePath(); c.fill(); drawCount++;
+
+  /* scrolling surface craters (batched into two paths) */
+  c.save();
+  c.beginPath(); c.rect(0, gy, DW, DH - gy); c.clip();
+  const cr = [];
+  for (let i = 0; i < 12; i++) {
+    const bx = ((w11_rnd(i * 29 + 6) * DW * 1.6 - scroll * (0.6 + w11_rnd(i) * 0.6)) % (DW * 1.6) + DW * 1.6) % (DW * 1.6) - DW * 0.3;
+    const by = gy + 8 + w11_rnd(i * 31 + 2) * (DH - gy - 10);
+    cr.push([bx, by, 5 + w11_rnd(i * 37 + 8) * 14, (by - gy) / Math.max(1, DH - gy)]);
+  }
+  c.fillStyle = 'rgba(90,96,104,.35)'; c.beginPath();
+  for (const k of cr) { c.moveTo(k[0] + k[2], k[1]); c.ellipse(k[0], k[1], k[2], k[2] * 0.34, 0, 0, 7); }
+  c.fill(); drawCount++;
+  c.fillStyle = 'rgba(255,255,255,.28)'; c.beginPath();
+  for (const k of cr) { c.moveTo(k[0] + k[2] * 0.86, k[1] - k[2] * 0.10 - k[3]); c.ellipse(k[0], k[1] - k[2] * 0.10 - k[3], k[2] * 0.86, k[2] * 0.24, 0, 0, 7); }
+  c.fill(); drawCount++;
+  c.restore();
+
+  /* the base — its own ground line is DH*0.66; shift it onto ours and slide it in */
+  const baseShift = -DW * 0.04 + (1 - ease) * DW * 0.75;
+
+  /* ── the settlement: a graded pad, tracks and lights make the modules read as a base.
+        Everything here slides in with the modules so it stays one settlement. ── */
+  const settleX = DW * 0.28 + baseShift;          /* left of centre; LAUNCH corner stays clear */
+  const settleY = gy + 26;
+  c.fillStyle = 'rgba(255,255,255,.10)';
+  c.beginPath(); c.ellipse(settleX, settleY, DW * 0.32, 24, 0, 0, 7); c.fill(); drawCount++;
+  /* rover tracks running out of the settlement toward the drop zone */
+  c.strokeStyle = 'rgba(90,96,104,.40)'; c.lineWidth = 1.6; c.setLineDash([4, 5]);
+  c.beginPath();
+  c.moveTo(settleX - DW * 0.14, settleY + 12);
+  c.bezierCurveTo(settleX + DW * 0.04, settleY + 18, settleX + DW * 0.18, settleY + 4, DW * 0.62 + baseShift * 0.3, gy + 20);
+  c.stroke(); drawCount++; c.setLineDash([]);
+
+  /* the mast, the flag and the crew stand among the modules (drawn behind them, so the
+     domes overlap their feet and the whole thing reads as one settlement). */
+  const bx0 = baseShift;                       /* drawBaseFn lays its modules out from bx0 + 12 */
+  const bl = 0.55 + 0.45 * Math.sin(now / 480);
+  c.strokeStyle = '#8A929B'; c.lineWidth = 1.4;
+  c.beginPath(); c.moveTo(bx0 + 52, settleY - 2); c.lineTo(bx0 + 52, settleY - 40); c.stroke(); drawCount++;
+  c.strokeStyle = 'rgba(201,204,209,.7)'; c.lineWidth = 1;
+  c.beginPath(); c.moveTo(bx0 + 44, settleY - 3); c.lineTo(bx0 + 52, settleY - 36); c.lineTo(bx0 + 60, settleY - 3); c.stroke(); drawCount++;
+  c.fillStyle = 'rgba(224,82,58,' + bl.toFixed(2) + ')';
+  c.beginPath(); c.arc(bx0 + 52, settleY - 42, 2.6, 0, 7); c.fill(); drawCount++;
+  /* the flag */
+  c.strokeStyle = '#8A929B'; c.lineWidth = 1.2;
+  c.beginPath(); c.moveTo(bx0 + 128, settleY - 2); c.lineTo(bx0 + 128, settleY - 26); c.stroke(); drawCount++;
+  c.fillStyle = ART.nose; c.fillRect(bx0 + 128, settleY - 26, 12, 7.5); drawCount++;
+
+  c.save();
+  c.translate(baseShift, gy - DH * 0.66 + 4);
+  drawBaseFn(c, DW, DH, modules, now + 4000);   // +4000 keeps the base past its landing-dust window
+  c.restore();
+
+  /* two crew out on the surface give the settlement its scale */
+  c.fillStyle = '#E9EEF3';
+  c.beginPath();
+  for (let i = 0; i < 2; i++) {
+    const px = bx0 + 168 + i * 15, py = settleY + 6 + i * 3;
+    c.moveTo(px + 2, py - 7); c.arc(px, py - 7, 2, 0, 7);
+    c.moveTo(px - 1.6, py - 5); c.rect(px - 1.6, py - 5, 3.2, 6);
+  }
+  c.fill(); drawCount++;
+
+
+  /* the ship, hovering above the drop zone, nose up, drifting down as it empties */
+  const sx = DW * 0.60, sy = lerp(DH * 0.24, DH * 0.34, ease);
+  const bob = Math.sin(now / 700) * 2;
+  w11_ship(c, sx, sy + bob, -Math.PI / 2 + 0.12, 34, st, drawRocketFn, rocketDimsFn, 0.22 + Math.sin(now / 90) * 0.05);
+
+  /* pods — they come down between the ship and the settlement, well clear of the LAUNCH corner */
+  const n = clamp(Math.round(modules) || 3, 3, 5);
+  for (let i = 0; i < n; i++) {
+    const t0 = i * (0.6 / n), u = clamp((cargo - t0) / 0.42, 0, 1);
+    if (u <= 0) continue;
+    const f = n === 1 ? 0.5 : i / (n - 1);
+    const landX = DW * (0.46 + 0.18 * f);
+    const landY = gy + 14 + (i % 2) * 12 + (i % 3) * 4;
+    const fall = u * u;
+    const px = lerp(sx + 6, landX, u);
+    const py = u >= 1 ? landY : lerp(sy + 8, landY, fall);
+    if (u < 1) {
+      if (u > 0.66) {
+        const k = (u - 0.66) / 0.34;
+        c.fillStyle = 'rgba(255,244,194,' + (0.55 * (1 - k * 0.4)) + ')';
+        c.beginPath(); c.ellipse(px, py + 9 + k * 3, 3 + k * 3, 5 + k * 4, 0, 0, 7); c.fill(); drawCount++;
+      }
+      w11_pod(c, px, py, 1, lerp(0.5, 0, u));
+    } else {
+      c.fillStyle = 'rgba(0,0,0,.20)'; c.beginPath(); c.ellipse(px + 2, landY + 8, 11, 3.2, 0, 0, 7); c.fill(); drawCount++;
+      const dustAge = clamp((cargo - (t0 + 0.42)) / 0.18, 0, 1);
+      if (dustAge < 1) {
+        c.fillStyle = 'rgba(220,225,232,' + (0.5 * (1 - dustAge)) + ')';
+        c.beginPath();
+        for (const s of [-1, 1]) { c.moveTo(px + s * (10 + dustAge * 16) + 8, landY + 7); c.ellipse(px + s * (10 + dustAge * 16), landY + 7, 8 + dustAge * 8, 3.5, 0, 0, 7); }
+        c.fill(); drawCount++;
+      }
+      w11_pod(c, px, landY, 1, 0);
+    }
+  }
+  c.restore();
+}
+
+
 /* ── ground starfield — drawn once, behind everything ── */
 function drawGround() {
   const g = $('ground'); const d = Math.min(2, window.devicePixelRatio || 1);
@@ -4251,7 +4499,7 @@ function ladderScale() {
     ticks: [[250, '250'], [1000, '1,000'], [2500, '2,500'], [5000, '5,000'], [10000, '10,000 · DONE']],
     val: S.population, got: v => S.population >= v };
   if (m >= 2) return { kind: 'far', title: 'To the Moon', max: MOON_KM,
-    ticks: [[200, 'LEO'], [2000, '1,243 mi'], [36000, 'GEO'], [200000, 'HALFWAY'], [MOON_KM, 'MOON']],
+    ticks: [[200, 'LEO'], [2000, fmtMi(2000) + ' mi'], [36000, 'GEO'], [200000, 'HALFWAY'], [MOON_KM, 'MOON']],
     val: S.bestKm, got: v => S.bestKm >= v * 0.999 };
   return { kind: 'alt', title: 'Altitude', max: 400,
     ticks: MILESTONES.filter(x => x.km <= 400).map(x => [x.km, fmtMi(x.km) + ' mi']).concat([[200, 'ORBIT']]),
@@ -4335,9 +4583,9 @@ function shopHint() {
   if (S.mission >= 5) return { text: 'Base at ' + S.population.toLocaleString('en-US') + ' / 10,000 · every launch lands cargo', ok: true };
   const am = armedMission(); if (am) return { text: 'READY: press LAUNCH to ' + MISSIONS[am].flight.toLowerCase(), ok: true };
   const M = MISSIONS[next], missing = M.equip.filter(id => !S.equipment[id]);
-  if (missing.length) return { text: 'Next: ' + M.name + ' needs ' + missing.map(id => EQUIPMENT[id].name).join(' + '), ok: false };
-  const p = plan || replan();
-  return { text: 'Next: ' + M.name + ' needs Δv ' + (M.dvReq / 1000).toFixed(1) + ' km/s · you have ' + (p.f.dv / 1000).toFixed(1) + ' — upgrade the rocket', ok: false };
+  if (missing.length) return { text: 'Buy the ' + missing.length + ' item' + (missing.length > 1 ? 's' : '') + ' below', ok: false };
+
+  return { text: 'Upgrade the rocket — more Δv', ok: false };
 }
 function paintShop() {
   if (!plan) replan();
@@ -4347,7 +4595,7 @@ function paintShop() {
   const inFlight = phase === 'flight' || phase === 'descent';
   if (shopTab === 'rocket') for (const k of TRACKS) {
     const tier = S.tiers[k], lock = lockReason(k, S.tiers, S.mission), c = tier < TIERS ? costOf(k, tier + 1) : 0;
-    const d = document.createElement('div'); d.className = 'up'; d.dataset.track = k;
+    const d = document.createElement('div'); d.className = 'up' + (lock === 'max' ? ' done' : ''); d.dataset.track = k;
     d.title = TRACK_INFO[k].what;
     const n = document.createElement('div'); n.className = 'n'; n.textContent = TRACK_INFO[k].name + ' · T' + tier; d.appendChild(n);
     const b = document.createElement('button'); b.className = 'buy';
@@ -4367,9 +4615,10 @@ function paintShop() {
     d.appendChild(desc);
     box.appendChild(d);
   }
-  else for (const id of Object.keys(EQUIPMENT)) {
+  else for (const id of Object.keys(EQUIPMENT).sort((a, b) => (S.equipment[a] ? 1 : 0) - (S.equipment[b] ? 1 : 0)
+      || EQUIPMENT[a].mission - EQUIPMENT[b].mission)) {
     const E = EQUIPMENT[id], lock = equipLock(id, S.equipment, S.mission), c = equipCost(id);
-    const d = document.createElement('div'); d.className = 'up'; d.dataset.equip = id; d.title = E.what;
+    const d = document.createElement('div'); d.className = 'up' + (lock === 'owned' ? ' done' : ''); d.dataset.equip = id; d.title = E.what;
     const n = document.createElement('div'); n.className = 'n'; n.textContent = E.name + ' · M' + E.mission; d.appendChild(n);
     const b = document.createElement('button'); b.className = 'buy';
     if (lock === 'owned') { b.textContent = 'OWNED ✓'; b.disabled = true; b.classList.add('max'); }
