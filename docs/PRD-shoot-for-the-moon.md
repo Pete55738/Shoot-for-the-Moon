@@ -108,3 +108,19 @@ the one-hour target is T14, which retunes costs once the ladder is settled.
 The flight model is multi-stage: equipment adds real stages with their own fuel, dry mass, thrust and
 exhaust velocity, so delivered Δv comes out of the rocket equation rather than a lookup. A tier-2 rocket
 with a second stage clears low Earth orbit; the same rocket without it does not.
+
+
+## Balance as tuned for an hour (T14, `node scripts/sim.mjs --targets`)
+
+| strategy | m1 | m2 | m3 | m4 | m5 | done | max dry | wall clock |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| cheapest | 14 | 31 | 48 | 63 | 85 | 120 | 4 | 63 min |
+| priciest | 12 | 28 | 47 | 76 | 117 | 154 | 21 | 83 min |
+| noPayload | 14 | 38 | 82 | 132 | 187 | 223 | 16 | 118 min |
+| payloadFirst | 14 | 29 | 45 | 59 | 78 | 113 | 4 | 60 min |
+| equipmentLast | 14 | 31 | 48 | 63 | 85 | 120 | 4 | 63 min |
+
+Wall clock counts the real cycle: 1.55 s countdown + the mission's flight budget + 15 s turnaround.
+Targets met: first milestone between launch 10 and 20, and 60–63 minutes for a player who buys
+what they can afford. `noPayload` never buys the payload track and is the deliberate outlier.
+`priciest` waits 21 launches at its worst, which is the cost of buying the dearest thing first.

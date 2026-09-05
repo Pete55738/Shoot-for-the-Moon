@@ -828,11 +828,11 @@ const TRACKS = ['engine', 'tank', 'aero', 'hull', 'payload'];
 const TIERS = 10;
 const R_EARTH_KM = 6371;
 const MOON_KM = 384400;
-const COST_GROWTH = 2.4;            // measured: 2.7 stretched the mid-game past 170 launches
+const COST_GROWTH = 2.55;           // T14 · tuned for an hour: 2.4 finished in 39 min, 2.7 ran to 88
 const SPREAD = 2;                   // no rocket part more than 2 tiers above the weakest
 const BASE_COST = { engine: 40, tank: 30, aero: 25, hull: 35, payload: 60 };
-const EQUIP_BASE_COST = 150;        // mission-k equipment costs EQUIP_BASE_COST · COST_GROWTH^(2(k−1)) — about 1.5× the tier-2k upgrade
-const REWARD_K = 1.5, REWARD_P = 0.7; // sub-orbital reward = (K·alt^P + 5) · payMult — a tier-1 rocket now flies ~150 km, so K fell from 6
+const EQUIP_BASE_COST = 320;        // mission-k equipment costs EQUIP_BASE_COST · COST_GROWTH^(2(k−1)) — equipment is the gate, so it is priced above the tier it unlocks
+const REWARD_K = 1.3, REWARD_P = 0.7; // sub-orbital reward = (K·alt^P + 5) · payMult — a tier-1 rocket flies ~150 km, so K fell from 6
 const PAY_MULT = 1.3;               // per payload tier
 const THROTTLE_RAMP_S = 1.0;        // engine spools down over the last second of fuel (T2)
 /* Sub-steps on the way to the first mission. Ticks on the ladder; one-time bonuses. */
@@ -883,7 +883,7 @@ const FLIGHT_PLAN = {
   5: [['ascent', 1.5], ['pitch', 0.6], ['orbit', 1.0], ['transfer', 4.2], ['moonorbit', 1.8], ['cargo', 5.6], ['back', 3.6], ['descent', 1.5]],
 };
 const FADE_S = 0.45;                // cross-fade between camera views; reads as a zoom-out
-const POP_PER_TONNE = 1.25;         // tier 5: population added per tonne of cargo landed (10,000 people ≈ 40 tier-10 flights)
+const POP_PER_TONNE = 0.95;         // T14 · the last stretch is ~35 cargo runs, not 27         // tier 5: population added per tonne of cargo landed (10,000 people ≈ 40 tier-10 flights)
 function costOf(track, tier) { return Math.round(BASE_COST[track] * Math.pow(COST_GROWTH, tier - 1)); }
 function equipCost(id) { return Math.round(EQUIP_BASE_COST * Math.pow(COST_GROWTH, 2 * (EQUIPMENT[id].mission - 1))); }
 function statsOf(t) {
@@ -1007,7 +1007,10 @@ const STRATEGIES = {
   equipmentLast: o => { const r = o.filter(x => !x.k.startsWith('eq:')); return (r.length ? r : o).reduce((a, b) => a.c < b.c ? a : b); },
 };
 /* The gate. Named deadlock (T29): "capped but can't reach the milestone" — the cap tier with both pieces of equipment must clear
-   the mission's Δv. equipmentLast is the strategy that tests it: it buys every capped tier first and equipment only when nothing else is left. */
+   the mission's Δv. equipmentLast is the strategy that tests it: it buys every capped tier first and equipment only when nothing else is left.
+   Measured 2026-09-05 with `node scripts/sim.mjs --targets`: a player who buys what they can afford reaches low Earth orbit
+   on launch 14 and finishes the Moon base in about an hour (120 launches, 63 min). priciest is the worst case at 21 dry
+   launches — buying the dearest thing first leaves you waiting, which is the point. */
 function runBalanceSim() {
   const rows = Object.entries(STRATEGIES).map(([name, s]) => ({ name, ...simulate(s) }));
   const ok = rows.every(r => r.reached && r.launches <= 400 && r.maxDry <= 25);
