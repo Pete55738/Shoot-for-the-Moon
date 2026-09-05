@@ -756,6 +756,11 @@ body {
               <td><span class="reg-status on">live</span></td><td class="r">n/a</td></tr>
         </tbody></table></div>
       <p>No scheduled work runs for this project — nothing fires without you pressing it.</p>
+      <h3>The railgun</h3>
+      <p>Once 1,000 people live on the Moon a railgun is built beside the base. It fires one cargo
+         shipment back to Earth during every turnaround, worth about 90 cents per resident, so the
+         colony starts paying for itself. It never replaces launching — at 10,000 people a shipment
+         is roughly a fifth of what a cargo run earns.</p>
       <h3>Scoring</h3>
       <p>Distances are shown in miles and speeds in miles per hour; the sim underneath is metric and is
          converted only at display time.</p>
@@ -883,6 +888,10 @@ const FLIGHT_PLAN = {
   5: [['ascent', 1.5], ['pitch', 0.6], ['orbit', 1.0], ['transfer', 4.2], ['moonorbit', 1.8], ['cargo', 5.6], ['back', 3.6], ['descent', 1.5]],
 };
 const FADE_S = 0.45;                // cross-fade between camera views; reads as a zoom-out
+/* T17 · once the base passes RAILGUN_POP it fires one cargo shipment home per turnaround.
+   Worth a slice of what the base produces, so it grows with the colony but never replaces launching. */
+const RAILGUN_POP = 1000;
+const RAILGUN_PER_PERSON = 0.9;     // $ per resident per shipment — at 10,000 people a shipment is ~$9k, roughly a fifth of a cargo run
 const POP_PER_TONNE = 0.95;         // T14 · the last stretch is ~35 cargo runs, not 27         // tier 5: population added per tonne of cargo landed (10,000 people ≈ 40 tier-10 flights)
 function costOf(track, tier) { return Math.round(BASE_COST[track] * Math.pow(COST_GROWTH, tier - 1)); }
 function equipCost(id) { return Math.round(EQUIP_BASE_COST * Math.pow(COST_GROWTH, 2 * (EQUIPMENT[id].mission - 1))); }
@@ -953,6 +962,7 @@ function missionReached(t, eq, achieved) {
   return { m, f };
 }
 /* Cargo landed per tier-5 flight (t): payload and hull carry it; excess Δv above landing pays too. */
+function railgunPay(population) { return population >= RAILGUN_POP ? Math.round(population * RAILGUN_PER_PERSON) : 0; }
 function cargoOf(t, f) { return Math.round((2 * t.payload * t.hull + Math.max(0, (f.dv - 15300) / 1000) * 12) * 10) / 10; }
 function rewardOf(apogeeKm, t, mission) {
   const pm = statsOf(t).payMult;
@@ -986,6 +996,7 @@ function simulate(strategy, maxLaunches) {
     for (const ms of MILESTONES) if (f.apogeeKm >= ms.km && !seen.has(ms.km)) { seen.add(ms.km); r += ms.bonus; }
     if (flightMission > achieved) { achieved = flightMission; r += MISSIONS[achieved].bonus; at['m' + achieved] = launches; }
     if (achieved >= 5) { population += cargoOf(t, f) * POP_PER_TONNE; if (population >= MISSIONS[5].population) { at.done = launches; return { launches, maxDry: Math.max(maxDry, dry), buys, reached: true, at }; } }
+    r += railgunPay(Math.floor(population));   // the railgun fires during the turnaround that follows
     money += r;
     let bought = false;
     for (;;) {
@@ -1029,7 +1040,7 @@ const freshState = () => ({
   tiers: { engine: 1, tank: 1, aero: 1, hull: 1, payload: 1 },
   money: 0, launches: 0, earned: 0, bestKm: 0, bestV: 0,
   milestones: [], modules: 0, log: [], seed: 1,
-  equipment: {}, mission: 0, population: 0, cargoT: 0,     // the mission ladder (T13): equipment owned, missions achieved, tier-5 base
+  equipment: {}, mission: 0, population: 0, cargoT: 0, shipments: 0,     // the mission ladder (T13): equipment owned, missions achieved, tier-5 base
 });
 let S = freshState();
 /* phase: 'ready' | 'flight' | 'descent' | 'turnaround' — the scene reads it; act() moves it. */
@@ -1146,6 +1157,7 @@ function launch() {
    FLIGHT — replays the sim's samples over a compressed clock, then coasts.
    view = what the scene reads each frame: altitude (km), speed, fuel, phase.
    ═══════════════════════════════════════════════════════════════════════ */
+const rail = { charge: 0, fire: -1, arc: -1, fired: false };   // T17 · railgun state, only alive during turnaround
 const view = { km: 0, v: 0, fuel: 1, t: 0, burning: false, para: 0, apogeeKm: 0, flame: 0, countdown: null, liftT: -1, heat: 0, forces: null,
   scene: 'pad', p: 0, ang: 0, drift: 0, zoom: 0, cargo: 0, fadeFrom: null, fadeK: 0, mission: 0 };
 let anim = null;
@@ -1274,6 +1286,8 @@ const STAGE_LABEL = { recover: 'Recovery', clean: 'Cleaning', stack: 'Stacking',
 let turn = null; // { tasks:[{name,dur,start}], t0, total }
 function startTurnaround() {
   phase = 'turnaround';
+  /* T17 · the railgun fires once per turnaround, a third of the way in. */
+  rail.fired = false; rail.charge = 0; rail.fire = -1; rail.arc = -1;
   /* One or two from each stage, in assembly order, so the list reads as a running commentary. */
   const ORDER = ['recover', 'clean', 'stack', 'fuel', 'check', 'paper'], picks = [];
   for (const st of ORDER) { const bucket = TASK_POOL.filter(t => t[2] === st);
@@ -1303,6 +1317,16 @@ function tickTurnaround() {
     li.className = st; if (st === 'doing') cur = tk; });
   $('cl-title').textContent = cur ? (STAGE_LABEL[cur.stage] || 'Readiness') : 'Readiness';
   $('launch-sub').textContent = 'ready in ' + Math.ceil(left) + 's';
+  /* railgun: charge through the first third, fire, then watch the pod go home */
+  if (railgunPay(S.population) > 0) {
+    const F = turn.total * 0.34;
+    rail.charge = clamp(el / F, 0, 1);
+    rail.fire = el >= F && el < F + 1.2 ? (el - F) / 1.2 : -1;
+    rail.arc = el >= F + 0.35 && el < F + 4.5 ? (el - F - 0.35) / 4.15 : -1;
+    if (!rail.fired && el >= F) { rail.fired = true; const pay = railgunPay(S.population);
+      S.money += pay; S.earned += pay; S.shipments++; save(); paintMoney(); paintShop(); paintBadge();
+      flashShipment(pay); }
+  }
   drawScene(); if (Math.floor(el * 4) !== Math.floor((el - 0.05) * 4)) { paintDataWin(); paintWindows(); }
   if (left <= 0) { finishTurnaround(); return; }
   anim = requestAnimationFrame(tickTurnaround);
@@ -1469,6 +1493,9 @@ function drawPadScene(c, now) {
   if (phase === 'flight' && view.liftT >= 0 && view.liftT < 6 && groundY < DH + 40) drawLiftoffFX(c, groundY, DW, DH, view.liftT, DW / 2, rocketBase, now);
   if (view.countdown) drawCountdown(c, DW, DH, view.countdown.n, view.countdown.frac, now);
   if (moonScene && S.modules > 0) drawMoonBase(c, DW, DH, S.modules, now - (view.moonAt || 0));
+  if (moonScene && typeof drawRailgun === 'function' && railgunPay(S.population) > 0)
+    drawRailgun(c, DW, DH, DH * 0.66, { pop: S.population, charge: rail.charge, fire: rail.fire, scale: 1 }, now);
+  if (moonScene && typeof drawShipmentArc === 'function' && rail.arc >= 0) drawShipmentArc(c, DW, DH, rail.arc, now);
   if (isLight() && sp < 0.5) { c.save(); c.globalCompositeOperation = 'multiply'; c.globalAlpha = (1 - sp * 2) * 0.62;
     c.fillStyle = 'rgb(206,178,150)'; c.fillRect(0, 0, DW, DH); c.restore(); drawCount++; }
 }
@@ -4106,7 +4133,8 @@ function paintLog() {
   const rows = [['Best altitude', S.bestKm >= MOON_KM ? 'THE MOON' : fmtMi(S.bestKm) + ' mi'], ['Top velocity', fmtV(S.bestV)],
                 ['Launches', S.launches.toLocaleString('en-US')], ['Earned, all time', fmtMoney(S.earned)],
                 ['Mission', S.mission ? S.mission + ' · ' + MISSIONS[S.mission].name : 'sub-orbital'],
-                ['Moon base', S.mission >= 4 ? S.population.toLocaleString('en-US') + ' people · ' + S.cargoT + ' t landed' : 'not yet']];
+                ['Moon base', S.mission >= 4 ? S.population.toLocaleString('en-US') + ' people · ' + S.cargoT + ' t landed' : 'not yet'],
+                ['Railgun', S.shipments ? S.shipments.toLocaleString('en-US') + (S.shipments === 1 ? ' shipment home' : ' shipments home') : railgunPay(S.population) ? 'ready' : 'needs 1,000 people']];
   for (const [k, v] of rows) { const d = document.createElement('div'); d.className = 'stat';
     d.innerHTML = '<div class="k"></div><div class="v"></div>'; d.children[0].textContent = k; d.children[1].textContent = v; st.appendChild(d); }
   const tb = $('log-body'); tb.textContent = '';
@@ -4127,6 +4155,13 @@ function showFlash(f, r, record, hit, module, override) {
   clearTimeout(flashTimer); flashTimer = setTimeout(hideFlash, 4200);
 }
 function hideFlash() { $('flash').classList.remove('show'); }
+/* The railgun's own quiet flash — it fires while you are shopping, so it must not shout. */
+function flashShipment(pay) {
+  $('fl-big').textContent = 'RAILGUN · SHIPMENT ' + S.shipments;
+  $('fl-sub').textContent = S.population.toLocaleString('en-US') + ' people producing';
+  $('fl-money').textContent = '+' + fmtMoney(pay);
+  $('flash').classList.add('show'); clearTimeout(flashTimer); flashTimer = setTimeout(hideFlash, 2600);
+}
 
 /* tabs */
 document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => {
