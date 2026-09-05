@@ -43,7 +43,7 @@ below with its run number.
 - [x] T32 · "in parallel, upgrade all the graphics to the max — multiple agents" · said 09-05 · **decided:** graphics round 2 now: farm extras (T25), liftoff sequence (T26), rocket polish, flight atmosphere polish, ladder tick fix · now · built #7
 - [x] T33 · "on the ground the mission control window should be gone; the readiness window describing what's happening stays until launch; once it launches that goes away and bottom left is the gimbal" · said 09-05 · **decided:** turnaround shows the readiness checklist in the top-left slot and hides mission control; flight hides readiness, shows mission control top-left and the gimbal bottom-left · next · built #11
 - [x] T34 · "add a bunch more mechanics for when they're assembling the ship, and more jokey names for what they're doing — cleaning, cleaning space biffy, stuff like that" · said 09-05 · **decided:** more turnaround stages with their own animation, and a much longer jokey task pool · next · built #11
-- [ ] T35 · "optimize the crap out of the graphics" · said 09-05 · **decided:** cache static layers to offscreen canvases, batch fills, cut per-frame gradient churn; target ≥60 fps everywhere and the turnaround off the 232-draw budget · next
+- [x] T35 · "optimize the crap out of the graphics" · said 09-05 · **decided:** cache static layers to offscreen canvases, batch fills, cut per-frame gradient churn; target ≥60 fps everywhere and the turnaround off the 232-draw budget · next · built #12
 - [ ] T7 · Netlify app made public · said 09-05 · done by the user in Netlify
 
 ## Shipped

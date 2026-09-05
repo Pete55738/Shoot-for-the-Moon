@@ -2558,57 +2558,6 @@ function w2_hook(c, x, yTop, yHook) {
 }
 
 /* ── the pad ── */
-function drawPad(c, gy, DW, now, tp) {
-  if (tp === undefined) tp = 1;
-  const armK = w2_ease((tp - 0.85) / 0.12), X = DW / 2;
-  c.save();
-  // apron shadow and concrete slab with a lit top and a flame trench
-  w2_shadow(c, X, gy + 6, 70, 5);
-  c.fillStyle = '#3A434D'; c.fillRect(X - 62, gy - 2, 124, 8); drawCount++;
-  c.fillStyle = w2_grad(c, X - 62, X + 62, '#7C8792', ART.pad); c.fillRect(X - 62, gy - 9, 124, 8); drawCount++;
-  c.fillStyle = '#1E2126'; c.fillRect(X - 14, gy - 9, 28, 4); drawCount++;
-  c.fillStyle = '#F2C230'; for (const dx of [-58, 50]) c.fillRect(X + dx, gy - 9, 8, 1.5); drawCount++;
-  // crane (behind the gantry)
-  const cr = w2_crane(c, gy, DW, now);
-  if (tp >= 1) w2_hook(c, cr.mx - 30, cr.top, cr.top + 22);
-  // lattice gantry with a top platform
-  const gx = X - 62, gw = 16, gtop = gy - 158;
-  c.fillStyle = w2_grad(c, gx, gx + gw, '#9AA6B2', '#6B7783'); c.fillRect(gx, gtop, 3, gy - 9 - gtop); c.fillRect(gx + gw - 3, gtop, 3, gy - 9 - gtop); drawCount++;
-  c.strokeStyle = '#8A949E'; c.lineWidth = 1.2; c.beginPath();
-  for (let y = gy - 12; y > gtop + 4; y -= 18) { c.moveTo(gx + 1.5, y); c.lineTo(gx + gw - 1.5, y - 18); c.moveTo(gx + gw - 1.5, y); c.lineTo(gx + 1.5, y - 18); c.moveTo(gx, y); c.lineTo(gx + gw, y); }
-  c.stroke(); drawCount++;
-  c.fillStyle = '#6B7783'; c.fillRect(gx - 4, gtop - 3, gw + 10, 4); c.fillRect(gx + 5, gtop - 14, 2, 12); drawCount++;   // platform + mast
-  c.fillStyle = Math.sin(now / 350) > 0.2 ? '#FF4D4D' : '#7A2E28'; c.beginPath(); c.arc(gx + 6, gtop - 16, 2.2, 0, 7); c.fill(); drawCount++;
-  // windsock on the gantry mast
-  const wf = Math.sin(now / 300) * 0.12;
-  c.save(); c.translate(gx + 6, gtop - 12); c.rotate(wf);
-  c.fillStyle = '#FF8A3D'; c.beginPath(); c.moveTo(0, -1); c.lineTo(16, 1.5); c.lineTo(16, 4.5); c.lineTo(0, 5); c.fill();
-  c.fillStyle = '#F3F4F6'; c.fillRect(5, 0.2, 4, 4.4); c.restore(); drawCount += 2;
-  // swing arm: pivots on the gantry, horizontal when in (armK=1), hanging back when out
-  const ay = gy - 96, ang = (1 - armK) * -2.05;
-  c.save(); c.translate(gx + gw, ay); c.rotate(ang);
-  c.fillStyle = '#8A949E'; c.fillRect(0, -2.5, X - (gx + gw) - 4, 5); c.fillStyle = '#6B7783'; c.fillRect(X - (gx + gw) - 8, -6, 6, 12); drawCount += 2;
-  c.strokeStyle = '#B9C4CF'; c.lineWidth = 1; c.beginPath(); c.moveTo(0, -2.5); c.lineTo(20, -10); c.lineTo(38, -2.5); c.stroke(); drawCount++;
-  c.restore();
-  // floodlights at the slab corners
-  for (const dx of [-70, 70]) {
-    c.fillStyle = '#6B7783'; c.fillRect(X + dx - 1, gy - 46, 2, 40); c.fillRect(X + dx - 5, gy - 50, 10, 5); drawCount++;
-    const lg = c.createRadialGradient(X + dx, gy - 46, 1, X + dx, gy - 46, 14); lg.addColorStop(0, 'rgba(255,244,194,.55)'); lg.addColorStop(1, 'rgba(255,244,194,0)');
-    c.fillStyle = lg; c.beginPath(); c.arc(X + dx, gy - 46, 14, 0, 7); c.fill(); drawCount++;
-  }
-  // fuel truck on the right, hoses to the rocket base
-  const fx = X + 66;
-  w2_truckBase(c, fx, gy + 4, 60, false, '#E0523A', '#8F3129');
-  c.fillStyle = w2_grad(c, fx + 18, fx + 60, '#F3F4F6', ART.rocketDk); w2_rr(c, fx + 18, gy - 24, 42, 16, 7); c.fill(); drawCount++;
-  c.fillStyle = '#E0523A'; c.fillRect(fx + 30, gy - 18, 18, 3); drawCount++;
-  c.strokeStyle = '#2A2F36'; c.lineWidth = 2; c.lineCap = 'round'; c.beginPath();
-  if (armK > 0.5) { c.moveTo(fx + 20, gy - 12); c.quadraticCurveTo(X + 30, gy + 6, X + 12, gy - 6); c.moveTo(fx + 24, gy - 10); c.quadraticCurveTo(X + 36, gy + 10, X + 10, gy - 1); }
-  else { c.arc(fx + 24, gy - 10, 3.5, 0, 7); c.arc(fx + 24, gy - 10, 6, 0, 7); }
-  c.stroke(); drawCount++;
-  // flatbed parked on the left when nothing is going on
-  if (tp >= 1) w2_truckBase(c, X - 158, gy + 4, 72, true, '#5F6B78', '#3A434D');
-  c.restore();
-}
 
 /* ── the turnaround theatre ── */
 
@@ -2949,111 +2898,8 @@ function w5_cow(c, x, y, i, now, face) {                // hooves at (x, y), ~14
 }
 
 /* ── the farm ── */
-function drawFarm(c, gy, DW, DH, now, km) {
-  const k = clamp(km / 1.5, 0, 1), near = k * 26, far = k * 8, X = DW / 2;
-  c.save();
-  // ground fill, lit near the horizon
-  const gg = c.createLinearGradient(0, gy, 0, DH + 40);
-  gg.addColorStop(0, '#5B8A52'); gg.addColorStop(0.5, ART.ground); gg.addColorStop(1, ART.groundDk);
-  c.fillStyle = gg; c.fillRect(0, gy, DW, DH - gy + 40); drawCount++;
-  // a sliver of sea on the right horizon, behind the hills
-  const sx0 = DW * 0.56;
-  const sg = c.createLinearGradient(0, gy - 3 + far, 0, gy + 5 + far); sg.addColorStop(0, '#2E6A9C'); sg.addColorStop(1, '#5FA8D8');
-  c.fillStyle = sg; c.fillRect(sx0, gy - 4 + far, DW - sx0, 9); drawCount++;
-  c.fillStyle = 'rgba(255,255,255,.55)'; const gl = Math.sin(now / 900) * 6;                          // glint
-  c.fillRect(DW * 0.74 + gl, gy - 2 + far, 10, 0.9); c.fillRect(DW * 0.88 - gl, gy + 1 + far, 7, 0.9); drawCount++;
-  { const bx = DW * 0.8 + Math.sin(now / 4000) * 14, by = gy - 0.5 + far;                          // one tiny sailboat
-    c.fillStyle = '#F3F4F6'; c.beginPath(); c.moveTo(bx, by - 7); c.lineTo(bx + 3.5, by - 1); c.lineTo(bx, by - 1); c.fill();
-    c.fillStyle = '#E0523A'; c.fillRect(bx - 2.5, by - 1, 6, 1.5); drawCount += 2; }
-  // far hills poking over the horizon (left; the right one stays low so the sea shows)
-  c.fillStyle = '#6E9668'; c.beginPath(); c.ellipse(DW * 0.2, gy + 3 + far, DW * 0.34, 13, 0, 0, 7); c.fill(); drawCount++;
-  c.fillStyle = '#5F875A'; c.beginPath(); c.ellipse(DW * 0.55, gy + 7 + far, DW * 0.16, 7, 0, 0, 7); c.fill(); drawCount++;
-  // near-horizon ground strip in front of the sea
-  c.fillStyle = '#5B8A52'; c.fillRect(0, gy + 5 + far, DW, 4); drawCount++;
-  // crop rows: alternating wedges fanning from a vanishing point behind the horizon
-  const vx = X, vy = gy - 30 + far, bottom = DH + 40;
-  c.save(); c.beginPath(); c.rect(0, gy + 4 + far, DW, bottom); c.clip();
-  for (let i = -6; i <= 6; i++) {
-    if (Math.abs(i) < 2) continue;                          // leave the pad apron plain
-    const x0 = vx + i * 26, x1 = vx + i * 150, x2 = vx + (i + 1) * 150, x3 = vx + (i + 1) * 26;
-    c.fillStyle = (i & 1) ? 'rgba(40,70,36,.28)' : 'rgba(180,210,120,.10)';
-    c.beginPath(); c.moveTo(x0, vy); c.lineTo(x1, bottom); c.lineTo(x2, bottom); c.lineTo(x3, vy); c.fill(); drawCount++;
-  }
-  c.restore();
-  // tree line on the horizon: behind the fence on the left, a few around the site edge on the right (low, so the sea shows)
-  const trees = [], nT = DW > 500 ? 7 : 5;
-  for (let i = 0; i < nT; i++) trees.push([lerp(70, X - 118, (i + 0.5) / nT) + (w5_r(i) - 0.5) * 10, gy + 7 + far, 5.5 + w5_r(i + 3) * 2.5, i]);
-  for (let i = 0; i < 3; i++) trees.push([lerp(X + 126, DW - 10, (i + 0.5) / 3) + (w5_r(i + 9) - 0.5) * 8, gy + 15 + far, 5 + w5_r(i + 12) * 2, i + 9]);
-  trees.push([DW * 0.8 + 44, gy + 28 + near, 7, 21]);       // the one behind the pond
-  w5_trees(c, trees);
-  // fence along the left field
-  const fy = gy + 16 + near * 0.6;
-  c.strokeStyle = '#D9C9A8'; c.lineWidth = 1.2; c.beginPath();
-  for (let x = 6; x < X - 96; x += 15) { c.moveTo(x, fy - 9); c.lineTo(x, fy); }
-  c.moveTo(4, fy - 7); c.lineTo(X - 98, fy - 7); c.moveTo(4, fy - 3); c.lineTo(X - 98, fy - 3); c.stroke(); drawCount++;
-  // barn far left, on the horizon, with two poplars beside the silo
-  const bx = 12, by = gy + 2 + far;
-  w5_poplar(c, bx + 58, by + 1, 30); w5_poplar(c, bx + 66, by + 2, 24);
-  w2_shadow(c, bx + 22, by + 2, 26, 3);
-  c.fillStyle = w2_grad(c, bx, bx + 36, '#C24E42', '#8F3129'); c.fillRect(bx, by - 18, 36, 18); drawCount++;
-  c.fillStyle = '#6E2A24'; c.beginPath(); c.moveTo(bx - 2, by - 18); c.lineTo(bx + 6, by - 28); c.lineTo(bx + 18, by - 32); c.lineTo(bx + 30, by - 28); c.lineTo(bx + 38, by - 18); c.fill(); drawCount++;
-  c.fillStyle = '#F3F4F6'; c.fillRect(bx + 14, by - 12, 8, 12); c.fillStyle = '#8F3129'; c.fillRect(bx + 17.4, by - 12, 1.2, 12); drawCount++;
-  c.fillStyle = '#F3F4F6'; c.fillRect(bx + 4, by - 15, 5, 5); c.fillRect(bx + 27, by - 15, 5, 5); drawCount++;
-  // silo
-  c.fillStyle = w2_grad(c, bx + 40, bx + 50, '#DCE3EA', '#9AA6B2'); c.fillRect(bx + 40, by - 30, 10, 30); c.beginPath(); c.arc(bx + 45, by - 30, 5, Math.PI, 0); c.fill(); drawCount++;
-  // pond with a wobbling sky reflection (right field), a tree behind it
-  const px = DW * 0.8, py = gy + 34 + near, wob = Math.sin(now / 700) * 2;
-  c.fillStyle = '#2E6A9C'; c.beginPath(); c.ellipse(px, py, 36, 9, 0, 0, 7); c.fill(); drawCount++;
-  const pg = c.createLinearGradient(0, py - 8, 0, py + 8); pg.addColorStop(0, ART.skyLo); pg.addColorStop(1, '#3F87C4');
-  c.fillStyle = pg; c.beginPath(); c.ellipse(px, py, 33, 7, 0, 0, 7); c.fill(); drawCount++;
-  c.fillStyle = 'rgba(255,255,255,.38)'; c.beginPath(); c.ellipse(px - 8 + wob, py - 2, 12, 1.2, 0, 0, 7); c.ellipse(px + 10 - wob, py + 2.5, 8, 1, 0, 0, 7); c.fill(); drawCount++;
-  c.strokeStyle = '#7FA35A'; c.lineWidth = 1.2; c.beginPath(); for (const d of [-30, -26, 30]) { c.moveTo(px + d, py + 3); c.lineTo(px + d + 1, py - 8); } c.stroke(); drawCount++;
-  // cows grazing bottom-left of the pad — right of the grandstand (ends at X − 70), below the crew's safe line (gy + 12..26)
-  const cy = gy + 44 + near;
-  const cx0 = DW > 500 ? X - 52 : X - 44;
-  w5_cow(c, cx0, cy, 0, now, 1); w5_cow(c, cx0 + 22, cy + 9, 1, now, -1); if (DW > 500) w5_cow(c, X - 78, cy + 12, 2, now, 1);
-  c.restore();
-}
 
 /* ── the grandstand — bottom-left, x from DW*0.04 to DW/2 − 70 ── */
-function drawCrowd(c, gy, DW, now, excited) {
-  const x0 = DW * 0.04, x1 = Math.min(DW / 2 - 70, x0 + 170), w = x1 - x0, base = gy + 56, step = 8, depth = 7;
-  if (w < 50) return;
-  c.save();
-  w2_shadow(c, (x0 + x1) / 2, base + 2, w / 2 + 4, 3);
-  // three tiers of bench, back tier highest; each tier is a riser (dark face) + a plank (lit top)
-  for (let t = 2; t >= 0; t--) {
-    const y = base - t * step, xs = x0 + t * 3, xe = x1 - t * 3;
-    c.fillStyle = '#5A6470'; c.fillRect(xs, y - depth, xe - xs, depth); drawCount++;
-    c.fillStyle = w2_grad(c, xs, xe, '#C9A065', '#9A7442'); c.fillRect(xs - 1, y - depth - 2.5, xe - xs + 2, 2.5); drawCount++;
-    // spectators on this tier: shirts batched by colour, then heads, then (excited) arms — ≈10 fills per tier
-    const n = Math.max(8, Math.floor((xe - xs) / 9)), sy = y - depth - 2.5, folk = [];
-    for (let i = 0; i < n; i++) {
-      const id = t * 40 + i, r = w5_r(id), r2 = w5_r(id + 7), px = xs + 5 + (i + 0.5) * (xe - xs - 10) / n + (r - 0.5) * 3;
-      const ph = now / 110 + id * 1.3, jump = excited ? Math.max(0, Math.sin(ph)) * 4 * (0.5 + r2) : 0;
-      folk.push({ px, jump, col: Math.floor(r * 6), dark: r2 > 0.5, wv: Math.sin(ph * 1.7) * 1.5 });
-    }
-    const shirts = ['#E0523A', '#FFC24D', '#4FD9E6', '#8AC46A', '#F3F4F6', '#B36BE0'];
-    shirts.forEach((col, k) => { c.fillStyle = col; c.beginPath(); for (const f of folk) if (f.col === k) c.roundRect(f.px - 2.6, sy - 6.5 - f.jump, 5.2, 6.5, 1.5); c.fill(); drawCount++; });
-    for (const dark of [false, true]) {
-      c.fillStyle = dark ? '#8D5A3A' : '#F2C9A0'; c.beginPath();
-      for (const f of folk) if (f.dark === dark) { c.moveTo(f.px + 2.1, sy - 8.5 - f.jump); c.arc(f.px, sy - 8.5 - f.jump, 2.1, 0, 7); }
-      c.fill(); drawCount++;
-      if (excited) {                                                                                      // arms up, waving
-        c.strokeStyle = c.fillStyle; c.lineWidth = 1.2; c.lineCap = 'round'; c.beginPath();
-        for (const f of folk) if (f.dark === dark) { c.moveTo(f.px - 2.4, sy - 6 - f.jump); c.lineTo(f.px - 4 + f.wv, sy - 12 - f.jump); c.moveTo(f.px + 2.4, sy - 6 - f.jump); c.lineTo(f.px + 4 - f.wv, sy - 12 - f.jump); }
-        c.stroke(); drawCount++;
-      }
-    }
-  }
-  // GO! banner along the front rail
-  const bw = Math.min(46, w * 0.5), bxc = x0 + w * 0.5, by = base - 2.5;
-  c.fillStyle = '#F3F4F6'; w2_rr(c, bxc - bw / 2, by - 9, bw, 9, 1.5); c.fill(); drawCount++;
-  c.fillStyle = '#E0523A'; c.font = '800 7.5px system-ui, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('GO!', bxc, by - 4.3); drawCount++;
-  // rail posts
-  c.fillStyle = '#5A6470'; c.fillRect(x0 - 1, base - 16, 2, 16); c.fillRect(x1 - 1, base - 16, 2, 16); drawCount++;
-  c.restore();
-}
 
 /* ── the turnaround theatre (W2's, with the flatbed hand-off) ── */
 function drawTurnaround(c, gy, DW, DH, p, t, now, drawRocketFn, rocketDimsFn) {
@@ -3777,6 +3623,323 @@ function drawCargoDrop(c, DW, DH, st, drawRocketFn, rocketDimsFn, drawBaseFn) {
   c.restore();
 }
 
+/* ── W12 · cached static layers (same picture, a fifth of the draw calls) ── */
+/* ══════════ W12 · performance pass on the farm, the pad and the grandstand ══════════
+   Pixel-for-pixel identical to W2+W5; only the cost changes.
+
+   What it does
+   - The static layers (fields, sea, hills, crop rows, trees, fence, barn, silo, pond,
+     the pad slab / crane lattice / gantry lattice / floodlight poles / trucks, the
+     grandstand benches and banner) are rendered ONCE into offscreen canvases keyed by
+     (DW, DH, gy, mode, theme) and blitted. Live per frame: only what moves.
+   - The cows are batched into 8 paths instead of 21.
+   - Off-screen work is culled (nothing drawn when the ground is below the frame).
+
+   Integration
+   - Call w12_invalidate() on resize, on DPR change and on theme change. Nothing else changes.
+   - The offscreen layers are rendered at the same device scale as `c` (read from
+     c.getTransform()), so the blit is 1:1 — no resampling.
+   - Parallax: the farm's static layer is only cached at km === 0 (k === 0). Above the pad
+     the layer slides by `near`/`far` and is drawn live, exactly as before.  */
+
+const w12_cache = new Map(), w12_seen = new Map();
+function w12_invalidate() { for (const e of w12_cache.values()) { e.cv.width = 0; e.cv.height = 0; } w12_cache.clear(); w12_seen.clear(); }
+
+/* Render `paint` once into an offscreen canvas of `lw × lh` design units, then blit it at (0,0).
+   Returns false when a canvas cannot be made (zero size / no DOM) so callers can draw live. */
+function w12_layer(c, key, lw, lh, paint) {
+  if (!(lw > 0 && lh > 0) || typeof document === 'undefined') return false;
+  let e = w12_cache.get(key);
+  if (!e) {
+    // `gy` slides while the rocket climbs. Only build a layer for a geometry that survived a frame,
+    // so a moving ground draws live instead of thrashing the cache.
+    const fam = key.slice(0, key.indexOf('|'));
+    if (w12_seen.get(fam) !== key) { w12_seen.set(fam, key); return false; }
+    let sx = 1, sy = 1;
+    if (c.getTransform) { const m = c.getTransform(); sx = Math.abs(m.a) || 1; sy = Math.abs(m.d) || 1; }
+    const pw = Math.max(1, Math.ceil(lw * sx)), ph = Math.max(1, Math.ceil(lh * sy));
+    if (pw > 8192 || ph > 8192) return false;
+    let cv, k;
+    try { cv = document.createElement('canvas'); cv.width = pw; cv.height = ph; k = cv.getContext('2d'); } catch (err) { return false; }
+    if (!k) return false;
+    k.setTransform(sx, 0, 0, sy, 0, 0);
+    const before = drawCount;
+    paint(k);
+    drawCount = before;                       // cache-build draws are not per-frame draws
+    e = { cv, sx, sy }; w12_cache.set(key, e);
+    // gy moves once the rocket leaves the pad, so bound the cache: keep the newest few, drop the rest
+    while (w12_cache.size > 8) { const k0 = w12_cache.keys().next().value, e0 = w12_cache.get(k0); e0.cv.width = 0; e0.cv.height = 0; w12_cache.delete(k0); }
+  }
+  c.drawImage(e.cv, 0, 0, lw, lh); drawCount++;
+  return true;
+}
+function w12_theme() { return ART.ground + ART.groundDk + ART.pad + ART.skyLo; }
+/* ellipse/arc as a fresh sub-path inside a batched path (no connecting line) */
+function w12_ell(c, cx, cy, rx, ry, rot) { c.moveTo(cx + rx * Math.cos(rot || 0), cy + rx * Math.sin(rot || 0)); c.ellipse(cx, cy, rx, ry, rot || 0, 0, 7); }
+
+/* ── the farm ───────────────────────────────────────────────────────────────── */
+
+/* everything on the farm that does not move: one call, cached */
+function w12_farmStatic(c, gy, DW, DH, near, far, part) {
+  const X = DW / 2;
+  if (part !== 1) {
+  // ground fill, lit near the horizon
+  const gg = c.createLinearGradient(0, gy, 0, DH + 40);
+  gg.addColorStop(0, '#5B8A52'); gg.addColorStop(0.5, ART.ground); gg.addColorStop(1, ART.groundDk);
+  c.fillStyle = gg; c.fillRect(0, gy, DW, DH - gy + 40); drawCount++;
+  // a sliver of sea on the right horizon, behind the hills
+  const sx0 = DW * 0.56;
+  const sg = c.createLinearGradient(0, gy - 3 + far, 0, gy + 5 + far); sg.addColorStop(0, '#2E6A9C'); sg.addColorStop(1, '#5FA8D8');
+  c.fillStyle = sg; c.fillRect(sx0, gy - 4 + far, DW - sx0, 9); drawCount++;
+  if (part === 0) return;                     // the glint and the sailboat go here, then part 1 on top
+  }
+  // far hills poking over the horizon (left; the right one stays low so the sea shows)
+  c.fillStyle = '#6E9668'; c.beginPath(); c.ellipse(DW * 0.2, gy + 3 + far, DW * 0.34, 13, 0, 0, 7); c.fill(); drawCount++;
+  c.fillStyle = '#5F875A'; c.beginPath(); c.ellipse(DW * 0.55, gy + 7 + far, DW * 0.16, 7, 0, 0, 7); c.fill(); drawCount++;
+  // near-horizon ground strip in front of the sea
+  c.fillStyle = '#5B8A52'; c.fillRect(0, gy + 5 + far, DW, 4); drawCount++;
+  // crop rows: alternating wedges fanning from a vanishing point behind the horizon — two fills, one per shade
+  const vx = X, vy = gy - 30 + far, bottom = DH + 40;
+  c.save(); c.beginPath(); c.rect(0, gy + 4 + far, DW, bottom); c.clip();
+  for (const odd of [1, 0]) {
+    c.fillStyle = odd ? 'rgba(40,70,36,.28)' : 'rgba(180,210,120,.10)'; c.beginPath();
+    for (let i = -6; i <= 6; i++) {
+      if (Math.abs(i) < 2 || (i & 1 ? 1 : 0) !== odd) continue;              // leave the pad apron plain
+      const x0 = vx + i * 26, x1 = vx + i * 150, x2 = vx + (i + 1) * 150, x3 = vx + (i + 1) * 26;
+      c.moveTo(x0, vy); c.lineTo(x1, bottom); c.lineTo(x2, bottom); c.lineTo(x3, vy); c.closePath();
+    }
+    c.fill(); drawCount++;
+  }
+  c.restore();
+  // tree line on the horizon: behind the fence on the left, a few around the site edge on the right
+  const trees = [], nT = DW > 500 ? 7 : 5;
+  for (let i = 0; i < nT; i++) trees.push([lerp(70, X - 118, (i + 0.5) / nT) + (w5_r(i) - 0.5) * 10, gy + 7 + far, 5.5 + w5_r(i + 3) * 2.5, i]);
+  for (let i = 0; i < 3; i++) trees.push([lerp(X + 126, DW - 10, (i + 0.5) / 3) + (w5_r(i + 9) - 0.5) * 8, gy + 15 + far, 5 + w5_r(i + 12) * 2, i + 9]);
+  trees.push([DW * 0.8 + 44, gy + 28 + near, 7, 21]);       // the one behind the pond
+  w5_trees(c, trees);
+  // fence along the left field
+  const fy = gy + 16 + near * 0.6;
+  c.strokeStyle = '#D9C9A8'; c.lineWidth = 1.2; c.beginPath();
+  for (let x = 6; x < X - 96; x += 15) { c.moveTo(x, fy - 9); c.lineTo(x, fy); }
+  c.moveTo(4, fy - 7); c.lineTo(X - 98, fy - 7); c.moveTo(4, fy - 3); c.lineTo(X - 98, fy - 3); c.stroke(); drawCount++;
+  // barn far left, on the horizon, with two poplars beside the silo
+  const bx = 12, by = gy + 2 + far;
+  w5_poplar(c, bx + 58, by + 1, 30); w5_poplar(c, bx + 66, by + 2, 24);
+  w2_shadow(c, bx + 22, by + 2, 26, 3);
+  c.fillStyle = w2_grad(c, bx, bx + 36, '#C24E42', '#8F3129'); c.fillRect(bx, by - 18, 36, 18); drawCount++;
+  c.fillStyle = '#6E2A24'; c.beginPath(); c.moveTo(bx - 2, by - 18); c.lineTo(bx + 6, by - 28); c.lineTo(bx + 18, by - 32); c.lineTo(bx + 30, by - 28); c.lineTo(bx + 38, by - 18); c.fill(); drawCount++;
+  c.fillStyle = '#F3F4F6'; c.fillRect(bx + 14, by - 12, 8, 12); c.fillStyle = '#8F3129'; c.fillRect(bx + 17.4, by - 12, 1.2, 12); drawCount++;
+  c.fillStyle = '#F3F4F6'; c.fillRect(bx + 4, by - 15, 5, 5); c.fillRect(bx + 27, by - 15, 5, 5); drawCount++;
+  // silo
+  c.fillStyle = w2_grad(c, bx + 40, bx + 50, '#DCE3EA', '#9AA6B2'); c.fillRect(bx + 40, by - 30, 10, 30); c.beginPath(); c.arc(bx + 45, by - 30, 5, Math.PI, 0); c.fill(); drawCount++;
+  // pond: the water and its sky reflection are still; the ripple highlight is drawn live
+  const px = DW * 0.8, py = gy + 34 + near;
+  c.fillStyle = '#2E6A9C'; c.beginPath(); c.ellipse(px, py, 36, 9, 0, 0, 7); c.fill(); drawCount++;
+  const pg = c.createLinearGradient(0, py - 8, 0, py + 8); pg.addColorStop(0, ART.skyLo); pg.addColorStop(1, '#3F87C4');
+  c.fillStyle = pg; c.beginPath(); c.ellipse(px, py, 33, 7, 0, 0, 7); c.fill(); drawCount++;
+}
+/* the reeds sit in front of the ripple — one stroke, cheap, drawn live after it */
+function w12_reeds(c, px, py) {
+  c.strokeStyle = '#7FA35A'; c.lineWidth = 1.2; c.beginPath();
+  for (const d of [-30, -26, 30]) { c.moveTo(px + d, py + 3); c.lineTo(px + d + 1, py - 8); } c.stroke(); drawCount++;
+}
+
+/* the herd, batched: 8 paths for 2–3 cows instead of 7 each */
+function w12_cows(c, herd, now) {
+  const heads = [];
+  for (const [x, y, i, face] of herd) {
+    const bob = Math.sin(now / 900 + i * 2.1) * 1.4, graze = Math.sin(now / 900 + i * 2.1) > 0.6;
+    heads.push([x, y, i, face, graze ? 0.9 : 0.15 + bob * 0.08]);
+  }
+  const each = (fn) => { for (const h of heads) { c.save(); c.translate(h[0], h[1]); c.scale(h[3], 1); fn(h); c.restore(); } };
+  const head = (fn) => { for (const h of heads) { c.save(); c.translate(h[0], h[1]); c.scale(h[3], 1); c.translate(7, -9); c.rotate(h[4]); fn(h); c.restore(); } };
+  c.fillStyle = 'rgba(0,0,0,.18)'; c.beginPath(); each(() => w12_ell(c, 0, 0.5, 9, 1.6, 0)); c.fill(); drawCount++;                 // shadows
+  c.strokeStyle = '#2A2F36'; c.lineWidth = 1.4; c.lineCap = 'round'; c.beginPath();                                                  // legs
+  each(() => { for (const lx of [-5, -3, 3, 5]) { c.moveTo(lx, -4); c.lineTo(lx, 0); } }); c.stroke(); drawCount++;
+  c.fillStyle = '#F3F4F6'; c.beginPath(); each(() => w12_ell(c, 0, -7, 7.5, 4, 0)); c.fill(); drawCount++;                           // bodies
+  c.fillStyle = '#2A2F36'; c.beginPath();                                                                                            // patches
+  each(h => { w12_ell(c, -2 + w5_r(h[2]) * 3, -7.5, 2.6, 2, 0.3); w12_ell(c, 4, -6, 1.6, 1.4, 0); }); c.fill(); drawCount++;
+  c.fillStyle = '#F2C9A0'; c.beginPath(); each(() => w12_ell(c, -8, -8.5, 2.2, 1.4, 0)); c.fill(); drawCount++;                      // udder-ish pink
+  c.fillStyle = '#F3F4F6'; c.beginPath(); head(() => w12_ell(c, 2, 0, 3.2, 2.2, 0)); c.fill(); drawCount++;                          // heads
+  c.fillStyle = '#2A2F36'; c.beginPath(); head(() => { c.moveTo(2.2, -1); c.arc(1, -1, 1.2, 0, 7); c.rect(-0.5, -2.8, 2, 1.2); }); c.fill(); drawCount++;   // eye patch + ear
+  c.fillStyle = '#F2C9A0'; c.beginPath(); head(() => w12_ell(c, 4, 0.6, 1.6, 1.1, 0)); c.fill(); drawCount++;                        // muzzle
+}
+
+function drawFarm(c, gy, DW, DH, now, km) {
+  if (gy > DH + 40 || DW <= 0 || DH <= 0) return;                    // cull: the ground is off the bottom
+  const k = clamp(km / 1.5, 0, 1), near = k * 26, far = k * 8, X = DW / 2;
+  const cache = k === 0, key = '|' + DW + '|' + DH + '|' + gy + '|' + w12_theme();
+  c.save();
+  // layer 0 — the field gradient and the sea
+  if (!(cache && w12_layer(c, 'farm0' + key, DW, DH + 40, k2 => w12_farmStatic(k2, gy, DW, DH, 0, 0, 0)))) w12_farmStatic(c, gy, DW, DH, near, far, 0);
+  // live: the sea glint and the sailboat (the tree line covers their tops, so they go under layer 1)
+  c.fillStyle = 'rgba(255,255,255,.55)'; const gl = Math.sin(now / 900) * 6;
+  c.fillRect(DW * 0.74 + gl, gy - 2 + far, 10, 0.9); c.fillRect(DW * 0.88 - gl, gy + 1 + far, 7, 0.9); drawCount++;
+  { const bx = DW * 0.8 + Math.sin(now / 4000) * 14, by = gy - 0.5 + far;
+    c.fillStyle = '#F3F4F6'; c.beginPath(); c.moveTo(bx, by - 7); c.lineTo(bx + 3.5, by - 1); c.lineTo(bx, by - 1); c.fill();
+    c.fillStyle = '#E0523A'; c.fillRect(bx - 2.5, by - 1, 6, 1.5); drawCount += 2; }
+  // layer 1 — hills, crop rows, trees, fence, barn, silo, pond
+  if (!(cache && w12_layer(c, 'farm1' + key, DW, DH + 40, k2 => w12_farmStatic(k2, gy, DW, DH, 0, 0, 1)))) w12_farmStatic(c, gy, DW, DH, near, far, 1);
+  // live: the pond ripple, then the reeds in front of it
+  const px = DW * 0.8, py = gy + 34 + near, wob = Math.sin(now / 700) * 2;
+  c.fillStyle = 'rgba(255,255,255,.38)'; c.beginPath(); c.ellipse(px - 8 + wob, py - 2, 12, 1.2, 0, 0, 7); c.ellipse(px + 10 - wob, py + 2.5, 8, 1, 0, 0, 7); c.fill(); drawCount++;
+  w12_reeds(c, px, py);
+  // live: the cows
+  const cy = gy + 44 + near, cx0 = DW > 500 ? X - 52 : X - 44;
+  const herd = [[cx0, cy, 0, 1], [cx0 + 22, cy + 9, 1, -1]];
+  if (DW > 500) herd.push([X - 78, cy + 12, 2, 1]);
+  w12_cows(c, herd, now);
+  c.restore();
+}
+
+/* ── the pad ────────────────────────────────────────────────────────────────── */
+
+/* slab, crane lattice, gantry lattice, floodlight poles, fuel truck (+ hoses),
+   and — at rest — the parked flatbed and the stowed hook. Everything here is still. */
+function w12_padStatic(c, gy, DW, hosesOn, atRest) {
+  const X = DW / 2;
+  w2_shadow(c, X, gy + 6, 70, 5);
+  c.fillStyle = '#3A434D'; c.fillRect(X - 62, gy - 2, 124, 8); drawCount++;
+  c.fillStyle = w2_grad(c, X - 62, X + 62, '#7C8792', ART.pad); c.fillRect(X - 62, gy - 9, 124, 8); drawCount++;
+  c.fillStyle = '#1E2126'; c.fillRect(X - 14, gy - 9, 28, 4); drawCount++;
+  c.fillStyle = '#F2C230'; for (const dx of [-58, 50]) c.fillRect(X + dx, gy - 9, 8, 1.5); drawCount++;
+  // crane, without its blinking beacon
+  const mx = DW / 2 + 50, top = w2_craneTop(gy) - 6, boomL = DW / 2 - 140, boomR = DW / 2 + 84;
+  c.strokeStyle = '#D9A441'; c.lineWidth = 1.2; c.beginPath();
+  c.moveTo(mx - 4, gy + 2); c.lineTo(mx - 4, top); c.moveTo(mx + 4, gy + 2); c.lineTo(mx + 4, top);
+  for (let y = gy - 4; y > top; y -= 14) { c.moveTo(mx - 4, y); c.lineTo(mx + 4, y - 14); }
+  c.moveTo(boomL, top); c.lineTo(boomR, top); c.moveTo(boomL, top + 6); c.lineTo(boomR, top + 6);
+  for (let x = boomL; x < boomR; x += 12) { c.moveTo(x, top + 6); c.lineTo(x + 12, top); }
+  c.moveTo(mx, top - 14); c.lineTo(boomL + 20, top); c.moveTo(mx, top - 14); c.lineTo(boomR - 6, top);
+  c.stroke(); drawCount++;
+  c.fillStyle = '#4A5561'; c.fillRect(boomR - 18, top + 6, 20, 8); c.fillRect(mx - 7, top - 4, 14, 12); drawCount++;
+  c.fillStyle = '#4FD9E6'; c.fillRect(mx - 5, top, 6, 4); drawCount++;
+  if (atRest) w2_hook(c, mx - 30, top + 6, top + 28);
+  // lattice gantry with a top platform
+  const gx = X - 62, gw = 16, gtop = gy - 158;
+  c.fillStyle = w2_grad(c, gx, gx + gw, '#9AA6B2', '#6B7783'); c.fillRect(gx, gtop, 3, gy - 9 - gtop); c.fillRect(gx + gw - 3, gtop, 3, gy - 9 - gtop); drawCount++;
+  c.strokeStyle = '#8A949E'; c.lineWidth = 1.2; c.beginPath();
+  for (let y = gy - 12; y > gtop + 4; y -= 18) { c.moveTo(gx + 1.5, y); c.lineTo(gx + gw - 1.5, y - 18); c.moveTo(gx + gw - 1.5, y); c.lineTo(gx + 1.5, y - 18); c.moveTo(gx, y); c.lineTo(gx + gw, y); }
+  c.stroke(); drawCount++;
+  c.fillStyle = '#6B7783'; c.fillRect(gx - 4, gtop - 3, gw + 10, 4); c.fillRect(gx + 5, gtop - 14, 2, 12); drawCount++;
+  // floodlight poles (the glow is drawn live)
+  for (const dx of [-70, 70]) { c.fillStyle = '#6B7783'; c.fillRect(X + dx - 1, gy - 46, 2, 40); c.fillRect(X + dx - 5, gy - 50, 10, 5); drawCount++; }
+  // fuel truck on the right, hoses to the rocket base
+  const fx = X + 66;
+  w2_truckBase(c, fx, gy + 4, 60, false, '#E0523A', '#8F3129');
+  c.fillStyle = w2_grad(c, fx + 18, fx + 60, '#F3F4F6', ART.rocketDk); w2_rr(c, fx + 18, gy - 24, 42, 16, 7); c.fill(); drawCount++;
+  c.fillStyle = '#E0523A'; c.fillRect(fx + 30, gy - 18, 18, 3); drawCount++;
+  c.strokeStyle = '#2A2F36'; c.lineWidth = 2; c.lineCap = 'round'; c.beginPath();
+  if (hosesOn) { c.moveTo(fx + 20, gy - 12); c.quadraticCurveTo(X + 30, gy + 6, X + 12, gy - 6); c.moveTo(fx + 24, gy - 10); c.quadraticCurveTo(X + 36, gy + 10, X + 10, gy - 1); }
+  else { c.arc(fx + 24, gy - 10, 3.5, 0, 7); c.arc(fx + 24, gy - 10, 6, 0, 7); }
+  c.stroke(); drawCount++;
+  // flatbed parked on the left when nothing is going on
+  if (atRest) w2_truckBase(c, X - 158, gy + 4, 72, true, '#5F6B78', '#3A434D');
+}
+
+function drawPad(c, gy, DW, now, tp) {
+  if (tp === undefined) tp = 1;
+  if (DW <= 0) return;
+  const armK = w2_ease((tp - 0.85) / 0.12), X = DW / 2;
+  const atRest = tp >= 1, hosesOn = armK > 0.5, mode = atRest ? 2 : hosesOn ? 1 : 0;
+  const gx = X - 62, gw = 16, gtop = gy - 158, top = w2_craneTop(gy) - 6, mx = X + 50;
+  c.save();
+  // static: slab + crane lattice + gantry + poles + trucks (+ hook and flatbed at rest)
+  if (!w12_layer(c, 'pad|' + DW + '|' + gy + '|' + mode + '|' + w12_theme(), DW, gy + 20,
+    k => w12_padStatic(k, gy, DW, hosesOn, atRest))) w12_padStatic(c, gy, DW, hosesOn, atRest);
+  // live: the two beacons
+  c.fillStyle = Math.sin(now / 500) > 0 ? '#FF4D4D' : '#7A2E28'; c.beginPath(); c.arc(mx, top - 16, 2, 0, 7); c.fill(); drawCount++;
+  c.fillStyle = Math.sin(now / 350) > 0.2 ? '#FF4D4D' : '#7A2E28'; c.beginPath(); c.arc(gx + 6, gtop - 16, 2.2, 0, 7); c.fill(); drawCount++;
+  // live: windsock on the gantry mast
+  const wf = Math.sin(now / 300) * 0.12;
+  c.save(); c.translate(gx + 6, gtop - 12); c.rotate(wf);
+  c.fillStyle = '#FF8A3D'; c.beginPath(); c.moveTo(0, -1); c.lineTo(16, 1.5); c.lineTo(16, 4.5); c.lineTo(0, 5); c.fill();
+  c.fillStyle = '#F3F4F6'; c.fillRect(5, 0.2, 4, 4.4); c.restore(); drawCount += 2;
+  // live: swing arm — pivots on the gantry, horizontal when in (armK=1), hanging back when out
+  const ay = gy - 96, ang = (1 - armK) * -2.05;
+  c.save(); c.translate(gx + gw, ay); c.rotate(ang);
+  c.fillStyle = '#8A949E'; c.fillRect(0, -2.5, X - (gx + gw) - 4, 5); c.fillStyle = '#6B7783'; c.fillRect(X - (gx + gw) - 8, -6, 6, 12); drawCount += 2;
+  c.strokeStyle = '#B9C4CF'; c.lineWidth = 1; c.beginPath(); c.moveTo(0, -2.5); c.lineTo(20, -10); c.lineTo(38, -2.5); c.stroke(); drawCount++;
+  c.restore();
+  // live: the floodlight glow
+  for (const dx of [-70, 70]) {
+    const lg = c.createRadialGradient(X + dx, gy - 46, 1, X + dx, gy - 46, 14); lg.addColorStop(0, 'rgba(255,244,194,.55)'); lg.addColorStop(1, 'rgba(255,244,194,0)');
+    c.fillStyle = lg; c.beginPath(); c.arc(X + dx, gy - 46, 14, 0, 7); c.fill(); drawCount++;
+  }
+  c.restore();
+}
+
+/* ── the grandstand ─────────────────────────────────────────────────────────── */
+
+function w12_crowdFolk(c, gy, DW, now, excited, benches, folkOn) {
+  const x0 = DW * 0.04, x1 = Math.min(DW / 2 - 70, x0 + 170), base = gy + 56, step = 8, depth = 7;
+  const shirts = ['#E0523A', '#FFC24D', '#4FD9E6', '#8AC46A', '#F3F4F6', '#B36BE0'];
+  const tiers = [];
+  for (let t = 2; t >= 0; t--) {
+    const y = base - t * step, xs = x0 + t * 3, xe = x1 - t * 3;
+    if (benches) {                                          // riser (dark face) + plank (lit top)
+      c.fillStyle = '#5A6470'; c.fillRect(xs, y - depth, xe - xs, depth); drawCount++;
+      c.fillStyle = w2_grad(c, xs, xe, '#C9A065', '#9A7442'); c.fillRect(xs - 1, y - depth - 2.5, xe - xs + 2, 2.5); drawCount++;
+    }
+    const n = Math.max(8, Math.floor((xe - xs) / 9)), sy = y - depth - 2.5, folk = [];
+    for (let i = 0; i < n; i++) {
+      const id = t * 40 + i, r = w5_r(id), r2 = w5_r(id + 7), px = xs + 5 + (i + 0.5) * (xe - xs - 10) / n + (r - 0.5) * 3;
+      const ph = now / 110 + id * 1.3, jump = excited ? Math.max(0, Math.sin(ph)) * 4 * (0.5 + r2) : 0;
+      folk.push({ px, jump, col: Math.floor(r * 6), dark: r2 > 0.5, wv: Math.sin(ph * 1.7) * 1.5 });
+    }
+    tiers.push({ folk, sy });
+  }
+  if (!folkOn) return;
+  // spectators: batched by colour. When calm nothing overlaps between tiers, so one pass each does
+  // the whole grandstand; when they jump, a lower tier's arms can cross the tier behind, so the
+  // passes stay per tier — exactly the original paint order.
+  const paint = (group) => {
+    shirts.forEach((col, k) => {
+      c.fillStyle = col; c.beginPath();
+      for (const T of group) for (const f of T.folk) if (f.col === k) c.roundRect(f.px - 2.6, T.sy - 6.5 - f.jump, 5.2, 6.5, 1.5);
+      c.fill(); drawCount++;
+    });
+    for (const dark of [false, true]) {
+      c.fillStyle = dark ? '#8D5A3A' : '#F2C9A0'; c.beginPath();
+      for (const T of group) for (const f of T.folk) if (f.dark === dark) { c.moveTo(f.px + 2.1, T.sy - 8.5 - f.jump); c.arc(f.px, T.sy - 8.5 - f.jump, 2.1, 0, 7); }
+      c.fill(); drawCount++;
+      if (excited) {                                                                     // arms up, waving
+        c.strokeStyle = c.fillStyle; c.lineWidth = 1.2; c.lineCap = 'round'; c.beginPath();
+        for (const T of group) for (const f of T.folk) if (f.dark === dark) { c.moveTo(f.px - 2.4, T.sy - 6 - f.jump); c.lineTo(f.px - 4 + f.wv, T.sy - 12 - f.jump); c.moveTo(f.px + 2.4, T.sy - 6 - f.jump); c.lineTo(f.px + 4 - f.wv, T.sy - 12 - f.jump); }
+        c.stroke(); drawCount++;
+      }
+    }
+  };
+  if (excited) for (const T of tiers) paint([T]); else paint(tiers);
+}
+
+function w12_crowdFront(c, gy, DW) {                      // GO! banner + rail posts, over the front tier
+  const x0 = DW * 0.04, x1 = Math.min(DW / 2 - 70, x0 + 170), w = x1 - x0, base = gy + 56;
+  const bw = Math.min(46, w * 0.5), bxc = x0 + w * 0.5, by = base - 2.5;
+  c.fillStyle = '#F3F4F6'; w2_rr(c, bxc - bw / 2, by - 9, bw, 9, 1.5); c.fill(); drawCount++;
+  c.fillStyle = '#E0523A'; c.font = '800 7.5px system-ui, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('GO!', bxc, by - 4.3); drawCount++;
+  c.fillStyle = '#5A6470'; c.fillRect(x0 - 1, base - 16, 2, 16); c.fillRect(x1 - 1, base - 16, 2, 16); drawCount++;
+}
+
+function drawCrowd(c, gy, DW, now, excited) {
+  const x0 = DW * 0.04, x1 = Math.min(DW / 2 - 70, x0 + 170), w = x1 - x0, base = gy + 56;
+  if (w < 50 || DW <= 0) return;
+  c.save();
+  const key = '|' + DW + '|' + gy + '|' + w12_theme(), lh = base + 8;
+  if (!excited) {
+    // nothing moves: the whole grandstand is one blit
+    if (!w12_layer(c, 'crowdAll' + key, DW, lh, k => {
+      w2_shadow(k, (x0 + x1) / 2, base + 2, w / 2 + 4, 3); w12_crowdFolk(k, gy, DW, 0, false, true, true); w12_crowdFront(k, gy, DW);
+    })) { w2_shadow(c, (x0 + x1) / 2, base + 2, w / 2 + 4, 3); w12_crowdFolk(c, gy, DW, 0, false, true, true); w12_crowdFront(c, gy, DW); }
+  } else {
+    if (!w12_layer(c, 'crowdBench' + key, DW, lh, k => { w2_shadow(k, (x0 + x1) / 2, base + 2, w / 2 + 4, 3); w12_crowdFolk(k, gy, DW, 0, false, true, false); }))
+      { w2_shadow(c, (x0 + x1) / 2, base + 2, w / 2 + 4, 3); w12_crowdFolk(c, gy, DW, 0, false, true, false); }
+    w12_crowdFolk(c, gy, DW, now, true, false, true);
+    if (!w12_layer(c, 'crowdFront' + key, DW, lh, k => w12_crowdFront(k, gy, DW))) w12_crowdFront(c, gy, DW);
+  }
+  c.restore();
+}
+
 /* ── ground starfield — drawn once, behind everything ── */
 function drawGround() {
   const g = $('ground'); const d = Math.min(2, window.devicePixelRatio || 1);
@@ -3982,6 +4145,7 @@ document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () =>
     b.title = 'Switch to ' + (isDark ? 'light' : 'dark') + ' theme'; b.setAttribute('aria-label', b.title);
     const bg = getComputedStyle(root).getPropertyValue('--h-bg').trim();
     document.querySelectorAll('meta[name="theme-color"]').forEach(m => { m.removeAttribute('media'); m.setAttribute('content', bg); });
+    if (typeof w12_invalidate === 'function') w12_invalidate();
     drawGround(); drawScene(); drawLadder(); };
   b.addEventListener('click', () => { const t = cur() === 'dark' ? 'light' : 'dark'; root.setAttribute('data-theme', t);
     try { localStorage.setItem('theme', t); } catch (e) {} paint(); });
@@ -4088,7 +4252,7 @@ window.DEV = { jump: sc => requirePat() && devJump(sc), sim: () => requirePat() 
 function paintAll() { replan(); paintWindows(); paintMoney(); paintShop(); paintBadge(); paintLaunch(); paintGauges(); paintLog(); paintRegister(); drawScene(); }
 load();
 drawGround(); sizeScene(); paintAll();
-addEventListener('resize', () => { drawGround(); sizeScene(); drawScene(); drawLadder(); });
+addEventListener('resize', () => { if (typeof w12_invalidate === 'function') w12_invalidate(); drawGround(); sizeScene(); drawScene(); drawLadder(); });
 { const want = (location.hash || '').replace('#', ''); const b = document.querySelector('.tab[data-p="' + want + '"]'); if (b && !b.hidden) b.click(); }
 { let done = null; try { done = localStorage.getItem(TOUR_KEY); } catch (e) {} if (!done && !location.hash) setTimeout(tourStart, 400); }
 </script>
