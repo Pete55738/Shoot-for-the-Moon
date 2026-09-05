@@ -29,6 +29,12 @@ below with its run number.
 - [ ] T18 · "tier 5: Moon base built and 10,000 people live there; grow the base with more payload launches until a population milestone that updates every launch" · said 09-05 · **decided:** replaces the fixed five-module base; population is the tier-5 score, shown in the Moon data panel and the LOG · long run
 - [ ] T19 · "the five tiers: 1 Earth low orbit (100 km), 2 Earth lunar-injection orbit, 3 lunar orbit, 4 lunar base established, 5 Moon base built + 10,000 people" · said 09-05 · **decided:** this is the ladder T13a designs; the old altitude milestones become sub-steps inside tier 1 · long run
 - [ ] T20 · "phase 2: a base and colony on Mars, then mine the asteroid belt" · said 09-05 · parked — after the Moon; the camera-scale idea (T15) is what makes it possible
+- [x] T21 · "when it's launching, everything should get out of the way" · said 09-05 · **decided:** LAUNCH fades to a ghost in flight, the tour closes on launch, checklist already hides · built #6
+- [x] T22 · "it took too long to decelerate the rocket — say three seconds; it can be sped up, but I want ballistic curves and trajectories with drag" · said 09-05 · **decided:** coast capped at 3.5 s now; real ballistic arcs come with the pitch-over (T13c) · quick part built #6
+- [x] T23 · "don't let objects get near our ship — still at different levels, just off to the side" · said 09-05 · **decided:** sky objects keep to the top 22% and the Moon/cow to the upper right · built #6
+- [ ] T24 · "bottom left: gimbal and attitude of the craft, only once we clear the pad; top right a symbol" · said 09-05 · long run — instrument, needs the pitch-over model (T13c) to mean anything
+- [ ] T25 · "a couple of cows bottom left, trees around the site, a little ocean in the background, stadium seating with people watching the launch" · said 09-05 · long run — W2 follow-up on the farm
+- [ ] T26 · "a cool quick countdown 3-2-1, gas plumes going everywhere, make the launch unique" · said 09-05 · long run — liftoff sequence: countdown, ignition, steam and smoke, pad shake
 - [ ] T7 · Netlify app made public · said 09-05 · done by the user in Netlify
 
 ## Shipped
