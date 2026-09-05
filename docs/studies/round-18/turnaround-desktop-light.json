@@ -1,0 +1,94 @@
+{
+  "scene": "turnaround",
+  "out": "docs/studies/round-18/turnaround-desktop-light.png",
+  "viewport": [
+    1100,
+    700
+  ],
+  "light": true,
+  "tiers": 4,
+  "errors": [],
+  "fps": 61,
+  "drawCount": 166,
+  "phase": "turnaround",
+  "sim": {
+    "ok": true,
+    "rows": [
+      {
+        "name": "cheapest",
+        "launches": 120,
+        "maxDry": 4,
+        "buys": 55,
+        "reached": true,
+        "at": {
+          "m1": 14,
+          "m2": 31,
+          "m3": 48,
+          "m4": 63,
+          "m5": 85,
+          "done": 120
+        }
+      },
+      {
+        "name": "priciest",
+        "launches": 154,
+        "maxDry": 21,
+        "buys": 55,
+        "reached": true,
+        "at": {
+          "m1": 12,
+          "m2": 28,
+          "m3": 47,
+          "m4": 76,
+          "m5": 117,
+          "done": 154
+        }
+      },
+      {
+        "name": "noPayload",
+        "launches": 223,
+        "maxDry": 16,
+        "buys": 55,
+        "reached": true,
+        "at": {
+          "m1": 14,
+          "m2": 38,
+          "m3": 82,
+          "m4": 132,
+          "m5": 187,
+          "done": 223
+        }
+      },
+      {
+        "name": "payloadFirst",
+        "launches": 113,
+        "maxDry": 4,
+        "buys": 55,
+        "reached": true,
+        "at": {
+          "m1": 14,
+          "m2": 29,
+          "m3": 45,
+          "m4": 59,
+          "m5": 78,
+          "done": 113
+        }
+      },
+      {
+        "name": "equipmentLast",
+        "launches": 120,
+        "maxDry": 4,
+        "buys": 55,
+        "reached": true,
+        "at": {
+          "m1": 14,
+          "m2": 31,
+          "m3": 48,
+          "m4": 63,
+          "m5": 85,
+          "done": 120
+        }
+      }
+    ]
+  }
+}

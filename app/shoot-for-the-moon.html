@@ -486,7 +486,7 @@ body {
   .flash .money { font-size: 1.1rem; color: var(--h-positive); margin-top: .35rem; }
 
   /* Mission control — the "inside the screen it's mission control" window (T12). Glass, mono, legible on sky or space. */
-  .datawin { position: absolute; left: .6rem; top: .6rem; width: min(13.5rem, 58%);
+  .datawin { position: absolute; left: .6rem; top: .6rem; width: min(13.5rem, 46%); box-sizing: border-box;
              background: var(--h-surface-glass); border: 1px solid var(--h-border); border-radius: var(--radius);
              padding: .4rem .55rem; font-family: var(--wa-font-family-heading); font-size: var(--text-3xs);
              letter-spacing: .06em; text-transform: uppercase; color: var(--h-text); backdrop-filter: blur(6px);
@@ -536,7 +536,7 @@ body {
   @media (max-width: 860px) { .gimbal { width: 10.6rem; } .gimbal canvas { height: 4.4rem; } }
   .gimbal .row { display: flex; justify-content: space-between; margin-top: .15rem; }
   .gimbal .row b { color: var(--h-text); font-weight: var(--wa-font-weight-data); font-variant-numeric: tabular-nums; }
-  @media (max-width: 860px) { .datawin { width: min(11rem, 50%); } .datawin tr:nth-child(n+6) { display: none; } }   /* phone: Vel · Alt · Cd · Drag · Thrust */
+  @media (max-width: 860px) { .datawin { width: min(11rem, 46%); } .datawin tr:nth-child(n+6) { display: none; } }   /* phone: Vel · Alt · Cd · Drag · Thrust */
   /* T33 · on the ground this is the top-left window; mission control takes that slot once the flight starts. */
   .checklist { position: absolute; left: .6rem; top: .6rem; width: min(16.5rem, 46%); box-sizing: border-box;
                background: var(--h-surface-glass); border: 1px solid var(--h-border); border-radius: var(--radius);
@@ -1321,7 +1321,7 @@ function runFlight(f, onApogee, onLanded, mission) {
       const fromKm = view.mission >= 1 ? 120 : f.apogeeKm;
       view.scene = 'pad'; view.km = fromKm * (1 - easeOut(p)); view.ang = 0; view.drift = 0; view.cargo = 0;
       view.heat = fromKm > 60 ? clamp(1 - Math.abs(view.km - 80) / 40, 0, 1) : 0;
-      view.para = clamp((12 - view.km) / 6, 0, 1);
+      view.para = view.km < 3 ? 0 : clamp((12 - view.km) / 6, 0, 1);   /* A6 · under 3 km the catch tower has it */
       view.v = Math.min(7000, Math.sqrt(2 * 9.81 * view.km * 1000)) * (view.para > 0 ? (1 - view.para) * 0.5 + 0.02 : 1);
       view.forces = forcesAt(S.tiers, view.km * 1000, view.v, 0); view.liftT = -1;
       if (!paid) { paid = true; view.apogeeKm = f.apogeeKm; onApogee(); }
@@ -1532,12 +1532,14 @@ const ART = { skyLo: '#6FB4E8', skyHi: '#2F6FB7', space: '#050912', ground: '#3E
               flameCore: '#FFF4C2', crew: '#FFC24D', moon: '#C9CCD1', moonDk: '#8F949B', chute: '#E0523A', chute2: '#F3F4F6' };
 
 /* One frame of whichever camera view the flight is in. The views are whole frames — they paint their own ground. */
+/* A8 · the path the ship is on, faint: flown solid, still-to-come dashed. */
+function traj(c, kind, st, now) { if (typeof drawTrajectory === 'function') drawTrajectory(c, DW, DH, kind, st, now); }
 function drawView(name, c, now) {
   const st = { p: view.p, angle: view.ang, zoom: view.zoom, tiers: S.tiers, now, heat: view.heat,
                cargo: view.cargo, modules: S.modules, population: S.population };
-  if (name === 'orbit' && typeof drawOrbitView === 'function') drawOrbitView(c, DW, DH, st, drawRocket, rocketDims);
-  else if (name === 'transfer' && typeof drawTransferView === 'function') drawTransferView(c, DW, DH, st, drawRocket, rocketDims);
-  else if (name === 'moonorbit' && typeof drawMoonApproach === 'function') drawMoonApproach(c, DW, DH, st, drawRocket, rocketDims);
+  if (name === 'orbit' && typeof drawOrbitView === 'function') { drawOrbitView(c, DW, DH, st, drawRocket, rocketDims); traj(c, 'orbit', st, now); }
+  else if (name === 'transfer' && typeof drawTransferView === 'function') { drawTransferView(c, DW, DH, st, drawRocket, rocketDims); traj(c, 'transfer', st, now); }
+  else if (name === 'moonorbit' && typeof drawMoonApproach === 'function') { drawMoonApproach(c, DW, DH, st, drawRocket, rocketDims); traj(c, 'moonorbit', st, now); }
   else if (name === 'cargo' && typeof drawCargoDrop === 'function') {
     drawCargoDrop(c, DW, DH, st, drawRocket, rocketDims, drawMoonBase);
     if (typeof drawRailgun === 'function' && railgunPay(S.population) > 0)
@@ -1578,7 +1580,9 @@ function drawPadScene(c, now) {
   /* A4 · the site is seen from ~30 degrees up: the horizon sits at DH*0.34 instead of DH*0.78,
      which buys back the empty sky and leaves room for the whole complex. The plane slides off the
      bottom of the frame as we climb — as a translate, so gy (and with it the cache key) never moves. */
-  const SITE_GY = DH * 0.34, siteSlide = sp * DH * 3.4;
+  const SITE_GY = DH * 0.34, siteSlide = DH * 3.4 * Math.pow(sp, 1.8);
+  /* eased, not linear: at 0.6 km the site has barely moved (a flat ramp shoved it a quarter of the
+     frame down and left the catch tower hanging in the sky), and it is clear of the frame by ~10 km. */
   const R0 = gproj(DW, DH, SITE_GY, 0, 0.42);          // the hold-down ring, on the pad axis
   const padK = R0.k * 1.35, padY = R0.sy + siteSlide;   /* the hero gets a little more than true perspective */
   const groundY = SITE_GY + siteSlide;
@@ -1605,12 +1609,20 @@ function drawPadScene(c, now) {
   const onGround = phase === 'ready' || phase === 'turnaround';
   const rocketBase = moonScene ? DH * 0.62 : onGround ? onPad : lerp(onPad, flyStation, climb);
   const rocketK = moonScene ? 1 : onGround ? padK : lerp(padK, 1, climb);
+  /* A6 · below 3 km the tower takes over: drogue, relight, arms closing, grip, ride down, clamps.
+     drawCatch paints the booster itself, so the ordinary ship draw stands down for that stretch. */
+  const catchOn = !moonScene && phase === 'descent' && km < 3 && groundY < DH + 40 && typeof drawCatch === 'function';
+  if (catchOn) {
+    c.save(); c.translate(0, siteSlide);
+    drawCatch(c, DW, DH, SITE_GY, clamp((3 - km) / 3, 0, 1), S.tiers, now, drawRocket, rocketDims);
+    c.restore();
+  } else {
   c.save(); c.translate(DW / 2 + (view.drift || 0), rocketBase); c.scale(rocketK, rocketK);
   if (view.para > 0) { const d = rocketDims(S.tiers); drawChute(c, 0, -d.bodyH - d.noseH - 118, view.para, now); }
   if (phase === 'turnaround' && turn) { c.translate(-DW / 2, 0); drawTurnaround(c, 4, DW, DH, turnP(), S.tiers, now, drawRocket, rocketDims); }
   else { if (view.ang) c.rotate(view.ang);
     drawRocket(c, 0, 0, S.tiers, view.flame, phase === 'flight' && view.burning, now, { heat: view.heat }); }
-  c.restore();
+  c.restore(); }
   if (phase === 'flight' && view.liftT >= 0 && view.liftT < 6 && groundY < DH + 40) {
     c.save(); c.translate(DW / 2, padY); c.scale(padK, padK); c.translate(-DW / 2, -padY);
     drawLiftoffFX(c, padY, DW, DH, view.liftT, DW / 2, padY + (rocketBase - padY) / padK, now); c.restore(); }
@@ -4337,140 +4349,32 @@ function w11_pod(c, x, y, s, tilt) {
   c.restore();
 }
 
+/* A7 · the cargo drop, now over W20's settlement: the flat two-crater base was a row of icons
+   half off the right edge with an empty foreground. The site is drawn on the shared ground
+   projection instead, so it reads as a place — domes on pressure tubes, a greenhouse, the solar
+   farm marching back, rovers, crew, flags, and four painted targets the pods actually land on. */
 function drawCargoDrop(c, DW, DH, st, drawRocketFn, rocketDimsFn, drawBaseFn) {
-  const now = st.now, cargo = clamp(st.cargo || 0, 0, 1), modules = clamp(st.modules || 0, 0, 5);
-  const gy = DH * 0.70;
+  const now = st.now, cargo = clamp(st.cargo || 0, 0, 1);
+  const modules = clamp(st.modules || 0, 0, 5), pop = st.population || 0;
+  const gy = DH * 0.42;
   c.save();
-  /* sky */
+  /* sky and home, small and far */
   const sky = c.createLinearGradient(0, 0, 0, gy);
   sky.addColorStop(0, ART.space); sky.addColorStop(1, '#0D1524');
   c.fillStyle = sky; c.fillRect(0, 0, DW, gy + 2); drawCount++;
   w11_stars(c, DW, gy, now, 34);
-
-  /* home is small and far now — at the journey's Earth x, up in the sky */
   const E = jrnyEarth(DW, DH, 0);
-  w11_earth(c, E.x, gy * 0.26, 13, now);
+  w11_earth(c, E.x, gy * 0.30, 13, now);
 
-  /* the ground scrolls; it settles as the drop completes */
-  const ease = cargo * cargo * (3 - 2 * cargo);
-  const scroll = (1 - ease) * DW * 0.9 + (1 - ease) * (now / 26) % DW;
-
-  /* far hills on the horizon */
-  c.fillStyle = '#7E858E';
-  c.beginPath(); c.moveTo(-2, gy + 6);
-  for (let i = 0; i <= 16; i++) {
-    const x = -2 + (i / 16) * (DW + 4);
-    const h = 4 + Math.abs(Math.sin(i * 1.1 + 0.6)) * (6 + w11_rnd(i * 23 + 4) * 9);
-    c.lineTo(x, gy + 4 - h);
-  }
-  c.lineTo(DW + 2, gy + 6); c.closePath(); c.fill(); drawCount++;
-
-  const gg = c.createLinearGradient(0, gy - 6, 0, DH);
-  gg.addColorStop(0, W11_MOONLIT); gg.addColorStop(0.35, W11_MOONMID); gg.addColorStop(1, W11_MOONDK);
-  c.fillStyle = gg;
-  c.beginPath(); c.moveTo(0, DH); c.lineTo(0, gy + 4);
-  for (let x = 0; x <= DW; x += DW / 12) c.lineTo(x, gy + Math.sin((x + scroll) / 90) * 3 + Math.sin((x + scroll) / 33) * 1.4);
-  c.lineTo(DW, DH); c.closePath(); c.fill(); drawCount++;
-
-  /* scrolling surface craters (batched into two paths) */
-  c.save();
-  c.beginPath(); c.rect(0, gy, DW, DH - gy); c.clip();
-  const cr = [];
-  for (let i = 0; i < 12; i++) {
-    const bx = ((w11_rnd(i * 29 + 6) * DW * 1.6 - scroll * (0.6 + w11_rnd(i) * 0.6)) % (DW * 1.6) + DW * 1.6) % (DW * 1.6) - DW * 0.3;
-    const by = gy + 8 + w11_rnd(i * 31 + 2) * (DH - gy - 10);
-    cr.push([bx, by, 5 + w11_rnd(i * 37 + 8) * 14, (by - gy) / Math.max(1, DH - gy)]);
-  }
-  c.fillStyle = 'rgba(90,96,104,.35)'; c.beginPath();
-  for (const k of cr) { c.moveTo(k[0] + k[2], k[1]); c.ellipse(k[0], k[1], k[2], k[2] * 0.34, 0, 0, 7); }
-  c.fill(); drawCount++;
-  c.fillStyle = 'rgba(255,255,255,.28)'; c.beginPath();
-  for (const k of cr) { c.moveTo(k[0] + k[2] * 0.86, k[1] - k[2] * 0.10 - k[3]); c.ellipse(k[0], k[1] - k[2] * 0.10 - k[3], k[2] * 0.86, k[2] * 0.24, 0, 0, 7); }
-  c.fill(); drawCount++;
-  c.restore();
-
-  /* the base — its own ground line is DH*0.66; shift it onto ours and slide it in */
-  const baseShift = -DW * 0.04 + (1 - ease) * DW * 0.75;
-
-  /* ── the settlement: a graded pad, tracks and lights make the modules read as a base.
-        Everything here slides in with the modules so it stays one settlement. ── */
-  const settleX = DW * 0.28 + baseShift;          /* left of centre; LAUNCH corner stays clear */
-  const settleY = gy + 26;
-  c.fillStyle = 'rgba(255,255,255,.10)';
-  c.beginPath(); c.ellipse(settleX, settleY, DW * 0.32, 24, 0, 0, 7); c.fill(); drawCount++;
-  /* rover tracks running out of the settlement toward the drop zone */
-  c.strokeStyle = 'rgba(90,96,104,.40)'; c.lineWidth = 1.6; c.setLineDash([4, 5]);
-  c.beginPath();
-  c.moveTo(settleX - DW * 0.14, settleY + 12);
-  c.bezierCurveTo(settleX + DW * 0.04, settleY + 18, settleX + DW * 0.18, settleY + 4, DW * 0.62 + baseShift * 0.3, gy + 20);
-  c.stroke(); drawCount++; c.setLineDash([]);
-
-  /* the mast, the flag and the crew stand among the modules (drawn behind them, so the
-     domes overlap their feet and the whole thing reads as one settlement). */
-  const bx0 = baseShift;                       /* drawBaseFn lays its modules out from bx0 + 12 */
-  const bl = 0.55 + 0.45 * Math.sin(now / 480);
-  c.strokeStyle = '#8A929B'; c.lineWidth = 1.4;
-  c.beginPath(); c.moveTo(bx0 + 52, settleY - 2); c.lineTo(bx0 + 52, settleY - 40); c.stroke(); drawCount++;
-  c.strokeStyle = 'rgba(201,204,209,.7)'; c.lineWidth = 1;
-  c.beginPath(); c.moveTo(bx0 + 44, settleY - 3); c.lineTo(bx0 + 52, settleY - 36); c.lineTo(bx0 + 60, settleY - 3); c.stroke(); drawCount++;
-  c.fillStyle = 'rgba(224,82,58,' + bl.toFixed(2) + ')';
-  c.beginPath(); c.arc(bx0 + 52, settleY - 42, 2.6, 0, 7); c.fill(); drawCount++;
-  /* the flag */
-  c.strokeStyle = '#8A929B'; c.lineWidth = 1.2;
-  c.beginPath(); c.moveTo(bx0 + 128, settleY - 2); c.lineTo(bx0 + 128, settleY - 26); c.stroke(); drawCount++;
-  c.fillStyle = ART.nose; c.fillRect(bx0 + 128, settleY - 26, 12, 7.5); drawCount++;
-
-  c.save();
-  c.translate(baseShift, gy - DH * 0.66 + 4);
-  drawBaseFn(c, DW, DH, modules, now + 4000);   // +4000 keeps the base past its landing-dust window
-  c.restore();
-
-  /* two crew out on the surface give the settlement its scale */
-  c.fillStyle = '#E9EEF3';
-  c.beginPath();
-  for (let i = 0; i < 2; i++) {
-    const px = bx0 + 168 + i * 15, py = settleY + 6 + i * 3;
-    c.moveTo(px + 2, py - 7); c.arc(px, py - 7, 2, 0, 7);
-    c.moveTo(px - 1.6, py - 5); c.rect(px - 1.6, py - 5, 3.2, 6);
-  }
-  c.fill(); drawCount++;
-
+  drawLunarSite(c, DW, DH, gy, modules, pop, now);
 
   /* the ship, hovering above the drop zone, nose up, drifting down as it empties */
-  const sx = DW * 0.60, sy = lerp(DH * 0.24, DH * 0.34, ease);
+  const ease = cargo * cargo * (3 - 2 * cargo);
+  const sx = DW * 0.60, sy = lerp(DH * 0.16, DH * 0.26, ease);
   const bob = Math.sin(now / 700) * 2;
   w11_ship(c, sx, sy + bob, -Math.PI / 2 + 0.12, 34, st, drawRocketFn, rocketDimsFn, 0.22 + Math.sin(now / 90) * 0.05);
 
-  /* pods — they come down between the ship and the settlement, well clear of the LAUNCH corner */
-  const n = clamp(Math.round(modules) || 3, 3, 5);
-  for (let i = 0; i < n; i++) {
-    const t0 = i * (0.6 / n), u = clamp((cargo - t0) / 0.42, 0, 1);
-    if (u <= 0) continue;
-    const f = n === 1 ? 0.5 : i / (n - 1);
-    const landX = DW * (0.46 + 0.18 * f);
-    const landY = gy + 14 + (i % 2) * 12 + (i % 3) * 4;
-    const fall = u * u;
-    const px = lerp(sx + 6, landX, u);
-    const py = u >= 1 ? landY : lerp(sy + 8, landY, fall);
-    if (u < 1) {
-      if (u > 0.66) {
-        const k = (u - 0.66) / 0.34;
-        c.fillStyle = 'rgba(255,244,194,' + (0.55 * (1 - k * 0.4)) + ')';
-        c.beginPath(); c.ellipse(px, py + 9 + k * 3, 3 + k * 3, 5 + k * 4, 0, 0, 7); c.fill(); drawCount++;
-      }
-      w11_pod(c, px, py, 1, lerp(0.5, 0, u));
-    } else {
-      c.fillStyle = 'rgba(0,0,0,.20)'; c.beginPath(); c.ellipse(px + 2, landY + 8, 11, 3.2, 0, 0, 7); c.fill(); drawCount++;
-      const dustAge = clamp((cargo - (t0 + 0.42)) / 0.18, 0, 1);
-      if (dustAge < 1) {
-        c.fillStyle = 'rgba(220,225,232,' + (0.5 * (1 - dustAge)) + ')';
-        c.beginPath();
-        for (const s of [-1, 1]) { c.moveTo(px + s * (10 + dustAge * 16) + 8, landY + 7); c.ellipse(px + s * (10 + dustAge * 16), landY + 7, 8 + dustAge * 8, 3.5, 0, 0, 7); }
-        c.fill(); drawCount++;
-      }
-      w11_pod(c, px, landY, 1, 0);
-    }
-  }
+  drawCargoPods(c, DW, DH, gy, cargo, now);
   c.restore();
 }
 
@@ -5369,6 +5273,895 @@ function drawLife(c, DW, DH, gy, now, seed, phase) {
     var g = P(x, z);
     w17_cart(c, g.sx, g.sy, g.k, dir);
   })();
+
+  c.restore();
+}
+
+
+/* ── W19 · the chopstick catch (A6): the booster comes home and the tower catches it ── */
+/* W19 · the chopstick catch — the booster comes home and the tower catches it.
+   Pure drawing, deterministic on `now`, private helpers are w19_*. */
+
+/* gproj lives once, in the W16 section. */
+
+/* ── small helpers ─────────────────────────────────────────────────────────── */
+const w19_ease = t => t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t);
+const w19_R = i => ((i * 9301 + 49297) % 233280) / 233280;
+function w19_gradH(c, x0, x1, a, b) { const g = c.createLinearGradient(x0, 0, x1, 0); g.addColorStop(0, a); g.addColorStop(1, b); return g; }
+
+/* a lattice column: two chords + X bracing. 2 draws. */
+function w19_lattice(c, x, yTop, yBot, w, step) {
+  c.fillStyle = w19_gradH(c, x - w / 2, x + w / 2, '#AEB9C4', '#69757F');
+  c.fillRect(x - w / 2, yTop, w * 0.2, yBot - yTop);
+  c.fillRect(x + w / 2 - w * 0.2, yTop, w * 0.2, yBot - yTop); drawCount++;
+  c.strokeStyle = '#8A949E'; c.lineWidth = 1; c.beginPath();
+  for (let y = yBot; y > yTop; y -= step) {
+    c.moveTo(x - w / 2, y); c.lineTo(x + w / 2, y - step);
+    c.moveTo(x + w / 2, y); c.lineTo(x - w / 2, y - step);
+    c.moveTo(x - w / 2, y); c.lineTo(x + w / 2, y);
+  }
+  c.stroke(); drawCount++;
+}
+
+/* one chopstick arm: a tapered lattice beam from the carriage to a gripper head.
+   `side` −1 = the far arm (drawn behind the booster), +1 = the near arm. 4 draws. */
+function w19_arm(c, rootX, rootY, tipX, tipY, k, side, grip) {
+  const th = (side < 0 ? 5.2 : 6.4) * k;                 // the near arm reads a touch heavier
+  const ang = Math.atan2(tipY - rootY, tipX - rootX), L = Math.hypot(tipX - rootX, tipY - rootY);
+  c.save(); c.translate(rootX, rootY); c.rotate(ang);
+  // beam body, tapering toward the head
+  c.fillStyle = w19_gradH(c, 0, 0, '#000', '#000');
+  const g = c.createLinearGradient(0, -th, 0, th * 1.1);
+  g.addColorStop(0, side < 0 ? '#98A4AF' : '#C3CDD6'); g.addColorStop(1, side < 0 ? '#5D6870' : '#78848F');
+  c.fillStyle = g; c.beginPath();
+  c.moveTo(0, -th); c.lineTo(L, -th * 0.62); c.lineTo(L, th * 0.62); c.lineTo(0, th); c.closePath(); c.fill(); drawCount++;
+  // truss webbing along the top edge
+  c.strokeStyle = 'rgba(40,48,56,.45)'; c.lineWidth = 0.9; c.beginPath();
+  for (let i = 0; i < 7; i++) { const a = L * i / 7, b = L * (i + 1) / 7; c.moveTo(a, -th * 0.8); c.lineTo(b, th * 0.6); }
+  c.moveTo(0, 0); c.lineTo(L, 0); c.stroke(); drawCount++;
+  // gripper head: a roller block that closes on the fins
+  const hw = 7 * k, hh = th * 2.1 * (1 + 0.12 * grip);
+  c.fillStyle = '#F2C230'; c.fillRect(L - hw, -hh / 2, hw * 1.5, hh); drawCount++;
+  c.fillStyle = '#2A2F36'; c.fillRect(L - hw * 0.2, -hh / 2 + hh * 0.18, hw * 0.55, hh * 0.64); drawCount++;
+  c.restore();
+}
+
+/* the drogue: a small ribbon canopy over the booster, cut away mid-fall. */
+function w19_drogue(c, x, y, k, kk, now) {
+  if (kk <= 0.01) return;
+  const R = 21 * k * (0.35 + 0.65 * kk), sway = Math.sin(now / 800) * 0.06;
+  c.save(); c.globalAlpha = Math.min(1, kk * 1.4); c.translate(x, y); c.rotate(sway);
+  c.strokeStyle = 'rgba(255,255,255,.7)'; c.lineWidth = 1; c.beginPath();
+  for (let i = -2; i <= 2; i++) { c.moveTo(i * R * 0.42, -R * 0.34); c.lineTo(0, 26 * k); } c.stroke(); drawCount++;
+  for (let i = 0; i < 6; i++) {
+    c.fillStyle = i % 2 ? ART.chute : ART.chute2; c.beginPath();
+    c.moveTo(0, -R * 0.30); c.arc(0, -R * 0.30, R, Math.PI + i * Math.PI / 6, Math.PI + (i + 1) * Math.PI / 6); c.closePath(); c.fill(); drawCount++;
+  }
+  c.restore();
+}
+
+/* ── the catch ─────────────────────────────────────────────────────────────── */
+function drawCatch(c, DW, DH, gy, p, t, now, drawRocketFn, rocketDimsFn) {
+  p = clamp(p || 0, 0, 1); now = now || 0;
+  const P = (x, z) => gproj(DW, DH, gy, x, z);
+  const G = P(-0.175, 0.435), R0 = P(0, 0.42), k = G.k;
+  const dims = rocketDimsFn(t), H = dims.totalH * k, gripH = H * 0.72;   // the arms take the booster at the grid-fin band, below the interstage
+
+  // ---- timing ---------------------------------------------------------------
+  const pd = clamp(p / 0.45, 0, 1);                       // descent
+  const pc = clamp((p - 0.45) / 0.30, 0, 1);              // capture + settle
+  const pl = clamp((p - 0.75) / 0.25, 0, 1);              // lower to the pad
+  const open = 1 - w19_ease(clamp(pc / 0.45, 0, 1));      // 1 = arms wide, 0 = closed
+  const grip = 1 - open;
+
+  const towerH = 250 * k, gw = 22 * k;
+  const carrCatch = G.sy - towerH * 0.80;                 // arm height at the catch
+  const carrEnd = R0.sy - gripH;                          // arm height once the booster is on the pad
+  const carrY = lerp(carrCatch, carrEnd, w19_ease(pl));
+
+  const catchBase = carrCatch + gripH;
+  const startBase = Math.min(H + 54 * k, R0.sy - H * 1.15);   // booster and drogue both clear of the top edge
+  let baseY = p < 0.45 ? lerp(startBase, catchBase, w19_ease(pd) * 0.94 + pd * 0.06)
+            : p < 0.75 ? catchBase + 5 * k * w19_ease(clamp((pc - 0.30) / 0.25, 0, 1))
+            : lerp(catchBase + 5 * k, R0.sy, w19_ease(pl));
+  const bx = R0.sx;
+
+  // swing: a drift on the way down, a real pendulum when the arms take the weight
+  const tilt = p < 0.45 ? Math.sin(now / 760) * 0.05 * (1 - pd * 0.6)
+             : p < 0.78 ? Math.sin(pc * 20) * 0.10 * Math.exp(-pc * 4.2)
+             : 0;
+
+  // engine relight: a short burn that arrests the fall
+  const rel = p > 0.16 && p < 0.54 ? Math.sin(clamp((p - 0.16) / 0.38, 0, 1) * Math.PI) : 0;
+  const flame = rel * 0.9;
+
+  c.save();
+
+  // ---- the tower ------------------------------------------------------------
+  c.fillStyle = 'rgba(0,0,0,.18)'; c.beginPath(); c.ellipse(G.sx + 8 * k, G.sy + 2, gw * 1.2, 4.5 * k, 0, 0, 7); c.fill(); drawCount++;
+  w19_lattice(c, G.sx, G.sy - towerH, G.sy, gw, towerH / 12);
+  // crown platform, lightning rod, beacon
+  c.fillStyle = '#69757F'; c.fillRect(G.sx - gw * 0.85, G.sy - towerH - 4 * k, gw * 1.7, 4 * k);
+  c.fillRect(G.sx - 1.2, G.sy - towerH - 22 * k, 2.4, 18 * k); drawCount++;
+  c.fillStyle = Math.sin(now / 400) > 0 ? '#FF4D4D' : '#7A2E28';
+  c.beginPath(); c.arc(G.sx, G.sy - towerH - 24 * k, 2.2, 0, 7); c.fill(); drawCount++;
+  // the carriage that rides the tower
+  c.fillStyle = '#4A5561'; c.fillRect(G.sx - gw * 0.72, carrY - 11 * k, gw * 1.44, 22 * k); drawCount++;
+  c.fillStyle = '#F2C230'; c.fillRect(G.sx - gw * 0.72, carrY - 11 * k, gw * 1.44, 2.4 * k); drawCount++;
+  // hoist cables from the crown to the carriage
+  c.strokeStyle = 'rgba(40,48,56,.55)'; c.lineWidth = 0.9; c.beginPath();
+  c.moveTo(G.sx - 4 * k, G.sy - towerH); c.lineTo(G.sx - 4 * k, carrY - 10 * k);
+  c.moveTo(G.sx + 4 * k, G.sy - towerH); c.lineTo(G.sx + 4 * k, carrY - 10 * k); c.stroke(); drawCount++;
+
+  // ---- arm geometry ---------------------------------------------------------
+  const rootX = G.sx + gw * 0.6;
+  const reach = (bx + 13 * k) - rootX;
+  const tipX = rootX + reach * (0.46 + 0.54 * grip);
+  const spread = 34 * k * open + 6 * k;
+  const farTip = carrY - spread, nearTip = carrY + spread;
+
+  // far arm (behind the booster)
+  w19_arm(c, rootX, carrY - 6 * k, tipX, farTip, k, -1, grip);
+
+  // ---- the booster ----------------------------------------------------------
+  w19_drogue(c, bx, baseY - H - 6 * k, k, p < 0.34 ? clamp(p / 0.06, 0, 1) : clamp(1 - (p - 0.34) / 0.09, 0, 1), now);
+  c.save();
+  c.translate(bx, baseY - gripH); c.rotate(tilt); c.translate(0, gripH); c.scale(k, k);
+  drawRocketFn(c, 0, 0, t, flame, rel > 0.05, now);
+  c.restore();
+
+  // near arm (in front of the booster) — this is the one that reads as "caught"
+  w19_arm(c, rootX, carrY + 6 * k, tipX, nearTip, k, 1, grip);
+
+  // contact: a puff of vented gas at each gripper as it takes the load
+  const cap = 1 - Math.min(1, Math.abs(pc - 0.34) / 0.16);
+  if (cap > 0.02 && pc < 1) {
+    for (const ty of [farTip, nearTip]) {
+      const g2 = c.createRadialGradient(tipX, ty, 1, tipX, ty, 12 * k);
+      g2.addColorStop(0, 'rgba(255,255,255,' + (0.5 * cap).toFixed(3) + ')'); g2.addColorStop(1, 'rgba(255,255,255,0)');
+      c.fillStyle = g2; c.beginPath(); c.arc(tipX, ty, 12 * k, 0, 7); c.fill(); drawCount++;
+    }
+  }
+  // load lights on the grippers once they have the weight
+  if (grip > 0.6) {
+    c.fillStyle = Math.sin(now / 220) > 0 ? '#8BE86F' : '#2E5B29';
+    for (const ty of [farTip, nearTip]) { c.beginPath(); c.arc(tipX + 3 * k, ty - 6 * k, 1.8, 0, 7); c.fill(); drawCount++; }
+  }
+
+  // ---- clamps + steam on the pad -------------------------------------------
+  if (pl > 0.55) {
+    const cl = w19_ease((pl - 0.55) / 0.45);
+    c.fillStyle = '#F2C230';
+    for (const dx of [-1, 1]) { c.fillRect(bx + dx * (10 + 6 * (1 - cl)) * k - 3 * k, R0.sy - 12 * k, 6 * k, 12 * k); drawCount++; }
+  }
+  if (p > 0.72) {
+    const sp = clamp((p - 0.72) / 0.28, 0, 1), a = Math.sin(sp * Math.PI) * 0.55 + 0.12;
+    for (let i = 0; i < 7; i++) {
+      const r = w19_R(i * 3 + 1), side = i % 2 ? 1 : -1;
+      const rise = ((now / 900 + r) % 1);
+      const x = bx + side * (16 + r * 46) * k + side * rise * 22 * k;
+      const y = R0.sy - rise * 46 * k, rad = (9 + r * 12) * k * (0.5 + rise);
+      const g = c.createRadialGradient(x, y, 1, x, y, rad);
+      g.addColorStop(0, 'rgba(255,255,255,' + (a * (1 - rise) * 0.85).toFixed(3) + ')');
+      g.addColorStop(1, 'rgba(255,255,255,0)');
+      c.fillStyle = g; c.beginPath(); c.arc(x, y, rad, 0, 7); c.fill(); drawCount++;
+    }
+  }
+  c.restore();
+}
+
+/* ── W20 · the lunar settlement (A7): domes, solar farm, painted targets, cargo-net pods ── */
+/* ── W20 · the lunar settlement ── drawLunarSite, drawCargoPods ── */
+
+/* gproj lives once, in the W16 section. */
+
+/* palette — continuous with drawMoonBase / drawCargoDrop */
+const W20_LIT = '#DDE1E6', W20_MID = '#B4B9C0', W20_DK = '#6E747C';
+const W20_HULL = '#EEF2F6', W20_HULLDK = '#AEB8C3', W20_STEEL = '#7A8794', W20_WIN = '#FFD27A';
+
+function w20_rnd(i) { return ((i * 9301 + 49297) % 233280) / 233280; }
+function w20_shade(c, x, y, w, h, a, b) { const g = c.createLinearGradient(x, y, x + w, y + h); g.addColorStop(0, a); g.addColorStop(1, b); return g; }
+
+/* the deepest z that still lands below the horizon line with this projection */
+const W20_ZMAX = 0.60;
+
+/* ── painted landing targets: the one source of truth, shared with drawCargoPods ── */
+function w20_targets(DW, DH, gy) {
+  const spec = [[-0.46, 0.30], [-0.16, 0.235], [0.14, 0.285], [0.40, 0.215]];
+  return spec.map(s => { const g = gproj(DW, DH, gy, s[0], s[1]); g.x = s[0]; g.z = s[1]; return g; });
+}
+
+/* ── a painted circle-and-cross target on a blast-scoured pad ── */
+function w20_target(c, t, i, now) {
+  const r = 22 * t.k;
+  c.save(); c.translate(t.sx, t.sy); c.scale(1, 0.40);
+  /* scoured regolith around it */
+  const sg = c.createRadialGradient(0, 0, r * 0.3, 0, 0, r * 1.9);
+  sg.addColorStop(0, 'rgba(66,72,80,.34)'); sg.addColorStop(0.6, 'rgba(66,72,80,.18)'); sg.addColorStop(1, 'rgba(66,72,80,0)');
+  c.fillStyle = sg; c.beginPath(); c.arc(0, 0, r * 1.9, 0, 7); c.fill(); drawCount++;
+  c.strokeStyle = 'rgba(255,244,194,.78)'; c.lineWidth = Math.max(1, 3 * t.k);
+  c.beginPath(); c.arc(0, 0, r, 0, 7); c.moveTo(r * 0.5, 0); c.arc(0, 0, r * 0.5, 0, 7); c.stroke(); drawCount++;
+  c.strokeStyle = 'rgba(255,244,194,.50)'; c.lineWidth = Math.max(0.8, 2 * t.k);
+  c.beginPath();
+  for (let a = 0; a < 4; a++) { const th = a * Math.PI / 2 + Math.PI / 4; c.moveTo(Math.cos(th) * r * 0.6, Math.sin(th) * r * 0.6); c.lineTo(Math.cos(th) * r * 1.32, Math.sin(th) * r * 1.32); }
+  c.stroke(); drawCount++;
+  c.restore();
+  c.fillStyle = 'rgba(255,244,194,.72)';
+  c.font = '600 ' + (9 * t.k).toFixed(1) + 'px ui-monospace,monospace'; c.textAlign = 'center';
+  c.fillText(String(i + 1), t.sx, t.sy - r * 0.30); drawCount++;
+  c.textAlign = 'left';
+}
+
+/* ── one pressurised habitat dome with lit windows ── */
+function w20_dome(c, sx, sy, k, R, lit, now, seed) {
+  const r = R * k;
+  c.fillStyle = 'rgba(0,0,0,.22)'; c.beginPath(); c.ellipse(sx + r * 0.55, sy + r * 0.05, r * 1.45, r * 0.32, 0, 0, 7); c.fill(); drawCount++;
+  c.fillStyle = w20_shade(c, sx - r, sy - r, r * 2, r, W20_HULL, W20_HULLDK);
+  c.beginPath(); c.arc(sx, sy, r, Math.PI, 0); c.closePath(); c.fill(); drawCount++;
+  /* skirt / regolith berm at the foot */
+  c.fillStyle = 'rgba(140,148,158,.55)'; c.beginPath(); c.ellipse(sx, sy, r * 1.04, r * 0.20, 0, 0, 7); c.fill(); drawCount++;
+  /* panel seams */
+  c.strokeStyle = 'rgba(90,100,112,.35)'; c.lineWidth = Math.max(0.5, 0.9 * k); c.beginPath();
+  for (let a = 1; a < 4; a++) { const th = Math.PI + a * Math.PI / 4; c.moveTo(sx, sy); c.lineTo(sx + Math.cos(th) * r, sy + Math.sin(th) * r); }
+  c.moveTo(sx - r * 0.72, sy - r * 0.66); c.quadraticCurveTo(sx, sy - r * 0.86, sx + r * 0.72, sy - r * 0.66);
+  c.stroke(); drawCount++;
+  /* windows — how many are lit follows population */
+  const n = 5;
+  c.fillStyle = W20_WIN; c.beginPath();
+  for (let i = 0; i < n; i++) {
+    if (w20_rnd(seed * 7 + i * 3 + 1) > lit) continue;
+    const th = Math.PI + (i + 0.7) * Math.PI / (n + 0.4);
+    const wx = sx + Math.cos(th) * r * 0.62, wy = sy + Math.sin(th) * r * 0.62;
+    const ww = Math.max(1, r * 0.16);
+    c.moveTo(wx + ww, wy); c.arc(wx, wy, ww, 0, 7);
+  }
+  c.fill(); drawCount++;
+  /* warm interior spill */
+  if (lit > 0.2) {
+    const g = c.createRadialGradient(sx, sy - r * 0.4, r * 0.1, sx, sy - r * 0.4, r * 1.5);
+    g.addColorStop(0, 'rgba(255,210,122,' + (0.16 * lit).toFixed(3) + ')'); g.addColorStop(1, 'rgba(255,210,122,0)');
+    c.fillStyle = g; c.beginPath(); c.arc(sx, sy - r * 0.4, r * 1.5, 0, 7); c.fill(); drawCount++;
+  }
+  /* airlock */
+  c.fillStyle = '#4A5561'; c.fillRect(sx - r * 0.14, sy - r * 0.34, r * 0.28, r * 0.34); drawCount++;
+  c.fillStyle = 'rgba(255,244,194,.55)'; c.fillRect(sx - r * 0.09, sy - r * 0.30, r * 0.18, r * 0.10); drawCount++;
+}
+
+/* ── a connecting pressure tube between two ground points ── */
+function w20_tube(c, a, b) {
+  const h = 3.4 * (a.k + b.k) * 0.5;
+  c.fillStyle = 'rgba(0,0,0,.20)';
+  c.beginPath(); c.moveTo(a.sx, a.sy + h * 0.4); c.lineTo(b.sx, b.sy + h * 0.4); c.lineTo(b.sx, b.sy - h * 0.2); c.lineTo(a.sx, a.sy - h * 0.2); c.closePath(); c.fill(); drawCount++;
+  c.fillStyle = w20_shade(c, 0, Math.min(a.sy, b.sy) - h * 2, 0, h * 2.4, '#F0F3F7', '#8F98A2');
+  c.beginPath();
+  c.moveTo(a.sx, a.sy - h * 2); c.lineTo(b.sx, b.sy - h * 2); c.lineTo(b.sx, b.sy); c.lineTo(a.sx, a.sy); c.closePath(); c.fill(); drawCount++;
+  c.strokeStyle = 'rgba(70,80,92,.34)'; c.lineWidth = 0.7;
+  c.beginPath();
+  c.moveTo(a.sx, a.sy - h * 2); c.lineTo(b.sx, b.sy - h * 2);
+  for (let i = 1; i < 6; i++) { const t = i / 6, x = lerp(a.sx, b.sx, t), y = lerp(a.sy, b.sy, t); c.moveTo(x, y); c.lineTo(x, y - h * 2); }
+  c.stroke(); drawCount++;
+}
+
+/* ── a mast with a blinking hazard light ── */
+function w20_mast(c, g, H, now, seed) {
+  const h = H * g.k;
+  c.strokeStyle = W20_STEEL; c.lineWidth = Math.max(0.7, 1.4 * g.k);
+  c.beginPath(); c.moveTo(g.sx, g.sy); c.lineTo(g.sx, g.sy - h);
+  c.moveTo(g.sx - h * 0.14, g.sy); c.lineTo(g.sx, g.sy - h * 0.6); c.lineTo(g.sx + h * 0.14, g.sy);
+  for (let i = 1; i < 4; i++) { const y = g.sy - h * 0.6 * i / 4; c.moveTo(g.sx - h * 0.14 * (1 - i / 4), y); c.lineTo(g.sx + h * 0.14 * (1 - i / 4), y); }
+  c.stroke(); drawCount++;
+  const bl = 0.35 + 0.65 * Math.abs(Math.sin(now / 520 + seed));
+  c.fillStyle = 'rgba(224,82,58,' + bl.toFixed(2) + ')';
+  c.beginPath(); c.arc(g.sx, g.sy - h - 1.5 * g.k, Math.max(1, 2.4 * g.k), 0, 7); c.fill(); drawCount++;
+}
+
+/* ── comms dish on a short pylon, slow track on now ── */
+function w20_dish(c, g, R, now, seed) {
+  const r = R * g.k;
+  c.fillStyle = W20_STEEL; c.fillRect(g.sx - r * 0.12, g.sy - r * 1.05, r * 0.24, r * 1.05); drawCount++;
+  c.save(); c.translate(g.sx, g.sy - r * 1.15); c.rotate(Math.sin(now / 3100 + seed) * 0.55);
+  c.fillStyle = w20_shade(c, -r, -r, r * 2, r, '#F3F4F6', '#9AA5B1');
+  c.beginPath(); c.arc(0, 0, r, Math.PI * 1.04, Math.PI * 1.96); c.closePath(); c.fill(); drawCount++;
+  c.strokeStyle = W20_STEEL; c.lineWidth = Math.max(0.6, 1 * g.k);
+  c.beginPath(); c.moveTo(0, -r * 0.1); c.lineTo(0, -r * 0.82); c.stroke(); drawCount++;
+  c.fillStyle = ART.nose; c.beginPath(); c.arc(0, -r * 0.82, Math.max(0.9, r * 0.13), 0, 7); c.fill(); drawCount++;
+  c.restore();
+}
+
+/* ── a solar farm: rows of tilted panels marching back. Batched into 4 paths. ── */
+function w20_solar(c, DW, DH, gy, x0, x1, z0, rows, now) {
+  const cells = [];
+  for (let r = 0; r < rows; r++) {
+    const z = lerp(z0, Math.min(W20_ZMAX, z0 + 0.15), rows === 1 ? 0 : r / (rows - 1));
+    for (let i = 0; i < 5; i++) {
+      const g = gproj(DW, DH, gy, lerp(x0, x1, i / 4), z);
+      cells.push(g);
+    }
+  }
+  cells.sort((a, b) => a.k - b.k);           /* far (small k) first */
+  /* shadows */
+  c.fillStyle = 'rgba(0,0,0,.20)'; c.beginPath();
+  for (const g of cells) { const w = 15 * g.k; c.moveTo(g.sx + w * 0.8, g.sy + 1); c.ellipse(g.sx + w * 0.12, g.sy + 1, w * 0.66, 2.2 * g.k, 0, 0, 7); }
+  c.fill(); drawCount++;
+  /* posts */
+  c.fillStyle = W20_STEEL; c.beginPath();
+  for (const g of cells) { const w = 15 * g.k; c.rect(g.sx - w * 0.05, g.sy - 9 * g.k, w * 0.1, 9 * g.k); }
+  c.fill(); drawCount++;
+  /* panels — rotated quads computed by hand so they batch into one fill */
+  const ca = Math.cos(-0.42), sa = Math.sin(-0.42);
+  const quad = (g, w, h) => {
+    const cx = g.sx, cy = g.sy - 9 * g.k;
+    const pt = (dx, dy) => [cx + dx * ca - dy * sa, cy + dx * sa + dy * ca];
+    return [pt(-w / 2, -h / 2), pt(w / 2, -h / 2), pt(w / 2, h / 2), pt(-w / 2, h / 2)];
+  };
+  const pg = c.createLinearGradient(0, gy, 0, DH);
+  pg.addColorStop(0, '#2C4C86'); pg.addColorStop(1, '#5A8CE0');
+  c.fillStyle = pg; c.beginPath();
+  for (const g of cells) { const q = quad(g, 15 * g.k, 6 * g.k); c.moveTo(q[0][0], q[0][1]); for (let i = 1; i < 4; i++) c.lineTo(q[i][0], q[i][1]); c.closePath(); }
+  c.fill(); drawCount++;
+  /* cell lines + a lit top edge */
+  c.strokeStyle = 'rgba(255,255,255,.45)'; c.lineWidth = 0.6; c.beginPath();
+  for (const g of cells) {
+    const w = 15 * g.k, h = 6 * g.k, cx = g.sx, cy = g.sy - 9 * g.k;
+    const pt = (dx, dy) => [cx + dx * ca - dy * sa, cy + dx * sa + dy * ca];
+    const a = pt(-w / 2, -h / 2), b = pt(w / 2, -h / 2);
+    c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]);
+    for (let q = -1; q <= 1; q++) { const u = pt(q * w * 0.25, -h / 2), v = pt(q * w * 0.25, h / 2); c.moveTo(u[0], u[1]); c.lineTo(v[0], v[1]); }
+  }
+  c.stroke(); drawCount++;
+}
+
+/* ── greenhouse: a long half-cylinder with a green glow and rows inside ── */
+function w20_greenhouse(c, DW, DH, gy, x, z, len, now) {
+  const a = gproj(DW, DH, gy, x - len, z), b = gproj(DW, DH, gy, x + len, z);
+  const h = 13 * a.k;
+  const gg = c.createRadialGradient((a.sx + b.sx) / 2, a.sy - h * 0.4, h * 0.2, (a.sx + b.sx) / 2, a.sy - h * 0.4, h * 3.2);
+  gg.addColorStop(0, 'rgba(94,211,154,.34)'); gg.addColorStop(1, 'rgba(94,211,154,0)');
+  c.fillStyle = gg; c.beginPath(); c.arc((a.sx + b.sx) / 2, a.sy - h * 0.4, h * 3.2, 0, 7); c.fill(); drawCount++;
+  c.fillStyle = 'rgba(0,0,0,.20)'; c.beginPath(); c.ellipse((a.sx + b.sx) / 2 + 3, a.sy + 1, (b.sx - a.sx) / 2 + h * 0.3, h * 0.26, 0, 0, 7); c.fill(); drawCount++;
+  /* plant rows glimpsed through the glass */
+  c.fillStyle = '#3F9A5F'; c.beginPath();
+  for (let i = 0; i <= 7; i++) { const px = lerp(a.sx + 2, b.sx - 2, i / 7); c.moveTo(px - h * 0.12, a.sy); c.lineTo(px, a.sy - h * 0.66); c.lineTo(px + h * 0.12, a.sy); }
+  c.fill(); drawCount++;
+  c.fillStyle = 'rgba(170,240,205,.34)'; c.strokeStyle = 'rgba(255,255,255,.62)'; c.lineWidth = Math.max(0.6, 1 * a.k);
+  c.beginPath(); c.moveTo(a.sx, a.sy);
+  c.bezierCurveTo(a.sx, a.sy - h * 1.35, b.sx, b.sy - h * 1.35, b.sx, b.sy);
+  c.closePath(); c.fill(); c.stroke(); drawCount += 2;
+  c.strokeStyle = 'rgba(255,255,255,.30)'; c.lineWidth = 0.6; c.beginPath();
+  for (let i = 1; i < 6; i++) { const px = lerp(a.sx, b.sx, i / 6); c.moveTo(px, a.sy); c.lineTo(px, a.sy - h * 0.95); }
+  c.stroke(); drawCount++;
+}
+
+/* ── a rover: body, wheels, mast, and the tracks it left ── */
+function w20_rover(c, g, now, seed, dir) {
+  const s = g.k, w = 13 * s, h = 5 * s;
+  c.fillStyle = 'rgba(0,0,0,.22)'; c.beginPath(); c.ellipse(g.sx + 1, g.sy + 0.5, w * 0.62, h * 0.34, 0, 0, 7); c.fill(); drawCount++;
+  c.save(); c.translate(g.sx, g.sy); c.scale(dir < 0 ? -1 : 1, 1);
+  c.fillStyle = '#3A4652'; c.beginPath();
+  for (const wx of [-w * 0.36, 0, w * 0.36]) { c.moveTo(wx + h * 0.36, -h * 0.34); c.arc(wx, -h * 0.34, h * 0.36, 0, 7); }
+  c.fill(); drawCount++;
+  c.fillStyle = w20_shade(c, -w * 0.5, -h * 1.5, w, h, '#F0F3F7', '#A6B0BB');
+  c.beginPath(); c.moveTo(-w * 0.5, -h * 0.6); c.lineTo(-w * 0.42, -h * 1.5); c.lineTo(w * 0.32, -h * 1.5); c.lineTo(w * 0.5, -h * 0.6); c.closePath(); c.fill(); drawCount++;
+  c.fillStyle = '#4FD9E6'; c.fillRect(w * 0.06, -h * 1.36, w * 0.2, h * 0.42);
+  c.fillStyle = 'rgba(224,82,58,' + (0.4 + 0.6 * Math.abs(Math.sin(now / 380 + seed))).toFixed(2) + ')';
+  c.fillRect(-w * 0.44, -h * 1.34, w * 0.14, h * 0.3); drawCount++;
+  c.strokeStyle = W20_STEEL; c.lineWidth = Math.max(0.6, 1 * s);
+  c.beginPath(); c.moveTo(-w * 0.28, -h * 1.5); c.lineTo(-w * 0.28, -h * 2.5); c.lineTo(-w * 0.05, -h * 2.5); c.stroke(); drawCount++;
+  c.restore();
+}
+
+/* ── the crew, all of them, in 4 batched paths ── */
+function w20_crewAll(c, people, now) {
+  people.sort((a, b) => b.k - a.k === 0 ? 0 : a.k - b.k);
+  c.fillStyle = 'rgba(0,0,0,.22)'; c.beginPath();
+  for (const p of people) { const H = 13 * p.k; c.moveTo(p.sx + H * 0.30, p.sy + 0.5); c.ellipse(p.sx + 0.6, p.sy + 0.5, H * 0.30, H * 0.10, 0, 0, 7); }
+  c.fill(); drawCount++;
+  c.fillStyle = W20_STEEL; c.beginPath();
+  for (const p of people) { const H = 13 * p.k; c.rect(p.sx - H * 0.28, p.sy - H * 0.70, H * 0.12, H * 0.30); }
+  c.fill(); drawCount++;
+  c.fillStyle = '#F5F7FA'; c.beginPath();
+  for (const p of people) {
+    const H = 13 * p.k, sw = p.walk ? Math.sin(now / 260 + p.seed * 6) : 0;
+    c.rect(p.sx - H * 0.17, p.sy - H * 0.74, H * 0.34, H * 0.44);
+    c.rect(p.sx - H * 0.16 + sw * H * 0.11, p.sy - H * 0.32, H * 0.13, H * 0.33);
+    c.rect(p.sx + H * 0.03 - sw * H * 0.11, p.sy - H * 0.32, H * 0.13, H * 0.33);
+    c.moveTo(p.sx + H * 0.22, p.sy - H * 0.90); c.arc(p.sx, p.sy - H * 0.90, H * 0.22, 0, 7);
+    if (p.walk) c.rect(p.sx + H * 0.15, p.sy - H * 0.70 + sw * H * 0.06, H * 0.16, H * 0.09);
+  }
+  c.fill(); drawCount++;
+  c.fillStyle = '#FFB347'; c.beginPath();
+  for (const p of people) { const H = 13 * p.k; c.moveTo(p.sx + H * 0.19, p.sy - H * 0.90); c.arc(p.sx + H * 0.05, p.sy - H * 0.90, H * 0.13, 0, 7); }
+  c.fill(); drawCount++;
+}
+
+/* ── the Stars and Stripes on a pole, stiffened wire wave ── */
+function w20_flag(c, g, now, seed) {
+  const s = g.k, H = 20 * s;
+  c.strokeStyle = '#C7CDD4'; c.lineWidth = Math.max(0.6, 1.1 * s);
+  c.beginPath(); c.moveTo(g.sx, g.sy); c.lineTo(g.sx, g.sy - H); c.stroke(); drawCount++;
+  const wv = Math.sin(now / 620 + seed) * H * 0.06;
+  const fw = H * 0.52, fh = H * 0.32;
+  c.fillStyle = ART.nose;
+  c.beginPath(); c.moveTo(g.sx, g.sy - H); c.quadraticCurveTo(g.sx + fw * 0.5, g.sy - H + wv, g.sx + fw, g.sy - H + wv * 0.5);
+  c.lineTo(g.sx + fw, g.sy - H + fh + wv * 0.5); c.quadraticCurveTo(g.sx + fw * 0.5, g.sy - H + fh + wv, g.sx, g.sy - H + fh); c.closePath(); c.fill(); drawCount++;
+  c.fillStyle = '#1F3A6B'; c.fillRect(g.sx + 0.5, g.sy - H, fw * 0.42, fh * 0.55); drawCount++;
+  c.strokeStyle = 'rgba(255,255,255,.75)'; c.lineWidth = Math.max(0.4, 0.6 * s); c.beginPath();
+  for (let i = 1; i < 4; i++) { const y = g.sy - H + fh * (0.55 + i * 0.14); c.moveTo(g.sx + fw * 0.42, y + wv * 0.3); c.lineTo(g.sx + fw, y + wv * 0.4); }
+  c.stroke(); drawCount++;
+}
+
+/* ── the observatory / control tower ── */
+function w20_tower(c, g, now) {
+  const s = g.k, H = 26 * s, w = 9 * s;
+  c.fillStyle = 'rgba(0,0,0,.22)'; c.beginPath(); c.ellipse(g.sx + 2, g.sy + 1, w * 0.9, w * 0.28, 0, 0, 7); c.fill(); drawCount++;
+  c.fillStyle = w20_shade(c, g.sx - w * 0.3, g.sy - H, w * 0.6, H, '#E3E8EE', '#98A3AE');
+  c.beginPath(); c.moveTo(g.sx - w * 0.30, g.sy); c.lineTo(g.sx - w * 0.20, g.sy - H * 0.72); c.lineTo(g.sx + w * 0.20, g.sy - H * 0.72); c.lineTo(g.sx + w * 0.30, g.sy); c.closePath(); c.fill(); drawCount++;
+  c.fillStyle = w20_shade(c, g.sx - w * 0.6, g.sy - H, w * 1.2, H * 0.28, '#F3F6F9', '#A9B4BF');
+  c.beginPath(); c.moveTo(g.sx - w * 0.6, g.sy - H * 0.72); c.lineTo(g.sx + w * 0.6, g.sy - H * 0.72); c.lineTo(g.sx + w * 0.45, g.sy - H * 0.98); c.lineTo(g.sx - w * 0.45, g.sy - H * 0.98); c.closePath(); c.fill(); drawCount++;
+  c.fillStyle = 'rgba(255,210,122,.85)'; c.fillRect(g.sx - w * 0.48, g.sy - H * 0.90, w * 0.96, H * 0.11); drawCount++;
+  c.fillStyle = w20_shade(c, g.sx - w * 0.4, g.sy - H * 1.2, w * 0.8, H * 0.22, '#5FD1DE', '#2E8F9B');
+  c.beginPath(); c.arc(g.sx, g.sy - H * 0.98, w * 0.42, Math.PI, 0); c.closePath(); c.fill(); drawCount++;
+  c.fillStyle = '#0E2A4D'; c.fillRect(g.sx - w * 0.06, g.sy - H * 1.20, w * 0.12, H * 0.22); drawCount++;
+}
+
+/* ── ground tracks: rover ruts running between the front and the settlement ── */
+function w20_tracks(c, DW, DH, gy, pts, alpha) {
+  c.strokeStyle = 'rgba(120,128,138,' + alpha + ')';
+  for (const off of [-1.6, 1.6]) {
+    c.lineWidth = 1.1;
+    c.beginPath();
+    for (let i = 0; i < pts.length; i++) {
+      const g = gproj(DW, DH, gy, pts[i][0], pts[i][1]);
+      const x = g.sx + off * g.k * 2.2;
+      i ? c.lineTo(x, g.sy) : c.moveTo(x, g.sy);
+    }
+    c.stroke(); drawCount++;
+  }
+}
+
+/* ═══════════════════════════ the settlement ═══════════════════════════ */
+/* A7 · everything behind the settlement is fixed for a given size, ground line and module
+   count, and it is all big gradient fills — the expensive kind. Baked into one layer
+   (w12's technique) it costs a single blit; the cargo scene went 46 -> 60 fps. */
+function w20_ground(c, DW, DH, gy, m) {
+  /* ── the regolith plane ── */
+  const gp = c.createLinearGradient(0, gy, 0, DH);
+  gp.addColorStop(0, '#7E858E'); gp.addColorStop(0.34, '#949BA4'); gp.addColorStop(1, '#A9B0B9');
+  c.fillStyle = gp; c.fillRect(0, gy, DW, DH - gy); drawCount++;
+
+  /* far hills sitting on the horizon */
+  c.fillStyle = '#5E656E'; c.beginPath(); c.moveTo(-2, gy + 1);
+  for (let i = 0; i <= 18; i++) {
+    const x = -2 + (i / 18) * (DW + 4);
+    const h = 3 + Math.abs(Math.sin(i * 1.13 + 0.6)) * (5 + w20_rnd(i * 23 + 4) * 11);
+    c.lineTo(x, gy - h);
+  }
+  c.lineTo(DW + 2, gy + 1); c.closePath(); c.fill(); drawCount++;
+  c.fillStyle = 'rgba(255,255,255,.16)'; c.fillRect(0, gy - 1, DW, 2); drawCount++;
+
+  /* craters scattered over the plane, batched into two paths (rim shadow + lit lip) */
+  const cr = [];
+  for (let i = 0; i < 22; i++) {
+    const x = (w20_rnd(i * 13 + 3) * 2.3 - 1.15), z = 0.02 + w20_rnd(i * 29 + 7) * (W20_ZMAX - 0.02);
+    const g = gproj(DW, DH, gy, x, z);
+    cr.push([g.sx, g.sy, (7 + w20_rnd(i * 17 + 9) * 17) * g.k]);
+  }
+  c.fillStyle = 'rgba(96,103,112,.30)'; c.beginPath();
+  for (const k of cr) { c.moveTo(k[0] + k[2], k[1]); c.ellipse(k[0], k[1], k[2], k[2] * 0.34, 0, 0, 7); }
+  c.fill(); drawCount++;
+  c.fillStyle = 'rgba(255,255,255,.22)'; c.beginPath();
+  for (const k of cr) { c.moveTo(k[0] + k[2] * 0.9, k[1] - k[2] * 0.11); c.ellipse(k[0], k[1] - k[2] * 0.11, k[2] * 0.9, k[2] * 0.24, 0, 0, 7); }
+  c.fill(); drawCount++;
+
+  if (m <= 0) return;
+
+  /* ── graded apron: swept, lighter ground under the settlement, edges feathered ── */
+  const apC = gproj(DW, DH, gy, 0, 0.31);
+  const apRx = Math.abs(gproj(DW, DH, gy, 0.92, 0.31).sx - apC.sx);
+  const apRy = Math.abs(gproj(DW, DH, gy, 0, 0.09).sy - gproj(DW, DH, gy, 0, 0.53).sy) * 0.5;
+  const apg = c.createRadialGradient(apC.sx, apC.sy, apRx * 0.15, apC.sx, apC.sy, apRx);
+  apg.addColorStop(0, 'rgba(236,240,245,.30)'); apg.addColorStop(0.62, 'rgba(236,240,245,.18)'); apg.addColorStop(1, 'rgba(236,240,245,0)');
+  c.save(); c.translate(apC.sx, apC.sy); c.scale(1, apRy / apRx); c.translate(-apC.sx, -apC.sy);
+  c.fillStyle = apg; c.beginPath(); c.arc(apC.sx, apC.sy, apRx, 0, 7); c.fill(); drawCount++;
+  c.restore();
+
+  /* ── roads and rover ruts (under everything that stands) ── */
+  w20_tracks(c, DW, DH, gy, [[-0.9, 0.06], [-0.55, 0.22], [-0.2, 0.30], [0.25, 0.34], [0.7, 0.30], [0.95, 0.22]], 0.34);
+  w20_tracks(c, DW, DH, gy, [[-0.35, 0.42], [-0.30, 0.28], [-0.10, 0.16], [0.15, 0.05]], 0.26);
+
+  /* ── the painted landing targets ── */
+  const tg = w20_targets(DW, DH, gy);
+  for (let i = 0; i < tg.length; i++) w20_target(c, tg[i], i, 0);
+}
+
+function drawLunarSite(c, DW, DH, gy, modules, population, now) {
+  const m = clamp(Math.round(modules), 0, 5);
+  const pg = clamp((population || 0) / 10000, 0, 1);
+  const lit = 0.25 + 0.75 * pg;
+  c.save();
+  c.lineJoin = 'round';
+
+  if (!w12_layer(c, 'lunar|' + Math.round(DW) + '|' + Math.round(DH) + '|' + Math.round(gy) + '|' + m, DW, DH,
+                 k2 => w20_ground(k2, DW, DH, gy, m))) w20_ground(c, DW, DH, gy, m);
+  if (m <= 0) { c.restore(); return; }
+
+  /* the painted landing targets are baked into w20_ground — they are paint, not structure. */
+
+  /* ═══ standing structures, drawn back to front ═══ */
+
+  /* back: antenna masts along the far edge */
+  w20_mast(c, gproj(DW, DH, gy, -0.82, 0.575), 34, now, 0.4);
+  if (m >= 3) w20_mast(c, gproj(DW, DH, gy, 0.86, 0.565), 30, now, 2.1);
+  if (pg > 0.35) w20_mast(c, gproj(DW, DH, gy, 0.30, 0.585), 26, now, 3.4);
+
+  /* back-right: the solar farm */
+  if (m >= 2) w20_solar(c, DW, DH, gy, 0.30, 0.95, 0.42, 2 + Math.round(pg * 2), now);
+
+  /* back-left: comms dishes */
+  if (m >= 4) { w20_dish(c, gproj(DW, DH, gy, -0.62, 0.545), 13, now, 0); w20_dish(c, gproj(DW, DH, gy, -0.44, 0.520), 10, now, 1.7); }
+
+  /* back-centre: the control tower / observatory */
+  if (m >= 5) w20_tower(c, gproj(DW, DH, gy, 0.02, 0.505), now);
+
+  /* mid: extra habitat pods that arrive with population — a back rank, batched */
+  const extra = Math.round(pg * 5), ex = [];
+  for (let i = 0; i < extra; i++) {
+    const g = gproj(DW, DH, gy, -0.72 + i * 0.26 + w20_rnd(i * 31) * 0.05, 0.455);
+    ex.push([g.sx, g.sy, 12 * g.k]);
+  }
+  if (ex.length) {
+    c.fillStyle = 'rgba(0,0,0,.22)'; c.beginPath();
+    for (const e of ex) { c.moveTo(e[0] + e[2] * 1.9, e[1]); c.ellipse(e[0] + e[2] * 0.5, e[1], e[2] * 1.35, e[2] * 0.30, 0, 0, 7); }
+    c.fill(); drawCount++;
+    c.fillStyle = w20_shade(c, 0, 0, 0, 0, W20_HULL, W20_HULLDK);
+    c.fillStyle = '#DCE2E8'; c.beginPath();
+    for (const e of ex) { c.moveTo(e[0] - e[2], e[1]); c.arc(e[0], e[1], e[2], Math.PI, 0); c.lineTo(e[0] + e[2], e[1]); }
+    c.fill(); drawCount++;
+    c.fillStyle = W20_WIN; c.beginPath();
+    for (const e of ex) { c.moveTo(e[0] + e[2] * 0.2, e[1] - e[2] * 0.42); c.arc(e[0], e[1] - e[2] * 0.42, Math.max(0.8, e[2] * 0.16), 0, 7); }
+    c.fill(); drawCount++;
+  }
+
+  /* mid-left: the greenhouse */
+  if (m >= 3) w20_greenhouse(c, DW, DH, gy, -0.72, 0.395, 0.18, now);
+
+  /* the main habitat cluster — domes linked by pressure tubes */
+  const cluster = [[-0.30, 0.380, 25], [-0.02, 0.330, 32], [0.26, 0.370, 22], [0.50, 0.318, 18], [-0.56, 0.330, 17]];
+  const nDome = clamp(m, 1, 5);
+  const pts = [];
+  for (let i = 0; i < nDome; i++) pts.push(gproj(DW, DH, gy, cluster[i][0], cluster[i][1]));
+  /* tubes first so the domes overlap their ends */
+  for (let i = 1; i < nDome; i++) w20_tube(c, pts[i - 1], pts[i]);
+  /* draw domes far-to-near */
+  const order = pts.map((p, i) => i).sort((a, b) => cluster[b][1] - cluster[a][1]);
+  for (const i of order) w20_dome(c, pts[i].sx, pts[i].sy, pts[i].k, cluster[i][2], lit, now, i + 1);
+
+  /* fuel / oxygen tanks tucked beside the cluster */
+  if (m >= 2) {
+    for (let i = 0; i < 3; i++) {
+      const g = gproj(DW, DH, gy, 0.52 + i * 0.085, 0.395);
+      const r = 5 * g.k, h = 9 * g.k;
+      c.fillStyle = 'rgba(0,0,0,.20)'; c.beginPath(); c.ellipse(g.sx + 1, g.sy, r * 1.1, r * 0.34, 0, 0, 7); c.fill(); drawCount++;
+      c.fillStyle = w20_shade(c, g.sx - r, g.sy - h, r * 2, 0, '#F0F3F7', '#98A3AE');
+      c.beginPath(); c.moveTo(g.sx - r, g.sy - h * 0.35); c.lineTo(g.sx - r, g.sy - h);
+      c.quadraticCurveTo(g.sx, g.sy - h * 1.4, g.sx + r, g.sy - h); c.lineTo(g.sx + r, g.sy - h * 0.35);
+      c.quadraticCurveTo(g.sx, g.sy + r * 0.2, g.sx - r, g.sy - h * 0.35); c.closePath(); c.fill(); drawCount++;
+      c.strokeStyle = 'rgba(224,82,58,.55)'; c.lineWidth = Math.max(0.5, 0.9 * g.k);
+      c.beginPath(); c.moveTo(g.sx - r * 0.8, g.sy - h * 0.75); c.lineTo(g.sx + r * 0.8, g.sy - h * 0.75); c.stroke(); drawCount++;
+    }
+  }
+
+  /* flags */
+  w20_flag(c, gproj(DW, DH, gy, -0.20, 0.255), now, 0);
+  if (m >= 4) w20_flag(c, gproj(DW, DH, gy, 0.58, 0.290), now, 2.2);
+
+  /* rovers running the perimeter, deterministic on now */
+  const rovers = 1 + Math.round(pg * 2);
+  for (let i = 0; i < rovers; i++) {
+    const ph = ((now / 9000) + i * 0.37) % 1;
+    const tri = ph < 0.5 ? ph * 2 : 2 - ph * 2;          // out and back
+    const rx = lerp(-0.86, 0.86, tri), rz = 0.20 + Math.sin(tri * Math.PI) * 0.10 + i * 0.03;
+    const g = gproj(DW, DH, gy, rx, rz);
+    w20_rover(c, g, now, i, ph < 0.5 ? 1 : -1);
+  }
+
+  /* crew about their business: some walking the tube line, some standing at the targets */
+  const crew = 3 + Math.round(pg * 9);
+  const hubs = [[-0.30, 0.34], [-0.02, 0.29], [0.28, 0.33], [-0.58, 0.30], [0.52, 0.28], [-0.16, 0.20], [0.14, 0.245]];
+  const people = [];
+  for (let i = 0; i < crew; i++) {
+    const h = hubs[i % hubs.length];
+    const walk = i % 3 !== 0;
+    const ph = ((now / 12000) * (0.6 + w20_rnd(i * 41) * 0.8) + w20_rnd(i * 7 + 2)) % 1;
+    const jx = (w20_rnd(i * 19 + 5) - 0.5) * 0.16, jz = (w20_rnd(i * 23 + 11) - 0.5) * 0.10;
+    const g = gproj(DW, DH, gy, h[0] + jx + (walk ? Math.sin(ph * 6.283) * 0.07 : 0), clamp(h[1] + jz - 0.08, 0.095, 0.36));
+    g.walk = walk; g.seed = i * 1.7 + 0.3; people.push(g);
+  }
+  w20_crewAll(c, people, now);
+
+  /* ── the near field: boulders and a big crater rim, so the eye has something close ── */
+  const bl = [];
+  for (let i = 0; i < 9; i++) {
+    const bx = -1.00 + w20_rnd(i * 43 + 5) * 1.72, bz = 0.082 + w20_rnd(i * 47 + 13) * 0.085;
+    const g = gproj(DW, DH, gy, bx, bz);
+    if (g.sy > DH + 20) continue;
+    bl.push([g.sx, g.sy, (8 + w20_rnd(i * 53 + 3) * 15) * g.k]);
+  }
+  c.fillStyle = 'rgba(0,0,0,.17)'; c.beginPath();
+  for (const b of bl) { c.moveTo(b[0] + b[2] * 1.5, b[1] + b[2] * 0.06); c.ellipse(b[0] + b[2] * 0.35, b[1] + b[2] * 0.06, b[2] * 1.15, b[2] * 0.26, 0, 0, 7); }
+  c.fill(); drawCount++;
+  c.fillStyle = '#8E959E'; c.beginPath();
+  for (const b of bl) { c.moveTo(b[0] - b[2], b[1]); c.lineTo(b[0] - b[2] * 0.55, b[1] - b[2] * 0.85); c.lineTo(b[0] + b[2] * 0.35, b[1] - b[2] * 0.95); c.lineTo(b[0] + b[2], b[1] - b[2] * 0.15); c.closePath(); }
+  c.fill(); drawCount++;
+  c.fillStyle = 'rgba(255,255,255,.30)'; c.beginPath();
+  for (const b of bl) { c.moveTo(b[0] - b[2] * 0.55, b[1] - b[2] * 0.85); c.lineTo(b[0] + b[2] * 0.35, b[1] - b[2] * 0.95); c.lineTo(b[0] + b[2] * 0.05, b[1] - b[2] * 0.45); c.closePath(); }
+  c.fill(); drawCount++;
+
+  /* a supply stack in the near left, big enough to read the scale off */
+  const st0 = gproj(DW, DH, gy, -0.60, 0.105);
+  for (let i = 0; i < 4; i++) {
+    const w = 15 * st0.k, h = 8 * st0.k;
+    const x = st0.sx + (i % 2) * w * 1.12, y = st0.sy - Math.floor(i / 2) * h * 1.04;
+    c.fillStyle = w20_shade(c, x - w / 2, y - h, w, h, '#C9B27A', '#8A7546'); c.fillRect(x - w / 2, y - h, w, h); drawCount++;
+  }
+  c.strokeStyle = 'rgba(60,50,30,.45)'; c.lineWidth = 0.9; c.beginPath();
+  for (let i = 0; i < 4; i++) {
+    const w = 15 * st0.k, h = 8 * st0.k;
+    const x = st0.sx + (i % 2) * w * 1.12, y = st0.sy - Math.floor(i / 2) * h * 1.04;
+    c.rect(x - w / 2, y - h, w, h);
+  }
+  c.stroke(); drawCount++;
+
+  c.restore();
+}
+
+/* ═══════════════════════════ the cargo pods ═══════════════════════════ */
+/* boxy military frame, cargo net over crates, thrusters and legs */
+function w20_pod(c, x, y, s, tilt, retro, landed) {
+  c.save(); c.translate(x, y); c.rotate(tilt); c.scale(s, s);
+  const W = 11, H = 9;
+  /* legs (splayed) */
+  c.strokeStyle = '#5C6672'; c.lineWidth = 1.6; c.lineCap = 'round';
+  c.beginPath();
+  c.moveTo(-W * 0.7, H * 0.6); c.lineTo(-W * 1.05, H * 1.5);
+  c.moveTo(W * 0.7, H * 0.6); c.lineTo(W * 1.05, H * 1.5);
+  c.moveTo(-W * 0.3, H * 0.7); c.lineTo(-W * 0.42, H * 1.5);
+  c.moveTo(W * 0.3, H * 0.7); c.lineTo(W * 0.42, H * 1.5);
+  c.stroke(); drawCount++;
+  c.fillStyle = '#3A4652';
+  c.beginPath();
+  for (const fx of [-W * 1.05, -W * 0.42, W * 0.42, W * 1.05]) { c.moveTo(fx + 2, H * 1.5); c.ellipse(fx, H * 1.5, 2.2, 1.1, 0, 0, 7); }
+  c.fill(); drawCount++;
+  /* crates inside the frame */
+  c.fillStyle = '#8A7546'; c.fillRect(-W * 0.78, -H * 0.5, W * 1.56, H * 1.05); drawCount++;
+  c.fillStyle = '#C9B27A'; c.fillRect(-W * 0.74, -H * 0.46, W * 0.70, H * 0.46); c.fillRect(W * 0.06, -H * 0.46, W * 0.68, H * 0.46); drawCount++;
+  c.fillStyle = '#4E5A47'; c.fillRect(-W * 0.74, H * 0.06, W * 1.48, H * 0.45); drawCount++;
+  /* cargo net over them */
+  c.strokeStyle = 'rgba(30,36,42,.55)'; c.lineWidth = 0.7; c.beginPath();
+  for (let i = -3; i <= 3; i++) {
+    c.moveTo(-W * 0.78 + (i + 3) * W * 0.26, -H * 0.5); c.lineTo(-W * 0.78 + (i + 3) * W * 0.26 - H * 0.5, H * 0.55);
+    c.moveTo(-W * 0.78 + (i + 3) * W * 0.26 - H * 0.5, -H * 0.5); c.lineTo(-W * 0.78 + (i + 3) * W * 0.26, H * 0.55);
+  }
+  c.stroke(); drawCount++;
+  /* the frame itself */
+  c.strokeStyle = '#D6DCE3'; c.lineWidth = 1.8;
+  c.strokeRect(-W * 0.8, -H * 0.55, W * 1.6, H * 1.15); drawCount++;
+  c.fillStyle = w20_shade(c, -W, -H * 1.1, W * 2, H * 0.55, '#E6EAEF', '#98A3AE');
+  c.beginPath(); c.moveTo(-W * 0.9, -H * 0.55); c.lineTo(-W * 0.62, -H * 1.05); c.lineTo(W * 0.62, -H * 1.05); c.lineTo(W * 0.9, -H * 0.55); c.closePath(); c.fill(); drawCount++;
+  c.fillStyle = ART.nose; c.fillRect(-W * 0.5, -H * 0.95, W * 1.0, H * 0.2); drawCount++;
+  c.fillStyle = '#3A4652'; c.fillRect(-W * 0.9, -H * 0.62, W * 1.8, H * 0.14); drawCount++;
+  /* thruster bells under the frame */
+  c.fillStyle = '#4A5561';
+  c.beginPath();
+  for (const bx of [-W * 0.45, W * 0.45]) { c.moveTo(bx - 2, H * 0.6); c.lineTo(bx + 2, H * 0.6); c.lineTo(bx + 3, H * 1.05); c.lineTo(bx - 3, H * 1.05); c.closePath(); }
+  c.fill(); drawCount++;
+  if (retro > 0) {
+    c.fillStyle = 'rgba(255,244,194,' + (0.85 * retro).toFixed(2) + ')';
+    c.beginPath();
+    for (const bx of [-W * 0.45, W * 0.45]) { c.moveTo(bx - 3, H * 1.05); c.lineTo(bx + 3, H * 1.05); c.lineTo(bx, H * (1.05 + 1.6 * retro)); c.closePath(); }
+    c.fill(); drawCount++;
+  }
+  c.restore();
+}
+
+function drawCargoPods(c, DW, DH, gy, p, now) {
+  const P = clamp(p || 0, 0, 1);
+  if (P <= 0) return;
+  const tg = w20_targets(DW, DH, gy);
+  c.save();
+  for (let i = 0; i < tg.length; i++) {
+    const t = tg[i];
+    const t0 = i * 0.13, u = clamp((P - t0) / 0.55, 0, 1);
+    if (u <= 0) continue;
+    const s = t.k * 1.05;
+    if (u < 1) {
+      const fall = u * u * (0.85 + 0.15 * u);
+      const px = lerp(t.sx + (i % 2 ? 26 : -22) * t.k, t.sx, u);
+      const py = lerp(-30, t.sy - 9 * s, fall);
+      const retro = u > 0.62 ? clamp((u - 0.62) / 0.30, 0, 1) : 0;
+      /* shadow growing on the target as it comes down */
+      c.fillStyle = 'rgba(0,0,0,' + (0.10 + 0.22 * u).toFixed(2) + ')';
+      c.beginPath(); c.ellipse(t.sx + 2 * s, t.sy, (16 - 8 * u) * s, (5 - 2.4 * u) * s, 0, 0, 7); c.fill(); drawCount++;
+      if (retro > 0) {
+        const gg = c.createRadialGradient(px, py + 16 * s, 1, px, py + 16 * s, 22 * s * retro);
+        gg.addColorStop(0, 'rgba(255,244,194,' + (0.45 * retro).toFixed(2) + ')'); gg.addColorStop(1, 'rgba(255,244,194,0)');
+        c.fillStyle = gg; c.beginPath(); c.arc(px, py + 16 * s, 22 * s * retro, 0, 7); c.fill(); drawCount++;
+      }
+      w20_pod(c, px, py, s, lerp(0.28 * (i % 2 ? 1 : -1), 0, u * u), retro, false);
+    } else {
+      c.fillStyle = 'rgba(0,0,0,.30)';
+      c.beginPath(); c.ellipse(t.sx + 2 * s, t.sy + 1, 12 * s, 3.4 * s, 0, 0, 7); c.fill(); drawCount++;
+      /* dust kicked out sideways, settling */
+      const age = clamp((P - (t0 + 0.55)) / 0.22, 0, 1);
+      if (age < 1) {
+        c.fillStyle = 'rgba(226,231,238,' + (0.55 * (1 - age)).toFixed(2) + ')';
+        c.beginPath();
+        for (const sd of [-1, 1]) {
+          const dx = t.sx + sd * (10 + age * 26) * s;
+          c.moveTo(dx + 10 * s, t.sy); c.ellipse(dx, t.sy, (9 + age * 9) * s, (3.4 + age * 1.6) * s, 0, 0, 7);
+        }
+        c.fill(); drawCount++;
+      }
+      w20_pod(c, t.sx, t.sy - 9 * s, s, 0, 0, true);
+    }
+  }
+  c.restore();
+}
+
+/* ═══════════════════════════ preview ═══════════════════════════ */
+
+/* ── W21 · the faint trajectory line (A8), one overlay per view ── */
+/* ─────────────────────────── A8 · predicted trajectory (W21) ───────────────────────────
+   A faint guide line drawn ON TOP of whichever camera view is active. It traces the SAME
+   curve the matching view draws (path maths copied out of drawOrbitView / drawTransferView /
+   drawMoonApproach), splits it into flown (bright, solid) and to-come (faint, dashed),
+   puts a soft glow at the ship and a small chevron showing direction of travel.
+   It is a guide, never the subject: nothing here is brighter than the ship. */
+
+function trajInvalidate() { /* nothing cached — the maths is cheap and depends on live zoom */ }
+
+/* --- the path, per kind. Returns { at(u) → [x,y], closed, u0 (ship's position) } ------- */
+function w21_path(DW, DH, kind, st) {
+  const p = Math.max(0, Math.min(1, st && st.p || 0));
+  const zoom = Math.max(0, Math.min(1, st && st.zoom || 0));
+  const ang = (st && st.angle) || 0;
+  const TAU = 6.283185307;
+
+  if (kind === 'orbit') {
+    /* copied from drawOrbitView: the tilted ellipse about the lower-left Earth */
+    const E = jrnyEarth(DW, DH, zoom);
+    const orb = E.r * 1.45;
+    const ox = E.x + orb * 0.40, oy = E.y - orb * 0.40;
+    const rx = orb * 0.78, ry = orb * 0.52;
+    return {
+      closed: true,
+      u0: ((ang / TAU) % 1 + 1) % 1,
+      at: (u) => { const a = u * TAU; return [ox + rx * Math.cos(a), oy - ry * Math.sin(a)]; }
+    };
+  }
+
+  if (kind === 'moonorbit') {
+    /* copied from drawMoonApproach: the lemniscate around the Moon */
+    const M = jrnyMoon(DW, DH, zoom);
+    const R = Math.min(Math.max(M.r, Math.min(DW, DH) * (0.20 + 0.11 * zoom)), DW * 0.22, DH * 0.28);
+    const a = R * 1.78, b = R * 1.62;
+    const cx = clamp(lerp(M.x, DW * 0.50, zoom), a + 6, DW - a - 6);
+    const cy = clamp(lerp(M.y, DH * 0.50, zoom), R + 10, DH - R - 10);
+    return {
+      closed: true,
+      u0: ((ang / TAU) % 1 + 1) % 1,
+      at: (u) => { const q = w15_eight(cx, cy, a, b, u * TAU); return [q.x, q.y]; }
+    };
+  }
+
+  if (kind === 'transfer') {
+    /* copied from drawTransferView: the bowed cubic from LEO to the Moon */
+    const S = Math.min(DW, DH) / 360;
+    const z = zoom;
+    const eR = lerp(45, 72, z) * S, mR = lerp(22.5, 36, z) * S;
+    const ex = lerp(DW * 0.20, DW * -0.02, z), ey = lerp(DH * 0.80, DH * 1.10, z);
+    const mx = lerp(DW * 0.76, DW * 0.55, z), my = lerp(DH * 0.22, DH * 0.44, z);
+    const eOrb = eR * 1.34, a0 = -Math.PI * 0.28;
+    const P0 = { x: ex + Math.cos(a0) * eOrb, y: ey + Math.sin(a0) * eOrb };
+    const P3 = { x: mx - mR * 0.92, y: my + mR * 0.78 };
+    const dx = P3.x - P0.x, dy = P3.y - P0.y;
+    const L = Math.hypot(dx, dy) || 1;
+    const nx = -dy / L, ny = dx / L;
+    const bow = L * 0.42;
+    const P1 = { x: P0.x + dx * 0.12 - nx * bow * 0.85, y: P0.y + dy * 0.12 - ny * bow * 0.85 };
+    const P2 = { x: P0.x + dx * 0.62 - nx * bow * 0.95, y: P0.y + dy * 0.62 - ny * bow * 0.95 };
+    const P = [P0, P1, P2, P3];
+    return { closed: false, u0: p, at: (u) => { const q = w10_bez(P, u); return [q.x, q.y]; } };
+  }
+
+  /* 'ascent' — a gravity turn: straight off the pad, leaning right as it gains speed */
+  const padX = DW * 0.42, padY = DH * 0.94;
+  const topY = DH * 0.07, outX = DW * 0.44;
+  return {
+    closed: false, u0: p,
+    at: (u) => [padX + outX * Math.pow(u, 2.05), lerp(padY, topY, Math.pow(u, 0.80))]
+  };
+}
+
+/* stroke a slice of the path; a0/a1 are path params (may run negative — wrapped when closed) */
+function w21_seg(c, path, a0, a1, steps) {
+  c.beginPath();
+  for (let i = 0; i <= steps; i++) {
+    let u = a0 + (a1 - a0) * (i / steps);
+    if (path.closed) u = ((u % 1) + 1) % 1;
+    const q = path.at(u);
+    if (i === 0) c.moveTo(q[0], q[1]); else c.lineTo(q[0], q[1]);
+  }
+  c.stroke(); drawCount++;
+}
+
+function drawTrajectory(c, DW, DH, kind, st, now) {
+  st = st || {};
+  now = now || st.now || 0;
+  const path = w21_path(DW, DH, kind, st);
+  const u0 = Math.max(0, Math.min(1, path.u0));
+  const S = Math.min(DW, DH) / 360;              // keep the weight honest on both layouts
+  const LW = Math.max(0.9, 1.15 * S);
+
+  c.save();
+  c.lineCap = 'round';
+  c.lineJoin = 'round';
+
+  /* ---- still to come: faint, dashed ---- */
+  c.setLineDash([3.5 * S, 6 * S]);
+  c.lineDashOffset = -now / 140;                 // a slow crawl toward the ship's future
+  c.strokeStyle = 'rgba(196,224,255,0.17)';
+  c.lineWidth = LW;
+  if (path.closed) w21_seg(c, path, u0 + 0.012, u0 + 0.99, 60);
+  else if (u0 < 0.995) w21_seg(c, path, u0, 1, 40);
+
+  /* ---- already flown: solid, brightening toward the ship ---- */
+  c.setLineDash([]);
+  if (path.closed) {
+    /* a closed loop is always "flown"; fade the tail back so the recent stretch reads */
+    const tail = [[0.00, -0.11, 0.44], [-0.11, -0.30, 0.20], [-0.30, -0.55, 0.08]];
+    for (let i = 0; i < tail.length; i++) {
+      c.strokeStyle = 'rgba(200,230,255,' + tail[i][2] + ')';
+      c.lineWidth = LW * (1.25 - i * 0.16);
+      w21_seg(c, path, u0 + tail[i][0], u0 + tail[i][1], 16);
+    }
+  } else {
+    c.strokeStyle = 'rgba(200,230,255,0.20)';
+    c.lineWidth = LW;
+    if (u0 > 0.01) w21_seg(c, path, 0, u0, 34);
+    c.strokeStyle = 'rgba(214,238,255,0.46)';    // the last stretch, brighter
+    c.lineWidth = LW * 1.2;
+    w21_seg(c, path, Math.max(0, u0 - 0.16), u0, 14);
+  }
+
+  /* ---- the ship's position: a soft glow ---- */
+  const P = path.at(u0);
+  const gr = 9 * S + 2.5 * S * Math.sin(now / 520);
+  const g = c.createRadialGradient(P[0], P[1], 0, P[0], P[1], gr);
+  g.addColorStop(0, 'rgba(220,242,255,0.40)');
+  g.addColorStop(0.45, 'rgba(160,210,255,0.18)');
+  g.addColorStop(1, 'rgba(140,195,255,0)');
+  c.fillStyle = g;
+  c.beginPath(); c.arc(P[0], P[1], gr, 0, 6.2832); c.fill(); drawCount++;
+
+  /* ---- a small chevron a little ahead, pointing the way ---- */
+  const eps = path.closed ? 0.006 : 0.008;
+  let uc = u0 + (path.closed ? 0.048 : 0.075);
+  if (path.closed) uc = ((uc % 1) + 1) % 1; else uc = Math.min(1, uc);
+  const wrap = (u) => path.closed ? ((u % 1) + 1) % 1 : Math.max(0, Math.min(1, u));
+  const A = path.at(wrap(uc - eps)), B = path.at(wrap(uc + eps));
+  const cd = Math.atan2(B[1] - A[1], B[0] - A[0]);
+  const C = path.at(uc);
+  const k = 3.4 * S;
+  c.save();
+  c.translate(C[0], C[1]);
+  c.rotate(cd);
+  c.strokeStyle = 'rgba(214,238,255,0.50)';
+  c.lineWidth = Math.max(0.9, 1.1 * S);
+  c.beginPath();
+  c.moveTo(-k, -k * 0.85); c.lineTo(k * 0.55, 0); c.lineTo(-k, k * 0.85);
+  c.stroke(); drawCount++;
+  c.restore();
 
   c.restore();
 }

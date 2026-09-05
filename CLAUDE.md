@@ -27,7 +27,14 @@ the repo directly — attach it if it isn't already in scope.
 - **Art direction:** goofy hi-res vector, drawn in code. No image assets. Scene art (W1–W4 sections) may use its own hex; the chrome never does.
 - **Mission control:** the data window top-left of the scene reads `view.forces` (per-sample thrust, drag, mass, g from `flyRocket`; `forcesAt` after burnout) and converts to lbf/lb/ft·s⁻² only in `paintDataWin`.
 - **Units:** display is miles and mph; the sim and balance table are SI and convert only in the format layer (`fmtMi`, `fmtV`).
-- **Static layers are cached.** The farm and pad render once into offscreen canvases keyed by size, ground line and theme. **Call `w12_invalidate()` on resize, DPR change and theme change** or the scene keeps a stale layer. Anything that animates (crew, cows, windsock, beacons, pond, glows) still draws live.
+- **The ground is one shared projection.** `gproj(DW, DH, gy, x, z)` maps the tilted ~30-degree
+  view: `x` −1..+1 across the site, `z` 0 (front edge) to 1 (horizon). The Earth site (W16), the
+  pad life (W17), the catch (W19) and the lunar settlement (W20) all use it, and all agree that
+  with `gy = DH*0.34` the projected horizon is at z 0.626, so **ground content must stay under
+  z 0.62** or it floats above the skyline. The pad apron owns x ±0.38, z 0.305–0.475.
+- **Static layers are cached.** The farm, the pad, the tilted site and the lunar ground render
+  once into offscreen canvases keyed by size, ground line and theme. **Call `w12_invalidate()`
+  and `siteInvalidate()` on resize, DPR change and theme change** or the scene keeps a stale layer. Anything that animates (crew, cows, windsock, beacons, pond, glows) still draws live.
 - **Camera:** `FLIGHT_PLAN` in the balance block gives each mission its phase list and seconds. `runFlight` is a phase machine; `view.scene` picks the camera view (`pad` / `orbit` / `transfer` / `moonorbit` / `cargo`) and `view.fadeFrom` cross-fades between them. The views are whole frames — they paint their own background; the pad scene is `drawPadScene`.
 - **Missions:** five, in `MISSIONS` in the balance block. A flight reaches mission *n* when delivered Δv clears `dvReq` AND both `equip` items are owned AND mission *n−1* is achieved. `capOf(missions)` caps every track at 2×(missions+1). `plan`/`replan()` cache the flight; **anything that changes tiers or equipment must call `replan()`** or the hint and the gold LAUNCH go stale.
 - **Balance:** the numbers live in one block between `/*BAL-START*/` and `/*BAL-END*/` in the app.
