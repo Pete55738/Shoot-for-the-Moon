@@ -548,8 +548,9 @@ body {
   .spot { outline: 3px solid var(--h-warning) !important; outline-offset: 4px; border-radius: var(--radius-lg);
           animation: spotpulse 1.2s ease-in-out infinite; position: relative; z-index: 52; }
   @keyframes spotpulse { 0%,100% { outline-offset: 4px; } 50% { outline-offset: 9px; } }
-  #tour { position: fixed; left: 50%; bottom: calc(4.2rem + env(safe-area-inset-bottom)); transform: translateX(-50%);
-          z-index: 53; width: min(24rem, calc(100vw - 1.5rem)); background: var(--h-surface); border: 1px solid var(--h-warning);
+  /* Bottom-left, never centred: the LAUNCH button it points at lives bottom-right of the scene. */
+  #tour { position: fixed; left: .75rem; bottom: calc(4.2rem + env(safe-area-inset-bottom));
+          z-index: 53; width: min(22rem, calc(100vw - 1.5rem)); background: var(--h-surface); border: 1px solid var(--h-warning);
           border-radius: var(--radius-lg); padding: .8rem .9rem; box-shadow: 0 12px 30px rgb(0 0 0 / .5); }
   #tour[hidden] { display: none; }
   #tour .step { font-family: var(--wa-font-family-heading); font-size: var(--text-3xs); letter-spacing: .12em;
