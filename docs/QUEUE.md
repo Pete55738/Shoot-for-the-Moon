@@ -26,7 +26,7 @@ below with its run number.
 - [x] T15 · "pitch over; once in orbit it zooms out to the Earth like a level change, then zooms out as the levels progress; once on the Moon it zooms into the Moon and you see the base being built and data on how much cargo has been dropped off" · said 09-05 · **decided:** camera scale is the level indicator — pad scale → Earth-in-frame at tier 1 → Earth+Moon at tiers 2–3 → Moon surface at tiers 4–5 · long run (T13c) · built #10
 - [x] T16 · "late stage you see cargo pods drop from the ship to the Moon" · said 09-05 · long run (T13c, tier 4–5 ending) · built #10
 - [x] T17 · "the Moon has a railgun shooting cargo shipments back to Earth" · said 09-05 · long run — tier-5 economy: shipments are a second income; art in the Moon scene · built #14
-- [ ] T18 · "tier 5: Moon base built and 10,000 people live there; grow the base with more payload launches until a population milestone that updates every launch" · said 09-05 · **decided:** replaces the fixed five-module base; population is the tier-5 score, shown in the Moon data panel and the LOG · long run
+- [x] T18 · "tier 5: Moon base built and 10,000 people live there; grow the base with more payload launches until a population milestone that updates every launch" · said 09-05 · **decided:** replaces the fixed five-module base; population is the tier-5 score, shown in the Moon data panel and the LOG · long run · built #9/#10 (population, cargo, ladder and LOG all carry it)
 - [x] T19 · "the five tiers: 1 Earth low orbit (100 km), 2 Earth lunar-injection orbit, 3 lunar orbit, 4 lunar base established, 5 Moon base built + 10,000 people" · said 09-05 · **decided:** this is the ladder T13a designs; the old altitude milestones become sub-steps inside tier 1 · long run · built #9
 - [ ] T20 · "phase 2: a base and colony on Mars, then mine the asteroid belt" · said 09-05 · parked — after the Moon; the camera-scale idea (T15) is what makes it possible
 - [x] T21 · "when it's launching, everything should get out of the way" · said 09-05 · **decided:** LAUNCH fades to a ghost in flight, the tour closes on launch, checklist already hides · built #6
@@ -44,7 +44,7 @@ below with its run number.
 - [x] T33 · "on the ground the mission control window should be gone; the readiness window describing what's happening stays until launch; once it launches that goes away and bottom left is the gimbal" · said 09-05 · **decided:** turnaround shows the readiness checklist in the top-left slot and hides mission control; flight hides readiness, shows mission control top-left and the gimbal bottom-left · next · built #11
 - [x] T34 · "add a bunch more mechanics for when they're assembling the ship, and more jokey names for what they're doing — cleaning, cleaning space biffy, stuff like that" · said 09-05 · **decided:** more turnaround stages with their own animation, and a much longer jokey task pool · next · built #11
 - [x] T35 · "optimize the crap out of the graphics" · said 09-05 · **decided:** cache static layers to offscreen canvases, batch fills, cut per-frame gradient churn; target ≥60 fps everywhere and the turnaround off the 232-draw budget · next · built #12
-- [ ] T7 · Netlify app made public · said 09-05 · done by the user in Netlify
+- [x] T7 · Netlify app made public · said 09-05 · done by the user in Netlify
 
 ## Shipped
 
