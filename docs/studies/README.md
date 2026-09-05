@@ -89,6 +89,34 @@ Identity unchanged: steel-blue, starfield, altitude ladder. Art direction is now
     scales fight — a log altitude axis puts LEO and the Moon almost on top of
     each other), and a plain percentage bar (no sense of place).
 
+12. Round twenty, the trajectory correction (T40). The user looked at the
+    journey and said the figure eight was in the wrong place: it should span
+    the Earth and the Moon, not loop at the Moon, and the Moon should get a
+    plain orbit — the Apollo trajectories being the reference.
+
+    They were right, and the previous build had it backwards. The Apollo
+    free-return trajectory makes its eight out of the WHOLE Earth-to-Moon
+    path: a long lobe sweeping past the Earth, a short hook round the far
+    side of the Moon, and the two legs crossing between them. What the game
+    drew was a lemniscate at the Moon — a shape nothing flies — while the
+    outbound arc was a plain bow and the return leg simply rewound it.
+
+    So the eight moved out to where it belongs, as a lemniscate with unequal
+    lobes along the Earth–Moon axis, and the Moon got a circular orbit seen
+    edge-on with its far half passing behind the disc. The return leg now runs
+    forward along the second half of the eight instead of rewinding the first,
+    which is why the ship comes home the long way round.
+
+    The lobe was fitted by measuring rather than by eye: sampling the Moon
+    lobe against the Moon's radius across viewports and zooms, a crossing at
+    0.84 of the way out keeps it between 1.4 and 1.8 Moon radii the whole way
+    round, where nearer crossings let it bulge to three times as wide on one
+    side.
+
+    Both curves are now single helpers (jrnyFree, jrnyLunar) that the scene and
+    the trajectory overlay share, because the old overlay held its own copy of
+    the maths and that is exactly how two drawings of one path drift apart.
+
 ## What to decide in the design cycle
 
 - **Art direction**, shown as pictures: keep hi-res vector, or move to rendered 2D (blur halos, glow, multiply shadows) for warmth. The brain dump said "goofy, fun graphics" — the vector look is clean but not yet goofy.

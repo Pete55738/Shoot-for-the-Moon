@@ -481,6 +481,9 @@ body {
   .flash.show { opacity: 1; }
   /* the readiness window owns the top-left while the crew works, so the flash drops below it */
   .flash.low { top: auto; bottom: 12%; }
+  /* T39b · on the way home the eight crosses the middle of the frame, so the payoff panel
+     steps down out of it rather than sitting on the one thing the scene is showing. */
+  .flash.aside { top: auto; bottom: 6%; }
   .flash .big { font-size: 1.3rem; color: var(--h-accent-strong); text-wrap: balance; line-height: 1.15; }
   .flash .sub { font-size: var(--text-2xs); color: var(--h-text-muted); margin-top: .25rem; letter-spacing: .1em; text-wrap: balance; line-height: 1.3; }
   .flash .money { font-size: 1.1rem; color: var(--h-positive); margin-top: .35rem; }
@@ -1296,6 +1299,10 @@ function runFlight(f, onApogee, onLanded, mission) {
       if (!paid && view.mission === 1 && ph.name === 'orbit' && p > 0.5) { paid = true; view.apogeeKm = orbitKm; onApogee(); }
     } else if (ph.name === 'transfer' || ph.name === 'back') {
       const out = ph.name === 'transfer';
+      /* T39b · jp walks the free-return eight once, forward: the outbound leg is its first half
+         and the return is its second. It used to rewind view.p, which flew the ship home backwards
+         down the arc it had just come out on. */
+      view.jp = out ? p * 0.5 : 0.5 + p * 0.5;
       view.p = out ? p : 1 - p; view.zoom = out ? easeOut(p) : 1 - easeOut(p);
       view.km = lerp(400, MOON_KM, out ? p : 1 - p); view.v = lerp(7800, 1000, out ? p : 1 - p);
       view.heat = 0; view.forces = forcesAt(S.tiers, 400000, view.v, 0);
@@ -1535,7 +1542,7 @@ const ART = { skyLo: '#6FB4E8', skyHi: '#2F6FB7', space: '#050912', ground: '#3E
 /* A8 · the path the ship is on, faint: flown solid, still-to-come dashed. */
 function traj(c, kind, st, now) { if (typeof drawTrajectory === 'function') drawTrajectory(c, DW, DH, kind, st, now); }
 function drawView(name, c, now) {
-  const st = { p: view.p, angle: view.ang, zoom: view.zoom, tiers: S.tiers, now, heat: view.heat,
+  const st = { p: view.p, jp: view.jp, angle: view.ang, zoom: view.zoom, tiers: S.tiers, now, heat: view.heat,
                cargo: view.cargo, modules: S.modules, population: S.population };
   if (name === 'orbit' && typeof drawOrbitView === 'function') { drawOrbitView(c, DW, DH, st, drawRocket, rocketDims); traj(c, 'orbit', st, now); }
   else if (name === 'transfer' && typeof drawTransferView === 'function') { drawTransferView(c, DW, DH, st, drawRocket, rocketDims); traj(c, 'transfer', st, now); }
@@ -3140,21 +3147,8 @@ function drawTurnaround(c, gy, DW, DH, p, t, now, drawRocketFn, rocketDimsFn) {
 
 function w10_rand(i) { return ((i * 9301 + 49297) % 233280) / 233280; }
 
-/* cubic bezier point + tangent */
-function w10_bez(P, t) {
-  const u = 1 - t, a = u * u * u, b = 3 * u * u * t, d = 3 * u * t * t, e = t * t * t;
-  return {
-    x: a * P[0].x + b * P[1].x + d * P[2].x + e * P[3].x,
-    y: a * P[0].y + b * P[1].y + d * P[2].y + e * P[3].y
-  };
-}
-function w10_bezT(P, t) {
-  const u = 1 - t, a = 3 * u * u, b = 6 * u * t, d = 3 * t * t;
-  return {
-    x: a * (P[1].x - P[0].x) + b * (P[2].x - P[1].x) + d * (P[3].x - P[2].x),
-    y: a * (P[1].y - P[0].y) + b * (P[2].y - P[1].y) + d * (P[3].y - P[2].y)
-  };
-}
+/* The cubic-bezier helpers went with the bowed transfer arc they served; the free-return
+   path is parametric (jrnyFree) and needs no control points. */
 
 function w10_stars(c, DW, DH, now) {
   c.save();
@@ -3289,45 +3283,31 @@ function drawTransferView(c, DW, DH, st, drawRocketFn, rocketDimsFn) {
   c.fillStyle = ART.space; c.fillRect(0, 0, DW, DH); drawCount++;
   w10_stars(c, DW, DH, now);
 
-  // --- camera: lerp the two framings -----------------------------------
-  const eR = lerp(45, 72, z) * S;
-  const mR = lerp(22.5, 36, z) * S;
-  const ex = lerp(DW * 0.20, DW * -0.02, z);
-  const ey = lerp(DH * 0.80, DH * 1.10, z);
-  const mx = lerp(DW * 0.76, DW * 0.55, z);
-  const my = lerp(DH * 0.22, DH * 0.44, z);
+  // --- camera and the free-return path, from the one shared source -------
+  const J = jrnyFree(DW, DH, z);
+  const { ex, ey, eR, mx, my, mR } = J;
+  /* jp walks the whole eight: 0 → 0.5 outbound, 0.5 → 1 the return leg. The back phase
+     continues forward along it, so the ship comes home the long way round rather than
+     rewinding the arc it flew out on. */
+  const jp = clamp(st.jp == null ? p * 0.5 : st.jp, 0, 1);
+  const XY = (u) => J.at(u);
 
-  // --- the transfer arc: a bowed cubic from Earth's orbit to the Moon ----
-  const eOrb = eR * 1.34;                    // departure radius (low Earth orbit)
-  const a0 = -Math.PI * 0.28;                // leaves Earth toward upper-right
-  const P0 = { x: ex + Math.cos(a0) * eOrb, y: ey + Math.sin(a0) * eOrb };
-  const P3 = { x: mx - mR * 0.92, y: my + mR * 0.78 };
-  const dx = P3.x - P0.x, dy = P3.y - P0.y;
-  const L = Math.hypot(dx, dy) || 1;
-  const nx = -dy / L, ny = dx / L;           // normal (points up-right of the chord)
-  const bow = L * 0.42;                      // pronounced bow so it reads as a curve
-  const P1 = { x: P0.x + dx * 0.12 - nx * bow * 0.85, y: P0.y + dy * 0.12 - ny * bow * 0.85 };
-  const P2 = { x: P0.x + dx * 0.62 - nx * bow * 0.95, y: P0.y + dy * 0.62 - ny * bow * 0.95 };
-  const P = [P0, P1, P2, P3];
-
-  // faint whole arc
+  // the whole eight, faint: this is the shape of the trip, and it is on screen the whole way
   c.save();
   c.setLineDash([2.5 * S, 5 * S]);
   c.lineWidth = 1.4 * S; c.lineCap = 'round';
   c.strokeStyle = 'rgba(200,222,255,.26)';
-  c.beginPath(); c.moveTo(P0.x, P0.y);
-  c.bezierCurveTo(P1.x, P1.y, P2.x, P2.y, P3.x, P3.y);
+  c.beginPath();
+  for (let i = 0; i <= 120; i++) { const q = XY(i / 120); i ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1]); }
   c.stroke(); drawCount++;
 
-  // travelled part, bright
+  // flown so far, bright
+  c.setLineDash([]);
   c.strokeStyle = 'rgba(180,226,255,.95)';
   c.lineWidth = 1.8 * S;
   c.beginPath();
-  const N = 44, upto = Math.max(1, Math.round(N * p));
-  for (let i = 0; i <= upto; i++) {
-    const pt = w10_bez(P, (i / upto) * p);
-    if (i === 0) c.moveTo(pt.x, pt.y); else c.lineTo(pt.x, pt.y);
-  }
+  { const n = Math.max(1, Math.round(120 * jp));
+    for (let i = 0; i <= n; i++) { const q = XY((i / n) * jp); i ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1]); } }
   c.stroke(); drawCount++;
   c.restore();
 
@@ -3335,14 +3315,14 @@ function drawTransferView(c, DW, DH, st, drawRocketFn, rocketDimsFn) {
   w10_earth(c, ex, ey, eR, now);
   w10_moon(c, mx, my, mR, now);
 
-  // --- the ship at the head of the travelled arc ------------------------
-  const pt = w10_bez(P, p);
-  const tg = w10_bezT(P, p);
-  const ang = Math.atan2(tg.y, tg.x) + Math.PI / 2;
+  // --- the ship at the head of the flown path ---------------------------
+  const here = XY(jp), ahead = XY(Math.min(1, jp + 0.004));
+  const pt = { x: here[0], y: here[1] };
+  const ang = Math.atan2(ahead[1] - here[1], ahead[0] - here[0]) + Math.PI / 2;
 
   // engine glow trail behind it
   c.save();
-  const back = w10_bez(P, Math.max(0, p - 0.045));
+  const bk = XY(Math.max(0, jp - 0.014)), back = { x: bk[0], y: bk[1] };
   const tgr = c.createLinearGradient(pt.x, pt.y, back.x, back.y);
   tgr.addColorStop(0, 'rgba(255,196,110,.8)'); tgr.addColorStop(1, 'rgba(255,196,110,0)');
   c.strokeStyle = tgr; c.lineWidth = 3.4 * S; c.lineCap = 'round';
@@ -3949,6 +3929,58 @@ function drawShipmentArc(c, DW, DH, p, now) {
 
 /* Shared journey geometry (round 5). Earth lower-left, Moon upper-right, always. */
 function jrnyEarth(DW, DH, zoom) { return { x: DW * 0.20, y: DH * 0.88, r: Math.min(DW, DH) * (0.30 + 0.16 * (zoom || 0)) }; }
+
+/* T39b · the Apollo free-return figure eight.
+   The eight is made by the WHOLE Earth-to-Moon path, not by a loop at the Moon: a long lobe
+   sweeping past the Earth, a short lobe round the far side of the Moon, and the two crossing
+   between them. That is the shape of the Apollo translunar trajectory, and it is what the
+   outbound and the return legs draw together.
+   A lemniscate does exactly this, so it is one here — with unequal lobes, because the Earth
+   end of the real trajectory is far longer than the swing round the Moon. The crossing sits
+   at the node, where both halves meet at s = 0, so the two lobe sizes join continuously.
+   drawTransferView and the trajectory overlay both read this, so they cannot drift apart. */
+function jrnyFree(DW, DH, z) {
+  const S = Math.min(DW, DH) / 360;
+  const eR = lerp(45, 72, z) * S, mR = lerp(22.5, 36, z) * S;
+  const ex = lerp(DW * 0.20, DW * -0.02, z), ey = lerp(DH * 0.80, DH * 1.10, z);
+  const mx = lerp(DW * 0.76, DW * 0.55, z), my = lerp(DH * 0.22, DH * 0.44, z);
+  const dx = mx - ex, dy = my - ey, d = Math.hypot(dx, dy) || 1;
+  const ux = dx / d, uy = dy / d, vx = -uy, vy = ux;        // the Earth→Moon axis and its normal
+  /* The crossing sits well out toward the Moon, which is what makes the small lobe a tight hook
+     round the Moon and the big one a long sweep back past the Earth — the Apollo shape. Tuned by
+     measuring, not by eye: at cf 0.84 the Moon lobe stays between 1.4 and 1.8 Moon radii all the
+     way round, at every viewport and zoom; nearer crossings let it bulge to 3x on one side. */
+  const cf = 0.84;
+  const cx = ex + ux * d * cf, cy = ey + uy * d * cf;
+  const aE = d * cf + eR * 1.30, aM = d * (1 - cf) + mR * 1.50;   // each lobe reaches past its body
+  const bE = aE * 0.78, bM = aM * 1.50;                     // the Moon lobe is round; the Earth lobe long
+  /* u 0 → 0.5 is the outbound leg (Earth lobe tip, through the crossing, round the Moon);
+     u 0.5 → 1 is the return, which is why the back phase runs forward and never rewinds. */
+  const at = (u) => {
+    const t = Math.PI + u * 6.283185307;
+    const si = Math.sin(t), co = Math.cos(t), den = 1 + si * si;
+    const a = co >= 0 ? aM : aE, b = co >= 0 ? bM : bE;
+    const S1 = a * co / den, N1 = b * si * co / den;
+    return [cx + ux * S1 + vx * N1, cy + uy * S1 + vy * N1];
+  };
+  return { ex, ey, eR, mx, my, mR, S, cx, cy, at };
+}
+
+/* T39b · a circular lunar orbit seen at an angle — what a lunar-orbit insertion actually leaves
+   you in. The Moon used to get a lemniscate of its own, which is not a path anything flies:
+   the figure eight belongs to the Earth–Moon journey above, and this belongs at the Moon. */
+function jrnyLunar(DW, DH, zoom) {
+  const M = jrnyMoon(DW, DH, zoom);
+  const R = Math.min(Math.max(M.r, Math.min(DW, DH) * (0.20 + 0.11 * zoom)), DW * 0.22, DH * 0.28);
+  const rx = R * 1.46, ry = R * 0.50, tilt = -0.30;
+  const cx = clamp(lerp(M.x, DW * 0.50, zoom), rx + 8, DW - rx - 8);
+  const cy = clamp(lerp(M.y, DH * 0.50, zoom), R + rx * 0.34 + 8, DH - R - rx * 0.34 - 8);
+  const ct = Math.cos(tilt), stl = Math.sin(tilt);
+  const at = (a) => { const X = rx * Math.cos(a), Y = ry * Math.sin(a);
+    return [cx + X * ct - Y * stl, cy + X * stl + Y * ct]; };
+  const behind = (a) => Math.sin(a) < 0;      // the far half of the orbit passes behind the Moon
+  return { cx, cy, R, rx, ry, tilt, at, behind };
+}
 function jrnyMoon(DW, DH, zoom)  { return { x: DW * 0.80, y: DH * 0.18, r: Math.min(DW, DH) * (0.10 + 0.34 * (zoom || 0)) }; }
 
 function w9_rand(i) { return ((i * 9301 + 49297) % 233280) / 233280; }
@@ -4266,11 +4298,6 @@ function w15_moonBody(c, cx, cy, R, now) {
      y = cy + b·sin t·cos t / (1 + sin²t)         (negated on screen so t rises counter-clockwise)
    t = st.angle. The RIGHT lobe (|t| < π/2) passes IN FRONT of the Moon; the LEFT lobe
    (π/2 < t < 3π/2) passes BEHIND it — drawn before the disc so the Moon occludes it. */
-function w15_eight(cx, cy, a, b, t) {
-  const s = Math.sin(t), co = Math.cos(t), d = 1 + s * s;
-  return { x: cx + a * co / d, y: cy - b * s * co / d };
-}
-function w15_front(t) { const m = ((t % 6.283185) + 6.283185) % 6.283185; return m < Math.PI / 2 || m > Math.PI * 1.5; }
 
 function drawMoonApproach(c, DW, DH, st, drawRocketFn, rocketDimsFn) {
   const now = st.now, zoom = clamp(st.zoom || 0, 0, 1);
@@ -4282,56 +4309,49 @@ function drawMoonApproach(c, DW, DH, st, drawRocketFn, rocketDimsFn) {
   const E = jrnyEarth(DW, DH, 0);
   w11_earth(c, E.x, Math.min(E.y, DH * 0.90), 9 + (1 - zoom) * 2, now);
 
-  /* the Moon: jrnyMoon's upper-right slot, growing and drifting to the middle as we close in */
-  const M = jrnyMoon(DW, DH, zoom);
-  const R = Math.min(Math.max(M.r, Math.min(DW, DH) * (0.20 + 0.11 * zoom)), DW * 0.22, DH * 0.28);
-  /* a proper lemniscate: b ≈ a keeps the lobes pointed (b much larger rounds them into two circles) */
-  const a = R * 1.78, b = R * 1.62;                    /* ±a wide, ±0.354·b tall */
-  const cx = clamp(lerp(M.x, DW * 0.50, zoom), a + 6, DW - a - 6);
-  const cy = clamp(lerp(M.y, DH * 0.50, zoom), R + 10, DH - R - 10);
+  /* T39b · lunar orbit, not a figure eight. The eight belongs to the Earth–Moon trip; once the
+     ship is captured here it flies a circular orbit, seen edge-on and tipped, with the far half
+     of the ring passing behind the Moon. */
+  const L = jrnyLunar(DW, DH, zoom);
+  const ang = st.angle || 0;
+  const behind = L.behind(ang);
 
-  const P = (t) => w15_eight(cx, cy, a, b, t);
-  const strokeSeg = (t0, t1, alpha, w) => {
-    c.strokeStyle = 'rgba(200,220,255,' + alpha + ')'; c.lineWidth = w; c.setLineDash([5, 5]);
+  const arc = (a0, a1, alpha, w, dash) => {
+    c.strokeStyle = 'rgba(200,220,255,' + alpha + ')'; c.lineWidth = w || 1.2;
+    c.setLineDash(dash ? [5, 5] : []);
     c.beginPath();
-    for (let k = 0; k <= 44; k++) { const p = P(lerp(t0, t1, k / 44)); k ? c.lineTo(p.x, p.y) : c.moveTo(p.x, p.y); }
+    for (let k = 0; k <= 40; k++) { const q = L.at(lerp(a0, a1, k / 40)); k ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1]); }
     c.stroke(); drawCount++; c.setLineDash([]);
   };
-
-  const ang = st.angle || 0;
-  const onFront = w15_front(ang);
-
-  /* trail: the stretch just flown, warm */
-  const trail = () => {
+  const shipAt = (a, alpha) => {
+    const q = L.at(a), n = L.at(a + 0.05);
+    const hdg = Math.atan2(n[1] - q[1], n[0] - q[0]);
+    w11_ship(c, q[0], q[1], hdg, 30, st, drawRocketFn, rocketDimsFn, alpha);
+    return q;
+  };
+  const trail = (a) => {
     c.strokeStyle = 'rgba(255,179,71,.40)'; c.lineWidth = 2; c.setLineDash([]);
     c.beginPath();
-    for (let k = 0; k <= 9; k++) { const p = P(ang - k * 0.045); k ? c.lineTo(p.x, p.y) : c.moveTo(p.x, p.y); }
+    for (let k = 0; k <= 9; k++) { const q = L.at(a - k * 0.05); k ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1]); }
     c.stroke(); drawCount++;
   };
 
-  /* ── behind the Moon ── */
-  strokeSeg(Math.PI / 2, Math.PI * 1.5, 0.20);          /* the far lobe, faint */
-  if (!onFront) { trail(); }
-  const posB = P(ang), nxtB = P(ang + 0.05), hdgB = Math.atan2(nxtB.y - posB.y, nxtB.x - posB.x);
-  if (!onFront) w11_ship(c, posB.x, posB.y, hdgB, 30, st, drawRocketFn, rocketDimsFn, 0.30 + Math.sin(now / 120) * 0.06);
+  /* ── the far half of the ring, and the ship if it is on it ── */
+  arc(Math.PI, Math.PI * 2, 0.20, 1.1, true);
+  let posB = null;
+  if (behind) { trail(ang); posB = shipAt(ang, 0.30 + Math.sin(now / 120) * 0.06); }
 
   /* ── the Moon itself ── */
-  w15_moonBody(c, cx, cy, R, now);
+  w15_moonBody(c, L.cx, L.cy, L.R, now);
 
-  /* on the far lobe the Moon has just eaten the ship — keep a dim ghost so it is not lost */
-  if (!onFront && Math.hypot(posB.x - cx, posB.y - cy) < R + 14) {
-    c.save(); c.globalAlpha = 0.34;
-    w11_ship(c, posB.x, posB.y, hdgB, 30, st, drawRocketFn, rocketDimsFn, 0);
-    c.restore();
+  /* on the far side the Moon has just eaten the ship — keep a dim ghost so it is not lost */
+  if (behind && posB && Math.hypot(posB[0] - L.cx, posB[1] - L.cy) < L.R + 14) {
+    c.save(); c.globalAlpha = 0.34; shipAt(ang, 0); c.restore();
   }
 
-  /* ── in front of the Moon ── */
-  strokeSeg(-Math.PI / 2, Math.PI / 2, 0.62, 1.2);      /* the near lobe, bright */
-  if (onFront) {
-    trail();
-    const pos = P(ang), nxt = P(ang + 0.05);
-    w11_ship(c, pos.x, pos.y, Math.atan2(nxt.y - pos.y, nxt.x - pos.x), 30, st, drawRocketFn, rocketDimsFn, 0.30 + Math.sin(now / 120) * 0.06);
-  }
+  /* ── the near half of the ring, over the Moon ── */
+  arc(0, Math.PI, 0.62, 1.4, true);
+  if (!behind) { trail(ang); shipAt(ang, 0.30 + Math.sin(now / 120) * 0.06); }
   c.restore();
 }
 
@@ -6041,37 +6061,17 @@ function w21_path(DW, DH, kind, st) {
   }
 
   if (kind === 'moonorbit') {
-    /* copied from drawMoonApproach: the lemniscate around the Moon */
-    const M = jrnyMoon(DW, DH, zoom);
-    const R = Math.min(Math.max(M.r, Math.min(DW, DH) * (0.20 + 0.11 * zoom)), DW * 0.22, DH * 0.28);
-    const a = R * 1.78, b = R * 1.62;
-    const cx = clamp(lerp(M.x, DW * 0.50, zoom), a + 6, DW - a - 6);
-    const cy = clamp(lerp(M.y, DH * 0.50, zoom), R + 10, DH - R - 10);
-    return {
-      closed: true,
-      u0: ((ang / TAU) % 1 + 1) % 1,
-      at: (u) => { const q = w15_eight(cx, cy, a, b, u * TAU); return [q.x, q.y]; }
-    };
+    /* the circular lunar orbit, from the same helper drawMoonApproach draws */
+    const L = jrnyLunar(DW, DH, zoom);
+    return { closed: true, u0: ((ang / TAU) % 1 + 1) % 1, at: (u) => L.at(u * TAU) };
   }
 
   if (kind === 'transfer') {
-    /* copied from drawTransferView: the bowed cubic from LEO to the Moon */
-    const S = Math.min(DW, DH) / 360;
-    const z = zoom;
-    const eR = lerp(45, 72, z) * S, mR = lerp(22.5, 36, z) * S;
-    const ex = lerp(DW * 0.20, DW * -0.02, z), ey = lerp(DH * 0.80, DH * 1.10, z);
-    const mx = lerp(DW * 0.76, DW * 0.55, z), my = lerp(DH * 0.22, DH * 0.44, z);
-    const eOrb = eR * 1.34, a0 = -Math.PI * 0.28;
-    const P0 = { x: ex + Math.cos(a0) * eOrb, y: ey + Math.sin(a0) * eOrb };
-    const P3 = { x: mx - mR * 0.92, y: my + mR * 0.78 };
-    const dx = P3.x - P0.x, dy = P3.y - P0.y;
-    const L = Math.hypot(dx, dy) || 1;
-    const nx = -dy / L, ny = dx / L;
-    const bow = L * 0.42;
-    const P1 = { x: P0.x + dx * 0.12 - nx * bow * 0.85, y: P0.y + dy * 0.12 - ny * bow * 0.85 };
-    const P2 = { x: P0.x + dx * 0.62 - nx * bow * 0.95, y: P0.y + dy * 0.62 - ny * bow * 0.95 };
-    const P = [P0, P1, P2, P3];
-    return { closed: false, u0: p, at: (u) => { const q = w10_bez(P, u); return [q.x, q.y]; } };
+    /* the free-return eight, from the same helper drawTransferView draws. It is a closed loop:
+       the ship leaves the Earth lobe, rounds the Moon, and comes back along the other half. */
+    const J = jrnyFree(DW, DH, zoom);
+    const jp = Math.max(0, Math.min(1, st && st.jp == null ? p * 0.5 : st.jp));
+    return { closed: true, u0: jp, at: (u) => J.at(u) };
   }
 
   /* 'ascent' — a gravity turn: straight off the pad, leaning right as it gains speed */
@@ -6630,6 +6630,9 @@ function paintDataWin() {
   rows.forEach((r, i) => { const tr = tb.children[i]; tr.children[0].textContent = r[0]; tr.children[1].children[0].textContent = r[1]; tr.children[1].children[1].textContent = r[2]; });
   $('dw-mode').textContent = view.countdown ? 'T−' + (view.countdown.n || 'IGN') : phase === 'flight' ? (view.burning ? 'BURN' : 'COAST') : phase === 'descent' ? (view.km >= MOON_KM ? 'MOON' : view.heat > 0.2 ? 'RE-ENTRY' : 'DESCENT') : phase === 'turnaround' ? 'GROUND OPS' : 'PAD';
   $('datawin').classList.toggle('away', view.km >= MOON_KM * 0.999 && phase === 'descent');
+  /* T39b · the payoff panel steps aside while the free-return eight crosses the middle of the
+     frame. Toggled here, per frame: showFlash fires during the cargo drop, one scene early. */
+  $('flash').classList.toggle('aside', view.scene === 'transfer');
 }
 function paintLaunch() {
   const b = $('launch');
