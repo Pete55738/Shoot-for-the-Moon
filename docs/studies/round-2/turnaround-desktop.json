@@ -1,0 +1,54 @@
+{
+  "scene": "turnaround",
+  "out": "docs/studies/round-2/turnaround-desktop.png",
+  "viewport": [
+    1200,
+    800
+  ],
+  "light": false,
+  "tiers": 6,
+  "errors": [],
+  "fps": 61,
+  "drawCount": 190,
+  "phase": "turnaround",
+  "sim": {
+    "ok": true,
+    "rows": [
+      {
+        "name": "cheapest",
+        "launches": 107,
+        "maxDry": 2,
+        "buys": 44,
+        "reached": true
+      },
+      {
+        "name": "priciest",
+        "launches": 81,
+        "maxDry": 4,
+        "buys": 39,
+        "reached": true
+      },
+      {
+        "name": "noPayload",
+        "launches": 295,
+        "maxDry": 18,
+        "buys": 37,
+        "reached": true
+      },
+      {
+        "name": "payloadFirst",
+        "launches": 109,
+        "maxDry": 5,
+        "buys": 45,
+        "reached": true
+      },
+      {
+        "name": "engineOnly",
+        "launches": 79,
+        "maxDry": 6,
+        "buys": 36,
+        "reached": true
+      }
+    ]
+  }
+}
