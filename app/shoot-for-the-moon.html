@@ -4365,7 +4365,7 @@ function ladderScale() {
     ticks: [[250, '250'], [1000, '1,000'], [2500, '2,500'], [5000, '5,000'], [10000, '10,000 · DONE']],
     val: S.population, got: v => S.population >= v };
   if (m >= 2) return { kind: 'far', title: 'To the Moon', max: MOON_KM,
-    ticks: [[200, 'LEO'], [2000, '1,243 mi'], [36000, 'GEO'], [200000, 'HALFWAY'], [MOON_KM, 'MOON']],
+    ticks: [[200, 'LEO'], [2000, fmtMi(2000) + ' mi'], [36000, 'GEO'], [200000, 'HALFWAY'], [MOON_KM, 'MOON']],
     val: S.bestKm, got: v => S.bestKm >= v * 0.999 };
   return { kind: 'alt', title: 'Altitude', max: 400,
     ticks: MILESTONES.filter(x => x.km <= 400).map(x => [x.km, fmtMi(x.km) + ' mi']).concat([[200, 'ORBIT']]),
@@ -4449,9 +4449,9 @@ function shopHint() {
   if (S.mission >= 5) return { text: 'Base at ' + S.population.toLocaleString('en-US') + ' / 10,000 · every launch lands cargo', ok: true };
   const am = armedMission(); if (am) return { text: 'READY: press LAUNCH to ' + MISSIONS[am].flight.toLowerCase(), ok: true };
   const M = MISSIONS[next], missing = M.equip.filter(id => !S.equipment[id]);
-  if (missing.length) return { text: 'Next: ' + M.name + ' needs ' + missing.map(id => EQUIPMENT[id].name).join(' + '), ok: false };
-  const p = plan || replan();
-  return { text: 'Next: ' + M.name + ' needs Δv ' + (M.dvReq / 1000).toFixed(1) + ' km/s · you have ' + (p.f.dv / 1000).toFixed(1) + ' — upgrade the rocket', ok: false };
+  if (missing.length) return { text: 'Buy the ' + missing.length + ' item' + (missing.length > 1 ? 's' : '') + ' below', ok: false };
+
+  return { text: 'Upgrade the rocket — more Δv', ok: false };
 }
 function paintShop() {
   if (!plan) replan();
