@@ -1,7 +1,7 @@
 {
   "envelope": 1,
   "kind": "status",
-  "at": "2026-09-05T17:20:00Z",
+  "at": "2026-09-05T17:55:00Z",
   "payload": {
     "reference": "docs/studies/round-4/sheet.png + liftoff-sequence.png (provisional \u2014 built from the brain dumps, not user-picked)",
     "gates": {
@@ -9,7 +9,7 @@
       "consoleErrors": 0,
       "simClean": true
     },
-    "rounds": 13,
+    "rounds": 15,
     "subsystems": {
       "chrome": {
         "score": 8.5,
@@ -68,7 +68,9 @@
       },
       "turnaround": {
         "score": 9.0,
-        "open": []
+        "open": [
+          "crew animation does not yet key off the named stage"
+        ]
       },
       "rocket": {
         "score": 9.5,
@@ -99,9 +101,13 @@
         "open": [
           "ship draws on top of the Moon on the far half of the orbit"
         ]
+      },
+      "windows": {
+        "score": 9.0,
+        "open": []
       }
     },
     "weakest": "moonview",
-    "note": "Pitch-over and the camera ladder (T13c/T15/T16/T30/T31). A flight is now a phase machine: ascent (physics replay) \u2192 gravity turn \u2192 Earth orbit \u2192 dotted transfer arc \u2192 lunar orbit \u2192 cargo drop \u2192 return \u2192 parachute, cross-fading between camera views so each mission zooms out one step and the Moon zooms back in. Budgets per mission: 10 s at mission 1, 21 s for the full Moon round trip, under the 30 s cap. The ladder re-scales: altitude, then distance to the Moon, then population toward 10,000. Zero console errors, 60\u201361 fps, sim PASS."
+    "note": "Pitch-over and the camera ladder (T13c/T15/T16/T30/T31). A flight is now a phase machine: ascent (physics replay) \u2192 gravity turn \u2192 Earth orbit \u2192 dotted transfer arc \u2192 lunar orbit \u2192 cargo drop \u2192 return \u2192 parachute, cross-fading between camera views so each mission zooms out one step and the Moon zooms back in. Budgets per mission: 10 s at mission 1, 21 s for the full Moon round trip, under the 30 s cap. The ladder re-scales: altitude, then distance to the Moon, then population toward 10,000. Zero console errors, 60\u201361 fps, sim PASS. T33/T34/T24: the readiness window owns the top-left on the ground and becomes a go/no-go board when idle; mission control and the gimbal take over the moment the flight starts. Task pool is 36 jokey items grouped into six assembly stages, read as live commentary."
   }
 }

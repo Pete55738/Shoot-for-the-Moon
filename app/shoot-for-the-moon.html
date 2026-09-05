@@ -495,8 +495,21 @@ body {
   .datawin td.v { text-align: right; font-weight: var(--wa-font-weight-data); font-variant-numeric: tabular-nums; }
   .datawin td.v small { color: var(--h-text-muted); font-weight: 600; margin-left: .2rem; }
   .datawin.away { opacity: .35; }
+  .datawin[hidden], .checklist[hidden] { display: none; }
+  /* T24 · the gimbal, bottom-left, only once the pad is clear */
+  .gimbal { position: absolute; left: .6rem; bottom: .6rem; width: 7.2rem;
+            background: var(--h-surface-glass); border: 1px solid var(--h-border); border-radius: var(--radius);
+            padding: .35rem .45rem; backdrop-filter: blur(6px); font-family: var(--wa-font-family-heading);
+            font-size: var(--text-3xs); letter-spacing: .06em; text-transform: uppercase; color: var(--h-text-muted);
+            transition: opacity .35s; }
+  .gimbal[hidden] { display: none; }
+  .gimbal.fade { opacity: 0; }
+  .gimbal canvas { width: 100%; height: 4.4rem; display: block; }
+  .gimbal .row { display: flex; justify-content: space-between; margin-top: .15rem; }
+  .gimbal .row b { color: var(--h-text); font-weight: var(--wa-font-weight-data); font-variant-numeric: tabular-nums; }
   @media (max-width: 860px) { .datawin { width: min(11rem, 50%); } .datawin tr:nth-child(n+6) { display: none; } }   /* phone: Vel · Alt · Cd · Drag · Thrust */
-  .checklist { position: absolute; left: .6rem; bottom: .6rem; width: min(15rem, 60%);
+  /* T33 · on the ground this is the top-left window; mission control takes that slot once the flight starts. */
+  .checklist { position: absolute; left: .6rem; top: .6rem; width: min(16.5rem, 64%);
                background: var(--h-surface-glass); border: 1px solid var(--h-border); border-radius: var(--radius);
                padding: .45rem .55rem; font-family: var(--wa-font-family-heading); font-size: var(--text-3xs);
                letter-spacing: .06em; text-transform: uppercase; color: var(--h-text-muted);
@@ -667,9 +680,14 @@ body {
             <table><tbody id="dw-rows"></tbody></table>
           </div>
           <div class="checklist" id="checklist" hidden>
-            <div class="t"><span>Turnaround</span><span id="cl-t">T−15s</span></div>
+            <div class="t"><span id="cl-title">Readiness</span><span id="cl-t">T−15s</span></div>
             <ol id="cl-list"></ol>
             <div class="bar"><i id="cl-bar"></i></div>
+          </div>
+          <div class="gimbal" id="gimbal" hidden aria-label="Attitude and gimbal">
+            <canvas id="gimbal-c"></canvas>
+            <div class="row"><span>Pitch</span><b id="gm-pitch">0°</b></div>
+            <div class="row"><span>Gimbal</span><b id="gm-gim">0.0°</b></div>
           </div>
           <div class="flash" id="flash"><div class="big" id="fl-big"></div><div class="sub" id="fl-sub"></div><div class="money" id="fl-money"></div></div>
           <button id="launch" title="Launch the rocket. One button; that's the game.">Launch<small id="launch-sub">ready</small></button>
@@ -1130,7 +1148,7 @@ const view = { km: 0, v: 0, fuel: 1, t: 0, burning: false, para: 0, apogeeKm: 0,
 let anim = null;
 const easeOut = x => 1 - Math.pow(1 - x, 3);
 function runFlight(f, onApogee, onLanded, mission) {
-  phase = 'flight'; view.mission = mission || 0; paintLaunch(); hideChecklist();
+  phase = 'flight'; view.mission = mission || 0; paintLaunch(); hideChecklist(); paintWindows();
   const plan = FLIGHT_PLAN[view.mission] || FLIGHT_PLAN[0];
   if (REDUCED) {   /* no animation: land the result, keep every number true */
     view.km = f.apogeeKm; view.v = 0; view.fuel = 0; view.burning = false; view.countdown = null; view.liftT = -1;
@@ -1227,24 +1245,43 @@ function runFlight(f, onApogee, onLanded, mission) {
 /* ═══════════════════════════════════════════════════════════════════════
    TURNAROUND — ~15 s of crew work between flights. The shop is open.
    ═══════════════════════════════════════════════════════════════════════ */
+/* T34 · what the crew are doing. Each is [name, weight, stage] — stage names the assembly step it belongs to,
+   so the readiness window reads as live commentary and the scene knows what is being worked on. */
 const TASK_POOL = [
-  ['Recover the capsule', 3], ['Hose down the pad', 2], ['Roll the gantry back', 2.5], ['Refuel', 3],
-  ['Torque the bolts', 1.5], ['Replace the parachute', 2], ['Check the dog', 1], ['Tape the antenna back on', 1.5],
-  ['Argue about the weather', 2], ['Countdown rehearsal', 2], ['Find the other glove', 1], ['Polish the nose cone', 1.5],
-  ['Top up the coffee', 1], ['Range safety sign-off', 2], ['Wipe the camera lens', 1], ['Reset the flight computer', 2],
+  ['Recover the capsule', 3, 'recover'], ['Fish the capsule out of the pond', 2.5, 'recover'],
+  ['Hose down the pad', 2, 'clean'], ['Clean the space biffy', 2.5, 'clean'],
+  ['Scrape the bugs off the nose cone', 2, 'clean'], ['Hose off the cows', 1.5, 'clean'],
+  ['Vacuum the crumbs out of the cockpit', 2, 'clean'], ['De-ice the good luck sticker', 1.5, 'clean'],
+  ['Roll the gantry back', 2.5, 'stack'], ['Crane the engine section over', 3, 'stack'],
+  ['Bolt the middle to the bottom', 2.5, 'stack'], ['Put the pointy end on top', 2, 'stack'],
+  ['Torque the bolts that matter', 1.5, 'stack'], ['Torque the bolts that probably matter', 1.5, 'stack'],
+  ['Refuel', 3, 'fuel'], ['Top up the other tank', 2, 'fuel'], ['Sniff for leaks', 1.5, 'fuel'],
+  ['Replace the parachute', 2, 'check'], ['Count the parachutes twice', 1.5, 'check'],
+  ['Tape the antenna back on', 1.5, 'check'], ['Re-tape the antenna properly', 1.5, 'check'],
+  ['Check the dog', 1, 'check'], ['Ask the dog if it is sure', 1, 'check'],
+  ['Reset the flight computer', 2, 'check'], ['Turn the flight computer off and on', 1.5, 'check'],
+  ['Wipe the camera lens', 1, 'check'], ['Find the other glove', 1, 'check'],
+  ['File the flight plan in triplicate', 2, 'paper'], ['Argue about the weather', 2, 'paper'],
+  ['Range safety sign-off', 2, 'paper'], ['Sign the thing nobody reads', 1.5, 'paper'],
+  ['Countdown rehearsal', 2, 'paper'], ['Top up the coffee', 1, 'paper'],
+  ['Polish the nose cone', 1.5, 'clean'], ['Straighten the flag', 1, 'clean'],
 ];
 const TURNAROUND_S = 15;
+const STAGE_LABEL = { recover: 'Recovery', clean: 'Cleaning', stack: 'Stacking', fuel: 'Fuelling', check: 'Checks', paper: 'Paperwork' };
 let turn = null; // { tasks:[{name,dur,start}], t0, total }
 function startTurnaround() {
   phase = 'turnaround';
-  const picks = []; const pool = TASK_POOL.slice();
-  while (picks.length < 6 && pool.length) picks.push(pool.splice(Math.floor(rng() * pool.length), 1)[0]);
+  /* One or two from each stage, in assembly order, so the list reads as a running commentary. */
+  const ORDER = ['recover', 'clean', 'stack', 'fuel', 'check', 'paper'], picks = [];
+  for (const st of ORDER) { const bucket = TASK_POOL.filter(t => t[2] === st);
+    const n = 1 + (rng() < 0.45 ? 1 : 0);
+    for (let k = 0; k < n && bucket.length && picks.length < 8; k++) picks.push(bucket.splice(Math.floor(rng() * bucket.length), 1)[0]); }
   const sum = picks.reduce((a, p) => a + p[1], 0);
   let acc = 0;
-  const tasks = picks.map(([name, d]) => { const dur = d / sum * TURNAROUND_S; const o = { name, dur, start: acc }; acc += dur; return o; });
+  const tasks = picks.map(([name, d, stage]) => { const dur = d / sum * TURNAROUND_S; const o = { name, dur, start: acc, stage }; acc += dur; return o; });
   turn = { tasks, t0: performance.now(), total: TURNAROUND_S, crew: tasks.map(() => [0.2 + rng() * 0.6, rng()]) };
   /* Repaint the shop here: it was last painted at apogee, with buying locked mid-flight. */
-  showChecklist(); paintLaunch(); paintShop(); paintBadge();
+  showChecklist(); paintLaunch(); paintWindows(); paintShop(); paintBadge();
   if (REDUCED) { turn.t0 -= TURNAROUND_S * 1000; }
   tickTurnaround();
 }
@@ -1257,23 +1294,83 @@ function tickTurnaround() {
   $('cl-t').textContent = 'T−' + Math.ceil(left) + 's';
   $('cl-bar').style.width = Math.min(100, el / turn.total * 100) + '%';
   const items = $('cl-list').children;
+  let cur = null;
   turn.tasks.forEach((tk, i) => { const li = items[i]; if (!li) return;
-    li.className = el >= tk.start + tk.dur ? 'done' : el >= tk.start ? 'doing' : ''; });
+    const st = el >= tk.start + tk.dur ? 'done' : el >= tk.start ? 'doing' : '';
+    li.className = st; if (st === 'doing') cur = tk; });
+  $('cl-title').textContent = cur ? (STAGE_LABEL[cur.stage] || 'Readiness') : 'Readiness';
   $('launch-sub').textContent = 'ready in ' + Math.ceil(left) + 's';
-  drawScene(); if (Math.floor(el * 4) !== Math.floor((el - 0.05) * 4)) paintDataWin();
+  drawScene(); if (Math.floor(el * 4) !== Math.floor((el - 0.05) * 4)) { paintDataWin(); paintWindows(); }
   if (left <= 0) { finishTurnaround(); return; }
   anim = requestAnimationFrame(tickTurnaround);
 }
 function finishTurnaround() {
-  phase = 'ready'; turn = null; hideChecklist(); paintLaunch(); paintShop();
-  view.km = 0; view.v = 0; view.fuel = 1; view.flame = 0; view.para = 0; paintGauges(); drawScene();
+  phase = 'ready'; turn = null; paintLaunch(); paintShop();
+  view.km = 0; view.v = 0; view.fuel = 1; view.flame = 0; view.para = 0; view.ang = 0; view.drift = 0;
+  paintGauges(); paintWindows(); drawScene();
 }
 function showChecklist() {
   const ol = $('cl-list'); ol.textContent = '';
   for (const tk of turn.tasks) { const li = document.createElement('li'); li.textContent = tk.name; ol.appendChild(li); }
-  $('checklist').hidden = false;
+  $('cl-title').textContent = 'Readiness'; $('checklist').hidden = false;
 }
 function hideChecklist() { $('checklist').hidden = true; }
+/* On the pad with nothing to do, the same window is the go/no-go board (T33). */
+function paintReady() {
+  if (phase !== 'ready') return;
+  const p = plan || replan(), am = armedMission(), next = MISSIONS[Math.min(5, S.mission + 1)];
+  const rows = [
+    ['Stack complete', true], ['Fuel loaded', true],
+    [p.f.stages + ' stage' + (p.f.stages > 1 ? 's' : '') + ' armed', true],
+    ['Δv ' + (p.f.dv / 1000).toFixed(1) + ' km/s', true],
+    [S.mission >= 5 ? 'Cargo bay loaded' : next.name + ' · needs ' + (next.dvReq / 1000).toFixed(1), S.mission >= 5 || !!am],
+  ];
+  const ol = $('cl-list'); ol.textContent = '';
+  for (const [text, ok] of rows) { const li = document.createElement('li'); li.className = ok ? 'done' : ''; li.textContent = text; ol.appendChild(li); }
+  $('cl-title').textContent = am ? 'Go for ' + MISSIONS[am].short : 'Readiness';
+  $('cl-t').textContent = am ? 'GO' : S.mission >= 5 ? 'CARGO' : 'HOLD';
+  $('cl-bar').style.width = (rows.filter(r => r[1]).length / rows.length * 100) + '%';
+  $('checklist').hidden = false;
+}
+/* T33 · which window owns which corner, by phase. */
+function paintWindows() {
+  const flying = phase === 'flight' || phase === 'descent';
+  $('datawin').hidden = !flying;
+  if (!flying && phase === 'ready') paintReady();
+  const clear = flying && view.km > 0.4;
+  const g = $('gimbal'); g.hidden = !clear; g.classList.toggle('fade', !clear);
+  if (clear) drawGimbal();
+}
+/* T24 · attitude ball and gimbal needle. Pitch is real — it comes from the gravity turn. */
+function drawGimbal() {
+  const cv = $('gimbal-c'), box = cv.getBoundingClientRect(), d = Math.min(3, window.devicePixelRatio || 1);
+  const W = Math.max(30, box.width), H = Math.max(30, box.height);
+  cv.width = W * d; cv.height = H * d; const c = cv.getContext('2d'); c.setTransform(d, 0, 0, d, 0, 0);
+  const cs = getComputedStyle(document.documentElement), col = k => cs.getPropertyValue(k).trim();
+  const cx = W / 2, cy = H / 2, R = Math.min(W, H) / 2 - 2;
+  const pitch = view.ang;                                   // radians from vertical
+  const gim = Math.sin(performance.now() / 260) * (view.burning ? 0.035 : 0.008) * (1 + view.ang);
+  c.save(); c.beginPath(); c.arc(cx, cy, R, 0, 7); c.clip();
+  /* the horizon rolls with pitch: sky above, ground below */
+  c.translate(cx, cy); c.rotate(-pitch);
+  const hz = -R * 0.1;
+  c.fillStyle = col('--h-info'); c.globalAlpha = .35; c.fillRect(-R * 2, -R * 2, R * 4, R * 2 + hz);
+  c.fillStyle = col('--h-warning'); c.fillRect(-R * 2, hz, R * 4, R * 2); c.globalAlpha = 1;
+  c.strokeStyle = col('--h-text'); c.lineWidth = 1; c.beginPath(); c.moveTo(-R, hz); c.lineTo(R, hz); c.stroke();
+  for (let i = 1; i <= 2; i++) { const y = hz - i * R * 0.42, w = R * (i === 1 ? 0.34 : 0.2);
+    c.beginPath(); c.moveTo(-w, y); c.lineTo(w, y); c.stroke(); }
+  c.restore();
+  c.strokeStyle = col('--h-border'); c.lineWidth = 1.5; c.beginPath(); c.arc(cx, cy, R, 0, 7); c.stroke();
+  /* fixed aircraft mark */
+  c.strokeStyle = col('--h-accent'); c.lineWidth = 2; c.beginPath();
+  c.moveTo(cx - R * 0.45, cy); c.lineTo(cx - R * 0.12, cy); c.moveTo(cx + R * 0.12, cy); c.lineTo(cx + R * 0.45, cy);
+  c.moveTo(cx, cy - R * 0.12); c.lineTo(cx, cy + R * 0.04); c.stroke();
+  /* gimbal needle at the base */
+  c.strokeStyle = col('--h-positive'); c.lineWidth = 2; c.beginPath();
+  c.moveTo(cx, cy + R * 0.62); c.lineTo(cx + Math.sin(gim) * R * 3.2, cy + R * 0.95); c.stroke();
+  $('gm-pitch').textContent = Math.round(pitch * 180 / Math.PI) + '°';
+  $('gm-gim').textContent = (gim * 180 / Math.PI).toFixed(1) + '°';
+}
 
 /* ═══════════════════════════════════════════════════════════════════════
    SCENE — device-res logical space. Design units: 360 wide, height follows.
@@ -3744,7 +3841,7 @@ function paintGauges() {
   $('b-spd').style.width = clamp(view.v / 12000, 0, 1) * 100 + '%';
   $('g-fuel').innerHTML = Math.round(view.fuel * 100) + '<small>% · ' + s.fuel.toFixed(0) + 't</small>';
   $('b-fuel').style.width = view.fuel * 100 + '%';
-  drawLadder(); paintDataWin();
+  drawLadder(); paintDataWin(); paintWindows();
 }
 function paintMoney() { $('money').textContent = fmtMoney(S.money); }
 /* Mission control rows. Imperial at display, SI underneath (T11/T12). 1 kN = 224.809 lbf · 1 t = 2204.62 lb · 1 m/s² = 3.28084 ft/s² */
@@ -3988,7 +4085,7 @@ window.DEV = { jump: sc => requirePat() && devJump(sc), sim: () => requirePat() 
 /* ═══════════════════════════════════════════════════════════════════════
    BOOT
    ═══════════════════════════════════════════════════════════════════════ */
-function paintAll() { replan(); paintMoney(); paintShop(); paintBadge(); paintLaunch(); paintGauges(); paintLog(); paintRegister(); drawScene(); }
+function paintAll() { replan(); paintWindows(); paintMoney(); paintShop(); paintBadge(); paintLaunch(); paintGauges(); paintLog(); paintRegister(); drawScene(); }
 load();
 drawGround(); sizeScene(); paintAll();
 addEventListener('resize', () => { drawGround(); sizeScene(); drawScene(); drawLadder(); });
