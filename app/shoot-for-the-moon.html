@@ -509,12 +509,19 @@ body {
   .goalwin .t { display: flex; justify-content: space-between; color: var(--h-accent); font-weight: 700; margin-bottom: .2rem; }
   .goalwin .t #gw-tag { color: var(--h-warning); }
   .goalwin.go .t #gw-tag { color: var(--h-positive); }
-  .goalwin .need { color: var(--h-text); line-height: 1.35; }
+  .goalwin .todo { margin: 0; padding: 0; list-style: none; }
+  .goalwin .todo li { display: flex; gap: .35rem; align-items: baseline; line-height: 1.4; color: var(--h-text-muted); }
+  .goalwin .todo li::before { content: '☐'; color: var(--h-border); }
+  .goalwin .todo li.on::before { content: '☑'; color: var(--h-positive); }
+  .goalwin .todo li.on { color: var(--h-text); text-decoration: line-through; text-decoration-color: var(--h-border); }
+  .goalwin .todo li.now { color: var(--h-warning); }
+  .goalwin .todo li.now::before { content: '▸'; color: var(--h-warning); }
   .goalwin .dv { margin-top: .15rem; font-variant-numeric: tabular-nums; }
   .goalwin .bar { height: 4px; background: var(--h-bg); border: 1px solid var(--h-border); border-radius: 999px; overflow: hidden; margin-top: .25rem; }
   .goalwin .bar i { display: block; height: 100%; width: 0; background: var(--h-warning); }
   .goalwin.go .bar i { background: var(--h-positive); }
-  @media (max-width: 860px) { .goalwin { width: min(10rem, 46%); font-size: var(--text-3xs); } }
+  @media (max-width: 860px) { .goalwin { width: min(10rem, 46%); font-size: var(--text-3xs); }
+    #ups { height: 18rem; } }
   /* T24 · the gimbal, bottom-left, only once the pad is clear */
   .gimbal { position: absolute; left: .6rem; bottom: .6rem; width: 7.2rem;
             background: var(--h-surface-glass); border: 1px solid var(--h-border); border-radius: var(--radius);
@@ -547,24 +554,24 @@ body {
   .checklist li.mishap.done::before { content: '●'; color: var(--h-positive); }
   .checklist .bar { margin-top: .35rem; }
 
-  #launch { position: absolute; right: .8rem; bottom: .8rem; pointer-events: auto; cursor: pointer;
-            width: 8.2rem; height: 8.2rem; border-radius: 50%; border: 3px solid var(--h-accent);
-            background: radial-gradient(circle at 50% 35%, var(--h-accent-strong), var(--h-accent) 70%);
+  /* A bar, not a disc — the circle covered a quarter of the scene. */
+  #launch { position: absolute; right: .7rem; bottom: .7rem; pointer-events: auto; cursor: pointer;
+            width: 11rem; padding: .55rem .8rem; border-radius: var(--radius-lg); border: 2px solid var(--h-accent);
+            background: linear-gradient(180deg, var(--h-accent-strong), var(--h-accent));
             color: var(--h-on-accent); font-family: var(--wa-font-family-heading); font-weight: 800;
-            font-size: 1.15rem; letter-spacing: .12em; text-transform: uppercase; line-height: 1.2;
-            box-shadow: 0 0 0 6px var(--h-accent-soft), 0 12px 30px rgb(0 0 0 / .5);
-            transition: transform .08s ease, filter .2s; }
+            font-size: 1.05rem; letter-spacing: .12em; text-transform: uppercase; line-height: 1.15;
+            box-shadow: 0 6px 18px rgb(0 0 0 / .45); transition: transform .08s ease, filter .2s, box-shadow .2s; }
   #launch:hover:not(:disabled) { transform: scale(1.03); }
   #launch:active:not(:disabled) { transform: scale(.96); }
   #launch:disabled { cursor: default; filter: grayscale(.9) brightness(.7); box-shadow: 0 8px 20px rgb(0 0 0 / .4); }
   #launch.away { opacity: .22; transform: scale(.8); transition: opacity .4s, transform .4s; }
-  #launch small { display: block; font-size: var(--text-3xs); letter-spacing: .14em; font-weight: 600; margin-top: .2rem; }
+  #launch small { display: block; font-size: var(--text-3xs); letter-spacing: .1em; font-weight: 600; margin-top: .15rem; opacity: .85; }
   #launch.ready { animation: pulse 1.6s ease-in-out infinite; }
   #launch.armed { border-color: var(--h-warning); background: radial-gradient(circle at 50% 35%, #FFE3A3, var(--h-warning) 70%); }
-  #launch.armed small { font-size: var(--text-3xs); letter-spacing: .08em; white-space: normal; line-height: 1.15; padding: 0 .6rem; }
-  @keyframes pulse { 0%,100% { box-shadow: 0 0 0 6px var(--h-accent-soft), 0 12px 30px rgb(0 0 0 / .5); }
-                     50% { box-shadow: 0 0 0 14px transparent, 0 12px 30px rgb(0 0 0 / .5); } }
-  @media (max-width: 860px) { #launch { width: 6.6rem; height: 6.6rem; font-size: 1rem; } }
+  #launch.armed small { font-size: var(--text-3xs); letter-spacing: .06em; white-space: normal; line-height: 1.15; }
+  @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 var(--h-accent-soft), 0 6px 18px rgb(0 0 0 / .45); }
+                     50% { box-shadow: 0 0 0 9px transparent, 0 6px 18px rgb(0 0 0 / .45); } }
+  @media (max-width: 860px) { #launch { width: 9rem; font-size: .95rem; padding: .5rem .6rem; } }
 
   /* Shop — one visible track per thing; tier bundles its stat gains. */
   .shop { display: flex; flex-direction: column; gap: .5rem; }
@@ -585,11 +592,24 @@ body {
   .hint { font-family: var(--wa-font-family-heading); font-size: var(--text-3xs); letter-spacing: .06em; text-transform: uppercase;
           color: var(--h-warning); line-height: 1.4; padding: 0 .2rem; }
   .hint.ok { color: var(--h-positive); }
+  /* The shop is always the same height whichever tab you are on, and it scrolls inside itself,
+     so the page never grows and the two tabs never jump. */
+  #ups { height: 23.5rem; overflow-y: auto; display: flex; flex-direction: column; gap: .5rem; padding-right: .15rem; }
+  #ups::-webkit-scrollbar { width: 5px; }
+  #ups::-webkit-scrollbar-thumb { background: var(--h-border); border-radius: 999px; }
   .up { background: var(--h-surface-glass); border: 1px solid var(--h-border); border-radius: var(--radius-lg);
-        padding: .5rem .6rem; display: grid; grid-template-columns: 1fr auto; gap: .15rem .6rem; align-items: center; }
+        padding: .5rem .6rem; display: grid; grid-template-columns: 1fr auto; gap: .15rem .6rem; align-items: center;
+        flex: none; }
+  /* Bought: a third of the height, no description, no pips — it is done, it just needs to be listed. */
+  .up.done { padding: .28rem .6rem; opacity: .72; }
+  .up.done .d, .up.done .pips { display: none; }
+  .up.done .n { font-size: var(--text-3xs); }
+  .up.done .buy { padding: .18rem .45rem; font-size: var(--text-3xs); }
   .up .n { font-family: var(--wa-font-family-heading); font-size: var(--text-2xs); letter-spacing: .08em;
            text-transform: uppercase; color: var(--h-text); font-weight: 700; }
-  .up .d { font-size: var(--text-3xs); color: var(--h-text-muted); grid-column: 1 / -1; line-height: 1.4; }
+  /* One line of explanation, never two — this column has a height budget. */
+  .up .d { font-size: var(--text-3xs); color: var(--h-text-muted); grid-column: 1 / -1; line-height: 1.4;
+           white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .up .pips { display: flex; gap: 2px; grid-column: 1 / -1; margin: .15rem 0; }
   .up .pips i { flex: 1; height: 4px; background: var(--h-bg); border: 1px solid var(--h-border); border-radius: 2px; }
   .up .pips i.on { background: var(--h-accent); border-color: var(--h-accent); }
@@ -708,7 +728,7 @@ body {
           </div>
           <div class="goalwin" id="goalwin" hidden aria-label="Next mission">
             <div class="t"><span id="gw-title">Next</span><span id="gw-tag"></span></div>
-            <div class="need" id="gw-need"></div>
+            <ol class="todo" id="gw-todo"></ol>
             <div class="bar"><i id="gw-bar"></i></div>
             <div class="dv" id="gw-dv"></div>
           </div>
@@ -1108,7 +1128,12 @@ const fmtMoney = n => { const a = Math.abs(n);
   return '$' + (a >= 1e9 ? (n / 1e9).toFixed(2) + 'B' : a >= 1e6 ? (n / 1e6).toFixed(2) + 'M' : a >= 1e4 ? (n / 1e3).toFixed(1) + 'k' : Math.round(n).toLocaleString('en-US')); };
 /* Display is imperial (T1); the sim and balance stay SI. Conversion happens here and nowhere else. */
 const KM_TO_MI = 0.621371, MS_TO_MPH = 2.236936;
-const fmtMi = km => { const mi = km * KM_TO_MI; return km >= MOON_KM ? 'MOON' : mi >= 10000 ? Math.round(mi).toLocaleString('en-US') : mi >= 100 ? mi.toFixed(0) : mi >= 10 ? mi.toFixed(1) : mi.toFixed(2); };
+/* Miles, and past a thousand it reads 1.5K … 239K — the Moon is 239,000 and a full number is unreadable at this size. */
+const fmtMi = km => { const mi = km * KM_TO_MI;
+  return km >= MOON_KM ? 'MOON'
+    : mi >= 10000 ? Math.round(mi / 1000) + 'K'
+    : mi >= 1000 ? (mi / 1000).toFixed(1) + 'K'
+    : mi >= 100 ? mi.toFixed(0) : mi >= 10 ? mi.toFixed(1) : mi.toFixed(2); };
 const fmtKm = fmtMi;
 const fmtV = v => { const mph = v * MS_TO_MPH; return mph >= 10000 ? Math.round(mph / 1000).toLocaleString('en-US') + 'k mph' : Math.round(mph).toLocaleString('en-US') + ' mph'; };
 
@@ -1423,19 +1448,27 @@ function paintGoal() {
   if (S.mission >= 5) {
     g.hidden = false; g.classList.add('go');
     $('gw-title').textContent = 'Moon base'; $('gw-tag').textContent = 'BUILDING';
-    $('gw-need').textContent = S.population.toLocaleString('en-US') + ' of 10,000 people';
-    $('gw-dv').textContent = S.cargoT + ' t landed · ' + S.shipments + ' sent home';
+    const ol = $('gw-todo'); ol.textContent = '';
+    for (const [text, on] of [['Base established', true], ['Grow to 10,000 people', S.population >= 10000], ['Keep landing cargo', false]]) {
+      const li = document.createElement('li'); li.className = on ? 'on' : ''; li.textContent = text; ol.appendChild(li); }
+    $('gw-dv').textContent = S.population.toLocaleString('en-US') + ' people · ' + S.cargoT + ' t landed';
     $('gw-bar').style.width = (S.population / MISSIONS[5].population * 100) + '%';
     return;
   }
   const next = MISSIONS[S.mission + 1], p = plan || replan(), am = armedMission();
-  const missing = next.equip.filter(id => !S.equipment[id]);
+  const dvOk = p.f.dv >= next.dvReq;
   g.hidden = false; g.classList.toggle('go', !!am);
-  $('gw-title').textContent = next.name;
-  $('gw-tag').textContent = am ? 'GO' : 'NEED';
-  $('gw-need').textContent = missing.length ? missing.map(id => EQUIPMENT[id].name).join(' + ')
-    : am ? 'Press LAUNCH' : 'More rocket';
-  $('gw-dv').textContent = 'Δv ' + (p.f.dv / 1000).toFixed(1) + ' of ' + (next.dvReq / 1000).toFixed(1) + ' km/s';
+  $('gw-title').textContent = 'Shooting for ' + next.short;
+  $('gw-tag').textContent = am ? 'GO' : 'TO DO';
+  /* A checklist: the two pieces of equipment, then the rocket, then launch. First unchecked row is the one to do. */
+  const rows = next.equip.map(id => ({ text: 'Buy ' + EQUIPMENT[id].name, on: !!S.equipment[id] }));
+  rows.push({ text: 'Δv ' + (p.f.dv / 1000).toFixed(1) + ' of ' + (next.dvReq / 1000).toFixed(1) + ' km/s', on: dvOk });
+  rows.push({ text: next.flight, on: false });
+  const first = rows.findIndex(r => !r.on);
+  const ol = $('gw-todo'); ol.textContent = '';
+  rows.forEach((r, i) => { const li = document.createElement('li');
+    li.className = r.on ? 'on' : i === first ? 'now' : ''; li.textContent = r.text; ol.appendChild(li); });
+  $('gw-dv').textContent = next.name;
   $('gw-bar').style.width = clamp(p.f.dv / next.dvReq, 0, 1) * 100 + '%';
 }
 /* T33 · which window owns which corner, by phase. */
@@ -4428,7 +4461,7 @@ function paintShop() {
   const inFlight = phase === 'flight' || phase === 'descent';
   if (shopTab === 'rocket') for (const k of TRACKS) {
     const tier = S.tiers[k], lock = lockReason(k, S.tiers, S.mission), c = tier < TIERS ? costOf(k, tier + 1) : 0;
-    const d = document.createElement('div'); d.className = 'up'; d.dataset.track = k;
+    const d = document.createElement('div'); d.className = 'up' + (lock === 'max' ? ' done' : ''); d.dataset.track = k;
     d.title = TRACK_INFO[k].what;
     const n = document.createElement('div'); n.className = 'n'; n.textContent = TRACK_INFO[k].name + ' · T' + tier; d.appendChild(n);
     const b = document.createElement('button'); b.className = 'buy';
@@ -4448,9 +4481,10 @@ function paintShop() {
     d.appendChild(desc);
     box.appendChild(d);
   }
-  else for (const id of Object.keys(EQUIPMENT)) {
+  else for (const id of Object.keys(EQUIPMENT).sort((a, b) => (S.equipment[a] ? 1 : 0) - (S.equipment[b] ? 1 : 0)
+      || EQUIPMENT[a].mission - EQUIPMENT[b].mission)) {
     const E = EQUIPMENT[id], lock = equipLock(id, S.equipment, S.mission), c = equipCost(id);
-    const d = document.createElement('div'); d.className = 'up'; d.dataset.equip = id; d.title = E.what;
+    const d = document.createElement('div'); d.className = 'up' + (lock === 'owned' ? ' done' : ''); d.dataset.equip = id; d.title = E.what;
     const n = document.createElement('div'); n.className = 'n'; n.textContent = E.name + ' · M' + E.mission; d.appendChild(n);
     const b = document.createElement('button'); b.className = 'buy';
     if (lock === 'owned') { b.textContent = 'OWNED ✓'; b.disabled = true; b.classList.add('max'); }
