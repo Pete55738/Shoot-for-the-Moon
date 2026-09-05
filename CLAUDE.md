@@ -25,6 +25,7 @@ the repo directly — attach it if it isn't already in scope.
 - **Theme pack:** `steel-blue` (the house default; tokens carry it). Ground: starfield. Signature element: the altitude ladder.
 - **Resolution strategy:** device-res, logical space (360 wide portrait / 500 tall landscape). Cannot change later.
 - **Art direction:** goofy hi-res vector, drawn in code. No image assets. Scene art (W1–W4 sections) may use its own hex; the chrome never does.
+- **Mission control:** the data window top-left of the scene reads `view.forces` (per-sample thrust, drag, mass, g from `flyRocket`; `forcesAt` after burnout) and converts to lbf/lb/ft·s⁻² only in `paintDataWin`.
 - **Units:** display is miles and mph; the sim and balance table are SI and convert only in the format layer (`fmtMi`, `fmtV`).
 - **Balance:** the numbers live in one block between `/*BAL-START*/` and `/*BAL-END*/` in the app.
   `node scripts/sim.mjs` evals that exact block — there is no second copy. Change a number, run the sim, paste the measurement into the comment beside it.

@@ -480,7 +480,21 @@ body {
   .flash .sub { font-size: var(--text-2xs); color: var(--h-text-muted); margin-top: .25rem; letter-spacing: .12em; }
   .flash .money { font-size: 1.1rem; color: var(--h-positive); margin-top: .35rem; }
 
-  .checklist { position: absolute; left: .6rem; top: .6rem; width: min(15rem, 60%);
+  /* Mission control — the "inside the screen it's mission control" window (T12). Glass, mono, legible on sky or space. */
+  .datawin { position: absolute; left: .6rem; top: .6rem; width: min(13.5rem, 58%);
+             background: var(--h-surface-glass); border: 1px solid var(--h-border); border-radius: var(--radius);
+             padding: .4rem .55rem; font-family: var(--wa-font-family-heading); font-size: var(--text-3xs);
+             letter-spacing: .06em; text-transform: uppercase; color: var(--h-text); backdrop-filter: blur(6px);
+             text-shadow: 0 1px 2px rgb(0 0 0 / .5); pointer-events: auto; }
+  .datawin .t { color: var(--h-accent); font-weight: 700; margin-bottom: .25rem; display: flex; justify-content: space-between; }
+  .datawin table { border-collapse: collapse; width: 100%; }
+  .datawin td { padding: .05rem 0; white-space: nowrap; }
+  .datawin td.k { color: var(--h-text-muted); }
+  .datawin td.v { text-align: right; font-weight: var(--wa-font-weight-data); font-variant-numeric: tabular-nums; }
+  .datawin td.v small { color: var(--h-text-muted); font-weight: 600; margin-left: .2rem; }
+  .datawin.away { opacity: .35; }
+  @media (max-width: 860px) { .datawin { width: min(11rem, 50%); } .datawin tr:nth-child(n+6) { display: none; } }   /* phone: Vel · Alt · Cd · Drag · Thrust */
+  .checklist { position: absolute; left: .6rem; bottom: .6rem; width: min(15rem, 60%);
                background: var(--h-surface-glass); border: 1px solid var(--h-border); border-radius: var(--radius);
                padding: .45rem .55rem; font-family: var(--wa-font-family-heading); font-size: var(--text-3xs);
                letter-spacing: .06em; text-transform: uppercase; color: var(--h-text-muted);
@@ -634,6 +648,10 @@ body {
       <div class="scenebox" id="scenebox">
         <canvas id="scene" aria-label="Launch pad"></canvas>
         <div class="overlay">
+          <div class="datawin" id="datawin" aria-label="Mission control">
+            <div class="t"><span>Mission control</span><span id="dw-mode">PAD</span></div>
+            <table><tbody id="dw-rows"></tbody></table>
+          </div>
           <div class="checklist" id="checklist" hidden>
             <div class="t"><span>Turnaround</span><span id="cl-t">T−15s</span></div>
             <ol id="cl-list"></ol>
@@ -807,7 +825,7 @@ function flyRocket(t) {
     v += a * dt; if (v < 0) v = 0;
     h += v * dt; fuel -= s.burnRate * dt; time += dt;
     if (v > maxV) maxV = v;
-    samples.push([h, v, Math.max(0, fuel / s.fuel), thr]);
+    samples.push([h, v, Math.max(0, fuel / s.fuel), thr, s.thrust * thr, drag, m, g]);   // T11: every number mission control shows
   }
   const e = v * v / 2 - GM / (R + h);
   let apogeeKm, moon = false;
@@ -815,6 +833,14 @@ function flyRocket(t) {
   else { apogeeKm = Math.max(h, -GM / e - R) / 1000; if (apogeeKm >= MOON_KM) { apogeeKm = MOON_KM; moon = true; } }
   return { apogeeKm, moon, burnoutKm: h / 1000, maxV, tBurn: time, samples, burnoutV: v };
 }
+/* The forces at an arbitrary point, for the data window after burnout. Same formulas as flyRocket. */
+function forcesAt(t, hM, vMs, fuelFrac) {
+  const s = statsOf(t), R = R_EARTH_KM * 1000, GM = 9.81 * R * R;
+  const m = s.dryMass + s.fuel * clamp01(fuelFrac || 0), g = GM / ((R + hM) * (R + hM));
+  const rho = 1.225 * Math.exp(-hM / 7500), drag = 0.5 * rho * s.cd * s.area * vMs * vMs / 1000;
+  return { thrust: 0, drag, mass: m, g, cd: s.cd, area: s.area, rho };
+}
+function clamp01(x) { return Math.max(0, Math.min(1, x)); }
 function rewardOf(apogeeKm, t) { return Math.round((REWARD_K * Math.pow(apogeeKm, REWARD_P) + 5) * statsOf(t).payMult); }
 function rocketMin(t) { return Math.min(t.engine, t.tank, t.aero, t.hull); }
 /* Why a buy can be refused. null = allowed. */
@@ -964,7 +990,7 @@ function launch() {
    FLIGHT — replays the sim's samples over a compressed clock, then coasts.
    view = what the scene reads each frame: altitude (km), speed, fuel, phase.
    ═══════════════════════════════════════════════════════════════════════ */
-const view = { km: 0, v: 0, fuel: 1, t: 0, burning: false, para: 0, apogeeKm: 0, flame: 0, countdown: null, liftT: -1, heat: 0 };
+const view = { km: 0, v: 0, fuel: 1, t: 0, burning: false, para: 0, apogeeKm: 0, flame: 0, countdown: null, liftT: -1, heat: 0, forces: null };
 let anim = null;
 const easeOut = x => 1 - Math.pow(1 - x, 3);
 function runFlight(f, onApogee, onLanded) {
@@ -997,12 +1023,14 @@ function runFlight(f, onApogee, onLanded) {
       const i = Math.min(N - 1, Math.floor(p * (N - 1)));
       const s = f.samples[i] || [0, 0, 1, 1];
       view.km = s[0] / 1000; view.v = s[1]; view.fuel = s[2]; view.burning = p < 1 && s[3] > 0.05; view.flame = s[3] == null ? 1 : s[3];
+      view.forces = s.length > 4 ? { thrust: s[4], drag: s[5], mass: s[6], g: s[7] } : null;
       if (p >= 1) { stage = 1; view.burning = false; }
     } else if (stage === 1) {
       view.liftT = t;
       const p = Math.min(1, (t - burnDur) / coastDur), e = 1 - Math.pow(1 - p, nExp);
       view.km = f.burnoutKm + span * e;
       view.v = f.burnoutV * Math.pow(1 - p, Math.max(1, nExp - 1)); view.flame = 0;   // speed falls to zero at apogee, as gravity would have it
+      view.forces = forcesAt(S.tiers, view.km * 1000, view.v, 0);
       if (p >= 1) { stage = 2; view.apogeeKm = f.apogeeKm; phase = 'descent'; if (f.moon) view.moonAt = performance.now(); onApogee(); }
     } else if (stage === 2) {
       const p = Math.min(1, (t - burnDur - coastDur) / paraDur);
@@ -1011,7 +1039,7 @@ function runFlight(f, onApogee, onLanded) {
       view.heat = f.apogeeKm > 60 ? clamp(1 - Math.abs(view.km - 80) / 40, 0, 1) : 0;
       view.para = clamp((12 - view.km) / 6, 0, 1);
       view.v = Math.min(7000, Math.sqrt(2 * 9.81 * view.km * 1000)) * (view.para > 0 ? (1 - view.para) * 0.5 + 0.02 : 1);
-      view.liftT = -1;
+      view.forces = forcesAt(S.tiers, view.km * 1000, view.v, 0); view.liftT = -1;
       if (p >= 1) { stage = 3; view.para = 0; view.heat = 0; view.km = 0; view.v = 0; hideFlash(); onLanded(); return; }
     }
     paintGauges(); drawScene(); anim = requestAnimationFrame(frame);
@@ -1055,7 +1083,7 @@ function tickTurnaround() {
   turn.tasks.forEach((tk, i) => { const li = items[i]; if (!li) return;
     li.className = el >= tk.start + tk.dur ? 'done' : el >= tk.start ? 'doing' : ''; });
   $('launch-sub').textContent = 'ready in ' + Math.ceil(left) + 's';
-  drawScene();
+  drawScene(); if (Math.floor(el * 4) !== Math.floor((el - 0.05) * 4)) paintDataWin();
   if (left <= 0) { finishTurnaround(); return; }
   anim = requestAnimationFrame(tickTurnaround);
 }
@@ -2838,9 +2866,28 @@ function paintGauges() {
   $('b-spd').style.width = clamp(view.v / 12000, 0, 1) * 100 + '%';
   $('g-fuel').innerHTML = Math.round(view.fuel * 100) + '<small>% · ' + s.fuel.toFixed(0) + 't</small>';
   $('b-fuel').style.width = view.fuel * 100 + '%';
-  drawLadder();
+  drawLadder(); paintDataWin();
 }
 function paintMoney() { $('money').textContent = fmtMoney(S.money); }
+/* Mission control rows. Imperial at display, SI underneath (T11/T12). 1 kN = 224.809 lbf · 1 t = 2204.62 lb · 1 m/s² = 3.28084 ft/s² */
+const KN_TO_LBF = 224.809, T_TO_LB = 2204.62, MS2_TO_FTS2 = 3.28084;
+const fmtN = (x, d) => (Math.abs(x) >= 1e6 ? (x / 1e6).toFixed(2) + 'M' : Math.abs(x) >= 1e4 ? (x / 1e3).toFixed(1) + 'k' : x.toFixed(d == null ? 0 : d)).replace(/^-0(\.0+)?$/, '0');
+function paintDataWin() {
+  const st = statsOf(S.tiers), inFlight = phase === 'flight' || phase === 'descent';
+  const f = inFlight && view.forces ? view.forces : { thrust: st.thrust, drag: 0, mass: st.dryMass + st.fuel, g: 9.81 };
+  const twr = f.mass > 0 ? (f.thrust / (f.mass * f.g)) : 0;
+  const rows = [
+    ['Vel', fmtN(view.v * MS_TO_MPH), 'mph'], ['Alt', fmtMi(view.km), view.km >= MOON_KM ? '' : 'mi'],
+    ['Cd', st.cd.toFixed(2), ''], ['Drag', fmtN(f.drag * KN_TO_LBF), 'lbf'], ['Thrust', fmtN(f.thrust * KN_TO_LBF), 'lbf'],
+    ['Mass', fmtN(f.mass * T_TO_LB), 'lb'], ['g', (f.g * MS2_TO_FTS2).toFixed(2), 'ft/s²'], ['TWR', twr.toFixed(2), ''],
+  ];
+  const tb = $('dw-rows');
+  if (tb.children.length !== rows.length) { tb.textContent = ''; for (const r of rows) { const tr = document.createElement('tr');
+    tr.innerHTML = '<td class="k"></td><td class="v"><span></span><small></small></td>'; tb.appendChild(tr); } }
+  rows.forEach((r, i) => { const tr = tb.children[i]; tr.children[0].textContent = r[0]; tr.children[1].children[0].textContent = r[1]; tr.children[1].children[1].textContent = r[2]; });
+  $('dw-mode').textContent = view.countdown ? 'T−' + (view.countdown.n || 'IGN') : phase === 'flight' ? (view.burning ? 'BURN' : 'COAST') : phase === 'descent' ? (view.km >= MOON_KM ? 'MOON' : view.heat > 0.2 ? 'RE-ENTRY' : 'DESCENT') : phase === 'turnaround' ? 'GROUND OPS' : 'PAD';
+  $('datawin').classList.toggle('away', view.km >= MOON_KM * 0.999 && phase === 'descent');
+}
 function paintLaunch() {
   const b = $('launch');
   b.disabled = phase !== 'ready'; b.classList.toggle('ready', phase === 'ready'); b.classList.toggle('away', phase === 'flight' || phase === 'descent');
@@ -2997,8 +3044,9 @@ function devJump(sc) {
   if (sc === 'pad') { phase = 'ready'; view.km = 0; view.v = 0; view.fuel = 1; view.flame = 0; view.para = 0; }
   else if (sc === 'turnaround') { startTurnaround(); if (turn) turn.t0 -= 6000; }
   else if (sc === 'flight') { const f = flyRocket(S.tiers); const s = f.samples[Math.floor(f.samples.length * 0.6)]; phase = 'flight';
-    view.km = s[0] / 1000; view.v = s[1]; view.fuel = s[2]; view.flame = 1; view.burning = true; view.para = 0; }
-  else if (sc === 'space') { const f = flyRocket(S.tiers); phase = 'flight'; view.km = Math.max(f.apogeeKm * 0.8, 150); view.v = f.burnoutV * 0.3; view.fuel = 0; view.flame = 0.2; view.burning = false; view.para = 0; }
+    view.km = s[0] / 1000; view.v = s[1]; view.fuel = s[2]; view.flame = 1; view.burning = true; view.para = 0;
+    view.forces = { thrust: s[4], drag: s[5], mass: s[6], g: s[7] }; }
+  else if (sc === 'space') { const f = flyRocket(S.tiers); phase = 'flight'; view.km = Math.max(f.apogeeKm * 0.8, 150); view.v = f.burnoutV * 0.3; view.fuel = 0; view.flame = 0.2; view.burning = false; view.para = 0; view.forces = forcesAt(S.tiers, view.km * 1000, view.v, 0); }
   else if (sc === 'apogee') { const f = flyRocket(S.tiers); phase = 'descent'; view.km = f.apogeeKm; view.v = 0; view.fuel = 0; view.flame = 0; view.para = 0;
     showFlash(f, rewardOf(f.apogeeKm, S.tiers), true, MILESTONES.filter(m => f.apogeeKm >= m.km).slice(-1), null); }
   else if (sc === 'descent') { phase = 'descent'; view.km = 6; view.v = 0; view.fuel = 0; view.flame = 0; view.para = 1; }
