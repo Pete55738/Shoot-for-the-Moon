@@ -499,6 +499,22 @@ body {
   .datawin td.v small { color: var(--h-text-muted); font-weight: 600; margin-left: .2rem; }
   .datawin.away { opacity: .35; }
   .datawin[hidden], .checklist[hidden] { display: none; }
+  /* T37 · what you are working toward, upper right — the player kept launching without knowing. */
+  .goalwin { position: absolute; right: .6rem; top: .6rem; width: min(13rem, 52%);
+             background: var(--h-surface-glass); border: 1px solid var(--h-border); border-radius: var(--radius);
+             padding: .4rem .55rem; backdrop-filter: blur(6px); font-family: var(--wa-font-family-heading);
+             font-size: var(--text-3xs); letter-spacing: .06em; text-transform: uppercase; color: var(--h-text-muted);
+             text-shadow: 0 1px 2px rgb(0 0 0 / .5); }
+  .goalwin[hidden] { display: none; }
+  .goalwin .t { display: flex; justify-content: space-between; color: var(--h-accent); font-weight: 700; margin-bottom: .2rem; }
+  .goalwin .t #gw-tag { color: var(--h-warning); }
+  .goalwin.go .t #gw-tag { color: var(--h-positive); }
+  .goalwin .need { color: var(--h-text); line-height: 1.35; }
+  .goalwin .dv { margin-top: .15rem; font-variant-numeric: tabular-nums; }
+  .goalwin .bar { height: 4px; background: var(--h-bg); border: 1px solid var(--h-border); border-radius: 999px; overflow: hidden; margin-top: .25rem; }
+  .goalwin .bar i { display: block; height: 100%; width: 0; background: var(--h-warning); }
+  .goalwin.go .bar i { background: var(--h-positive); }
+  @media (max-width: 860px) { .goalwin { width: min(10rem, 46%); font-size: var(--text-3xs); } }
   /* T24 · the gimbal, bottom-left, only once the pad is clear */
   .gimbal { position: absolute; left: .6rem; bottom: .6rem; width: 7.2rem;
             background: var(--h-surface-glass); border: 1px solid var(--h-border); border-radius: var(--radius);
@@ -526,6 +542,9 @@ body {
   .checklist li.done::before { content: '●'; color: var(--h-positive); }
   .checklist li.done { color: var(--h-text); }
   .checklist li.doing { color: var(--h-text); }
+  .checklist li.mishap { color: var(--h-warning); }
+  .checklist li.mishap::before { content: '⚠'; color: var(--h-warning); }
+  .checklist li.mishap.done::before { content: '●'; color: var(--h-positive); }
   .checklist .bar { margin-top: .35rem; }
 
   #launch { position: absolute; right: .8rem; bottom: .8rem; pointer-events: auto; cursor: pointer;
@@ -686,6 +705,12 @@ body {
             <div class="t"><span id="cl-title">Readiness</span><span id="cl-t">T−15s</span></div>
             <ol id="cl-list"></ol>
             <div class="bar"><i id="cl-bar"></i></div>
+          </div>
+          <div class="goalwin" id="goalwin" hidden aria-label="Next mission">
+            <div class="t"><span id="gw-title">Next</span><span id="gw-tag"></span></div>
+            <div class="need" id="gw-need"></div>
+            <div class="bar"><i id="gw-bar"></i></div>
+            <div class="dv" id="gw-dv"></div>
           </div>
           <div class="gimbal" id="gimbal" hidden aria-label="Attitude and gimbal">
             <canvas id="gimbal-c"></canvas>
@@ -884,11 +909,11 @@ const BASE_MODULES = ['Habitat', 'Solar array', 'Greenhouse', 'Comms dish', 'Obs
            moonorbit · land · cargo (pods drop) · back (return leg) · descent (parachute home). */
 const FLIGHT_PLAN = {
   0: [['ascent', 3.0], ['coast', 2.2], ['descent', 2.6]],
-  1: [['ascent', 2.2], ['pitch', 1.0], ['orbit', 3.4], ['reentry', 1.4], ['descent', 2.0]],
-  2: [['ascent', 1.8], ['pitch', 0.8], ['orbit', 1.4], ['transfer', 4.4], ['back', 2.6], ['descent', 1.8]],
-  3: [['ascent', 1.6], ['pitch', 0.7], ['orbit', 1.2], ['transfer', 4.0], ['moonorbit', 3.6], ['back', 3.2], ['descent', 1.6]],
-  4: [['ascent', 1.6], ['pitch', 0.7], ['orbit', 1.0], ['transfer', 3.8], ['moonorbit', 2.2], ['land', 3.8], ['back', 2.8], ['descent', 1.5]],
-  5: [['ascent', 1.5], ['pitch', 0.6], ['orbit', 1.0], ['transfer', 4.2], ['moonorbit', 1.8], ['cargo', 5.6], ['back', 3.6], ['descent', 1.5]],
+  1: [['ascent', 2.2], ['pitch', 1.8], ['orbit', 3.2], ['reentry', 1.4], ['descent', 2.0]],
+  2: [['ascent', 2.0], ['pitch', 1.6], ['orbit', 1.2], ['transfer', 4.4], ['back', 2.6], ['descent', 1.8]],
+  3: [['ascent', 1.8], ['pitch', 1.5], ['orbit', 1.0], ['transfer', 4.0], ['moonorbit', 3.4], ['back', 3.0], ['descent', 1.6]],
+  4: [['ascent', 1.8], ['pitch', 1.5], ['orbit', 0.9], ['transfer', 3.6], ['moonorbit', 2.0], ['land', 3.6], ['back', 2.6], ['descent', 1.5]],
+  5: [['ascent', 1.7], ['pitch', 1.4], ['orbit', 0.9], ['transfer', 4.0], ['moonorbit', 1.7], ['cargo', 5.4], ['back', 3.4], ['descent', 1.5]],
 };
 const FADE_S = 0.45;                // cross-fade between camera views; reads as a zoom-out
 /* T17 · once the base passes RAILGUN_POP it fires one cargo shipment home per turnaround.
@@ -1179,6 +1204,12 @@ function runFlight(f, onApogee, onLanded, mission) {
   const CD = [[3, 0.4], [2, 0.4], [1, 0.4], [0, 0.35]], cdDur = CD.reduce((a, c) => a + c[1], 0);
   const total = plan.reduce((a, x) => a + x[1], 0);
   const N = f.samples.length, orbitKm = view.mission >= 1 ? MISSIONS[view.mission].orbitKm : f.apogeeKm;
+  /* An orbital flight climbs to its orbit, it does not fly the sim's vertical profile — that number is
+     hundreds of km and made the gauge sprint up and then fall back during the turn. Keep the sample
+     shape, scale it to the orbit. Sub-orbital hops still read their true apogee. */
+  const climbTop = view.mission >= 1 ? Math.min(orbitKm, 400) * 0.55 : f.apogeeKm;
+  const sampleTop = Math.max(0.001, (f.samples[N - 1] || [1])[0] / 1000);
+  const kmOf = h => view.mission >= 1 ? h / sampleTop * climbTop : h;
   let paid = false;
   const t0 = performance.now();
   cancelAnimationFrame(anim);
@@ -1212,12 +1243,15 @@ function runFlight(f, onApogee, onLanded, mission) {
 
     if (ph.name === 'ascent') {
       const i = Math.min(N - 1, Math.floor(p * (N - 1))), sm = f.samples[i] || [0, 0, 1, 1];
-      view.km = sm[0] / 1000; view.v = sm[1]; view.fuel = sm[2]; view.burning = sm[3] > 0.05; view.flame = sm[3];
+      view.km = kmOf(sm[0] / 1000); view.v = sm[1]; view.fuel = sm[2]; view.burning = sm[3] > 0.05; view.flame = sm[3];
       view.forces = sm.length > 4 ? { thrust: sm[4], drag: sm[5], mass: sm[6], g: sm[7] } : null;
       view.liftT = t; view.ang = 0; view.heat = 0; view.para = 0;
     } else if (ph.name === 'pitch') {          /* the gravity turn: tilt over and slide out of frame */
-      view.ang = p * 1.15; view.drift = p * p * 90; view.burning = true; view.flame = 1 - p * 0.3;
-      view.km = lerp(f.burnoutKm, orbitKm * 0.6, easeOut(p)); view.v = lerp(f.burnoutV, 7800, p);
+      /* gradual, and it keeps rising while it leans — no snap to horizontal */
+      const e = p * p * (3 - 2 * p);                      // smoothstep
+      view.ang = e * 1.30; view.drift = e * 110; view.burning = true; view.flame = 1 - p * 0.3;
+      view.km = lerp(climbTop, view.mission >= 1 ? Math.min(orbitKm, 400) : f.apogeeKm, easeOut(p));   // keeps climbing while it leans
+      view.v = lerp(f.burnoutV, 7800, p);
       view.forces = forcesAt(S.tiers, view.km * 1000, view.v, 0); view.liftT = -1;
     } else if (ph.name === 'coast') {          /* sub-orbital only */
       const e = easeOut(p);
@@ -1298,7 +1332,21 @@ const TASK_POOL = [
   ['Polish the nose cone', 1.5, 'clean'], ['Straighten the flag', 1, 'clean'],
 ];
 const TURNAROUND_S = 15;
-const STAGE_LABEL = { recover: 'Recovery', clean: 'Cleaning', stack: 'Stacking', fuel: 'Fuelling', check: 'Checks', paper: 'Paperwork' };
+const STAGE_LABEL = { recover: 'Recovery', clean: 'Cleaning', stack: 'Stacking', fuel: 'Fuelling', check: 'Checks', paper: 'Paperwork', mishap: 'Problem' };
+/* T36 · every rebuild something goes wrong. One of these per turnaround, picked by the seeded RNG,
+   so the same launch always hits the same one. [what happened, what they do about it, extra seconds, what shows on the pad] */
+const MISHAPS = [
+  ['The fuel truck explodes',        'Sweep it up · a new truck rolls in',   3.0, 'truck'],
+  ['The crane drops the nose cone',  'Dent it back out with a mallet',       2.5, 'drop'],
+  ['A cow wanders onto the pad',     'Escort the cow off the pad',           2.0, 'cow'],
+  ['The gantry jams half-swung',     'Hit the gantry until it swings',       2.5, 'gantry'],
+  ['A fuel hose bursts',             'Wrestle the hose · mop the slab',      2.5, 'hose'],
+  ['The flight computer blue-screens', 'Turn it off and on again. Twice.',   2.0, 'computer'],
+  ['A bird has nested in engine 3',  'Rehome the bird, respectfully',        2.0, 'bird'],
+  ['The paperwork blows away',       'Chase the paperwork across the field', 2.0, 'paper'],
+  ['The capsule lands in the pond',  'Wade in after the capsule',            3.0, 'pond'],
+  ['Coffee spilled in the trench',   'Mop the trench · brew more coffee',    1.5, 'coffee'],
+];
 let turn = null; // { tasks:[{name,dur,start}], t0, total }
 function startTurnaround() {
   phase = 'turnaround';
@@ -1307,10 +1355,15 @@ function startTurnaround() {
   for (const st of ORDER) { const bucket = TASK_POOL.filter(t => t[2] === st);
     const n = 1 + (rng() < 0.45 ? 1 : 0);
     for (let k = 0; k < n && bucket.length && picks.length < 8; k++) picks.push(bucket.splice(Math.floor(rng() * bucket.length), 1)[0]); }
+  /* One thing always goes wrong (T36). It lands after the stacking has started. */
+  const mishap = MISHAPS[Math.floor(rng() * MISHAPS.length)];
+  const at = Math.min(picks.length, 3 + Math.floor(rng() * 2));
+  picks.splice(at, 0, [mishap[0], mishap[2] * 0.45, 'mishap'], [mishap[1], mishap[2] * 0.55, 'mishap']);
   const sum = picks.reduce((a, p) => a + p[1], 0);
+  const total = TURNAROUND_S + mishap[2];        // a mishap costs you the seconds it costs you
   let acc = 0;
-  const tasks = picks.map(([name, d, stage]) => { const dur = d / sum * TURNAROUND_S; const o = { name, dur, start: acc, stage }; acc += dur; return o; });
-  turn = { tasks, t0: performance.now(), total: TURNAROUND_S, crew: tasks.map(() => [0.2 + rng() * 0.6, rng()]) };
+  const tasks = picks.map(([name, d, stage]) => { const dur = d / sum * total; const o = { name, dur, start: acc, stage }; acc += dur; return o; });
+  turn = { tasks, t0: performance.now(), total, mishap: mishap[3], crew: tasks.map(() => [0.2 + rng() * 0.6, rng()]) };
   /* Repaint the shop here: it was last painted at apogee, with buying locked mid-flight. */
   showChecklist(); paintLaunch(); paintWindows(); paintShop(); paintBadge();
   if (REDUCED) { turn.t0 -= TURNAROUND_S * 1000; }
@@ -1328,7 +1381,7 @@ function tickTurnaround() {
   let cur = null;
   turn.tasks.forEach((tk, i) => { const li = items[i]; if (!li) return;
     const st = el >= tk.start + tk.dur ? 'done' : el >= tk.start ? 'doing' : '';
-    li.className = st; if (st === 'doing') cur = tk; });
+    li.className = (li.dataset.mishap ? 'mishap ' : '') + st; if (st === 'doing') cur = tk; });
   $('cl-title').textContent = cur ? (STAGE_LABEL[cur.stage] || 'Readiness') : 'Readiness';
   $('launch-sub').textContent = 'ready in ' + Math.ceil(left) + 's';
   drawScene(); if (Math.floor(el * 4) !== Math.floor((el - 0.05) * 4)) { paintDataWin(); paintWindows(); }
@@ -1342,7 +1395,8 @@ function finishTurnaround() {
 }
 function showChecklist() {
   const ol = $('cl-list'); ol.textContent = '';
-  for (const tk of turn.tasks) { const li = document.createElement('li'); li.textContent = tk.name; ol.appendChild(li); }
+  for (const tk of turn.tasks) { const li = document.createElement('li'); li.textContent = tk.name;
+    if (tk.stage === 'mishap') li.dataset.mishap = '1'; ol.appendChild(li); }
   $('cl-title').textContent = 'Readiness'; $('checklist').hidden = false;
 }
 function hideChecklist() { $('checklist').hidden = true; }
@@ -1363,8 +1417,30 @@ function paintReady() {
   $('cl-bar').style.width = (rows.filter(r => r[1]).length / rows.length * 100) + '%';
   $('checklist').hidden = false;
 }
+/* T37 · the goal panel: the mission you are working toward and what it still needs. */
+function paintGoal() {
+  const g = $('goalwin');
+  if (S.mission >= 5) {
+    g.hidden = false; g.classList.add('go');
+    $('gw-title').textContent = 'Moon base'; $('gw-tag').textContent = 'BUILDING';
+    $('gw-need').textContent = S.population.toLocaleString('en-US') + ' of 10,000 people';
+    $('gw-dv').textContent = S.cargoT + ' t landed · ' + S.shipments + ' sent home';
+    $('gw-bar').style.width = (S.population / MISSIONS[5].population * 100) + '%';
+    return;
+  }
+  const next = MISSIONS[S.mission + 1], p = plan || replan(), am = armedMission();
+  const missing = next.equip.filter(id => !S.equipment[id]);
+  g.hidden = false; g.classList.toggle('go', !!am);
+  $('gw-title').textContent = next.name;
+  $('gw-tag').textContent = am ? 'GO' : 'NEED';
+  $('gw-need').textContent = missing.length ? missing.map(id => EQUIPMENT[id].name).join(' + ')
+    : am ? 'Press LAUNCH' : 'More rocket';
+  $('gw-dv').textContent = 'Δv ' + (p.f.dv / 1000).toFixed(1) + ' of ' + (next.dvReq / 1000).toFixed(1) + ' km/s';
+  $('gw-bar').style.width = clamp(p.f.dv / next.dvReq, 0, 1) * 100 + '%';
+}
 /* T33 · which window owns which corner, by phase. */
 function paintWindows() {
+  paintGoal();
   const flying = phase === 'flight' || phase === 'descent';
   $('datawin').hidden = !flying;
   if (!flying && phase === 'ready') paintReady();
@@ -1493,7 +1569,12 @@ function drawPadScene(c, now) {
   if (phase === 'descent' && view.heat > 0) drawReentry(c, DW, DH, km, view.v, now);
   if (moonScene) drawMoonSurface(c, DW, DH, now);
   // rocket
-  const rocketBase = moonScene ? DH * 0.62 : (phase === 'ready' || phase === 'turnaround') ? groundY - 4 : DH * 0.58;
+  /* T38 · the rocket lifts off the pad it was built on. It used to jump to mid-frame the instant
+     the phase changed; now it climbs from groundY to its flying station over the first 0.8 km. */
+  const flyStation = DH * 0.58, onPad = groundY - 4;
+  const rocketBase = moonScene ? DH * 0.62
+    : (phase === 'ready' || phase === 'turnaround') ? onPad
+    : lerp(onPad, flyStation, clamp(km / 0.8, 0, 1));
   if (view.para > 0) { const d = rocketDims(S.tiers); drawChute(c, DW / 2, rocketBase - d.bodyH - d.noseH - 118, view.para, now); }
   if (phase === 'turnaround' && turn) drawTurnaround(c, groundY, DW, DH, turnP(), S.tiers, now, drawRocket, rocketDims);
   else if (view.ang || view.drift) { c.save(); c.translate(DW / 2 + view.drift, rocketBase); c.rotate(view.ang);
