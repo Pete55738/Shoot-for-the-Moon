@@ -506,6 +506,7 @@ body {
   #launch:hover:not(:disabled) { transform: scale(1.03); }
   #launch:active:not(:disabled) { transform: scale(.96); }
   #launch:disabled { cursor: default; filter: grayscale(.9) brightness(.7); box-shadow: 0 8px 20px rgb(0 0 0 / .4); }
+  #launch.away { opacity: .22; transform: scale(.8); transition: opacity .4s, transform .4s; }
   #launch small { display: block; font-size: var(--text-3xs); letter-spacing: .14em; font-weight: 600; margin-top: .2rem; }
   #launch.ready { animation: pulse 1.6s ease-in-out infinite; }
   @keyframes pulse { 0%,100% { box-shadow: 0 0 0 6px var(--h-accent-soft), 0 12px 30px rgb(0 0 0 / .5); }
@@ -967,7 +968,7 @@ const view = { km: 0, v: 0, fuel: 1, t: 0, burning: false, para: 0, apogeeKm: 0,
 let anim = null;
 const easeOut = x => 1 - Math.pow(1 - x, 3);
 function runFlight(f, onApogee, onLanded) {
-  phase = 'flight'; paintLaunch(); hideChecklist();
+  phase = 'flight'; paintLaunch(); hideChecklist(); if (tourI >= 0 && tourI < TOUR.length) { tourI = TOUR.length; tourPaint(); }
   if (REDUCED) { view.km = f.apogeeKm; view.v = 0; view.fuel = 0; view.burning = false; onApogee(); view.para = 0; onLanded(); return; }
   const burnDur = 2.6 + Math.min(2.4, Math.log10(f.apogeeKm + 1) * 0.6);
   const N = f.samples.length;
@@ -978,7 +979,7 @@ function runFlight(f, onApogee, onLanded) {
   const r0 = Math.max(0.01, (lastA[0] - prevA[0]) / 1000 / (burnDur * 11 / Math.max(1, N - 1)));
   /* Up to 9 s of coast so a tier-5 flight (290 km of coast) joins the burn's rate within ~1.3×.
      Past tier 8 the coast span is thousands of km and the linear number must time-lapse; the sky is log-scaled and stays smooth. */
-  const coastDur = clamp(2 * span / r0, 1.5, 9);
+  const coastDur = clamp(2 * span / r0, 1.2, 3.5);   // T22: the user wants apogee within ~3 s; realism comes from the ballistic model, not the clock
   const nExp = Math.max(1.05, r0 * coastDur / span);
   const paraDur = 2.6;
   const t0 = performance.now(); let stage = 0;
@@ -1779,7 +1780,7 @@ function w3_drift(DW, now, period, phase, dir) {
 function w3_pos(DW, DH, now, seed) {
   const r = (k) => w3_R(seed * 13 + k);
   const dir = r(1) < 0.5 ? 1 : -1, dir2 = -dir;
-  const y1 = DH * (0.08 + r(2) * 0.30); return { r, dir, dir2, y1, y2: y1 + DH * (0.18 + r(3) * 0.18),
+  const y1 = DH * (0.03 + r(2) * 0.09); return { r, dir, dir2, y1, y2: y1 + DH * (0.07 + r(3) * 0.05),   // top 22%: above the tallest rocket's nose
            x1: w3_drift(DW, now, 9, r(4), dir), x2: w3_drift(DW, now, 12, r(5) + 0.5, dir2), pick: Math.floor(r(6) * 3) };
 }
 function drawSkyExtras(c, DW, DH, km, now, seed) {
@@ -1805,7 +1806,7 @@ function drawSkyExtras(c, DW, DH, km, now, seed) {
     if (pick === 0) w3_dishSat(c, x1, y1, now); else if (pick === 1) w3_duckSat(c, x1, y1, now); else w3_toasterSat(c, x1, y1, now);
     w3_junk(c, x2, y2, now);
   } else {
-    const mx = DW * 0.62, my = Math.max(DH * 0.28, 110), hs = Math.min(90, DW * 0.34);
+    const mx = DW * 0.8, my = Math.max(DH * 0.16, 80), hs = Math.min(60, DW * 0.18);   // Moon + cow stay upper-right, clear of the ship
     w3_moonFace(c, mx, my);
     const u = (((now / 1000) / 7 + r(8)) % 1 + 1) % 1;                     // cow jumps in an arc over the moon
     const cx = mx - hs + u * 2 * hs, cy = my - 4 - Math.sin(u * Math.PI) * 62;
@@ -2122,7 +2123,7 @@ function paintGauges() {
 function paintMoney() { $('money').textContent = fmtMoney(S.money); }
 function paintLaunch() {
   const b = $('launch');
-  b.disabled = phase !== 'ready'; b.classList.toggle('ready', phase === 'ready');
+  b.disabled = phase !== 'ready'; b.classList.toggle('ready', phase === 'ready'); b.classList.toggle('away', phase === 'flight' || phase === 'descent');
   $('launch-sub').textContent = phase === 'ready' ? (S.launches ? 'flight ' + (S.launches + 1) : 'first flight')
     : phase === 'flight' ? (view.burning ? 'burning' : view.fuel <= 0 ? 'coasting' : 'in flight') : phase === 'descent' ? 'recovering' : 'prepping';
 }
