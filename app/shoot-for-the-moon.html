@@ -649,6 +649,13 @@ body {
   #tour .row { display: flex; gap: .4rem; justify-content: flex-end; }
 
   /* DEV */
+  /* Start over — a player-facing reset. The Info table used to send people to DEV → Reset,
+     which is behind the GitHub-token gate, so a player had no way to start again at all. */
+  .resetrow { display: flex; flex-wrap: wrap; gap: .5rem; margin: .6rem 0 .4rem; }
+  .hbtn.danger { color: var(--h-warning); border-color: var(--h-warning); }
+  .hbtn.danger:hover:not(:disabled) { color: var(--h-bg); background: var(--h-warning); border-color: var(--h-warning); }
+  .resetnote { color: var(--h-text-muted); font-size: var(--text-2xs); margin: .2rem 0 0; }
+  .resetnote.ok { color: var(--h-positive); }
   .devgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: .5rem; }
   .devgrid .hbtn { width: 100%; padding: .6rem; }
   pre.out { background: var(--h-bg); border: 1px solid var(--h-border); border-radius: var(--radius);
@@ -804,7 +811,7 @@ body {
         <tbody>
           <tr><td>Save game</td><td><span class="dir na">—</span></td><td>Your rocket, funds and records, on this device</td>
               <td><span class="needs none">nothing</span></td><td>this browser's local storage; cleared with site data</td>
-              <td><span class="reg-status" id="reg-save">—</span></td><td class="r">DEV → Reset</td></tr>
+              <td><span class="reg-status" id="reg-save">—</span></td><td class="r">Info → Reset my progress</td></tr>
           <tr><td>Hosting</td><td><span class="dir na">—</span></td><td>Serves this one file</td>
               <td><span class="needs none">nothing</span></td><td>static; no functions, no data files</td>
               <td><span class="reg-status on">live</span></td><td class="r">n/a</td></tr>
@@ -820,6 +827,17 @@ body {
          converted only at display time.</p>
       <p>Records are kept on this device only. There is no shared leaderboard yet; if one arrives it
          follows the house rules in <code>docs/GAMES.md</code>.</p>
+      <h3>Start over</h3>
+      <p>Your rocket, funds and records live in this browser only — nothing is stored anywhere else,
+         so resetting here cannot affect anyone else's game. <b>Redraw</b> is safe: it rebuilds the
+         screen and keeps your progress, which is the one to reach for if the picture ever looks wrong.
+         <b>Reset my progress</b> puts you back at tier 1 with no money and no records, and asks first.</p>
+      <div class="resetrow">
+        <button class="hbtn" id="btn-redraw" title="Rebuild the screen. Your progress is untouched.">Redraw the screen</button>
+        <button class="hbtn danger" id="btn-reset" title="Wipe the save and start from the first flight">Reset my progress</button>
+        <button class="hbtn" id="btn-reset-no" hidden>Cancel</button>
+      </div>
+      <p class="resetnote" id="reset-note" hidden></p>
     </div>
   </section>
 
@@ -6850,7 +6868,7 @@ document.querySelectorAll('[data-dev]').forEach(b => b.addEventListener('click',
     if (S.mission >= 4 && !S.modules) S.modules = 1; if (S.mission >= 5 && !S.population) { S.population = 3200; S.modules = 2; } replan(); save(); paintAll(); out.textContent = 'missions achieved: ' + arg; }
   else if (op === 'skip') { if (turn) turn.t0 -= 60000; out.textContent = 'turnaround skipped'; }
   else if (op === 'tour') { try { localStorage.removeItem(TOUR_KEY); } catch (e) {} out.textContent = 'tutorial will run on next load'; }
-  else if (op === 'reset') { S = freshState(); try { localStorage.removeItem(SAVE_KEY); } catch (e) {} saveStatus = 'reset — no save'; paintAll(); out.textContent = 'save reset'; }
+  else if (op === 'reset') { resetProgress(); out.textContent = 'save reset'; }   // one implementation, shared with Info → Reset
   else if (op === 'sim') { const t0 = performance.now(); const r = runBalanceSim();
     out.textContent = (r.ok ? 'PASS' : 'FAIL') + ' · ' + r.gate + '\n' + r.rows.map(x => x.name.padEnd(13) + (x.reached ? 'Moon @ ' + x.launches : 'never') + ' · max dry ' + x.maxDry + ' · buys ' + x.buys).join('\n') + '\n' + (performance.now() - t0).toFixed(0) + ' ms'; }
 }));
@@ -6862,6 +6880,56 @@ window.DEV = { jump: sc => requirePat() && devJump(sc), sim: () => requirePat() 
    BOOT
    ═══════════════════════════════════════════════════════════════════════ */
 function paintAll() { replan(); paintWindows(); paintMoney(); paintShop(); paintBadge(); paintLaunch(); paintGauges(); paintLog(); paintRegister(); drawScene(); }
+
+/* ── Start over (Info tab) ─────────────────────────────────────────────────────
+   Two controls, because "reset" means two different things when a game looks wrong.
+
+   Redraw is non-destructive: it frees every cached layer, re-measures the canvases and
+   repaints. That is the fix for a screen that has gone stale — a rotated phone, a resized
+   window, a theme change that left a layer behind — and it keeps the save.
+
+   Reset wipes the save. It also puts the machine back to a standing start, which the DEV
+   reset never did: cancel the flight animation, drop the turnaround, clear the flight view
+   and the on-screen windows. Resetting mid-flight used to leave phase and view where they
+   were, so the fresh tier-1 rocket carried on falling out of the sky. ── */
+function redrawEverything() {
+  if (typeof w12_invalidate === 'function') w12_invalidate();
+  if (typeof siteInvalidate === 'function') siteInvalidate();
+  if (typeof trajInvalidate === 'function') trajInvalidate();
+  stars = null;                       // the starfield is sized to the old viewport
+  drawGround(); sizeScene(); paintAll(); drawLadder();
+}
+function resetProgress() {
+  cancelAnimationFrame(anim); anim = null;
+  phase = 'ready'; turn = null;
+  Object.assign(view, { km: 0, v: 0, fuel: 1, t: 0, burning: false, para: 0, apogeeKm: 0, flame: 0,
+    countdown: null, liftT: -1, heat: 0, forces: null,
+    scene: 'pad', p: 0, jp: 0, ang: 0, drift: 0, zoom: 0, cargo: 0, fadeFrom: null, fadeK: 0, mission: 0 });
+  Object.assign(rail, { charge: 0, fire: -1, arc: -1, fired: false });   // its real defaults, not zeroes
+  S = freshState();
+  try { localStorage.removeItem(SAVE_KEY); localStorage.removeItem(TOUR_KEY); } catch (e) {}
+  saveStatus = 'reset — no save';
+  hideFlash(); hideChecklist();
+  redrawEverything();
+}
+/* The wipe is irreversible and there is no undo, so the button asks once. It re-arms itself
+   after eight seconds so a stray first click cannot sit there waiting to be confirmed. */
+{
+  const note = () => $('reset-note'), goBtn = () => $('btn-reset'), noBtn = () => $('btn-reset-no');
+  let armed = 0, armTimer = null;
+  const disarm = () => { armed = 0; clearTimeout(armTimer);
+    goBtn().textContent = 'Reset my progress'; noBtn().hidden = true; };
+  const say = (msg, ok) => { const n = note(); n.textContent = msg; n.hidden = !msg; n.classList.toggle('ok', !!ok); };
+  $('btn-redraw').addEventListener('click', () => { redrawEverything(); say('Screen rebuilt. Your progress is untouched.', true); });
+  $('btn-reset').addEventListener('click', () => {
+    if (!armed) { armed = 1; goBtn().textContent = 'Yes — wipe it'; noBtn().hidden = false;
+      say('This clears your rocket, funds and records on this device. There is no undo.');
+      armTimer = setTimeout(() => { disarm(); say(''); }, 8000); return; }
+    disarm(); resetProgress();
+    say('Progress reset — back to the first flight.', true);
+  });
+  $('btn-reset-no').addEventListener('click', () => { disarm(); say(''); });
+}
 load();
 drawGround(); sizeScene(); paintAll();
 addEventListener('resize', () => { if (typeof w12_invalidate === 'function') w12_invalidate();
