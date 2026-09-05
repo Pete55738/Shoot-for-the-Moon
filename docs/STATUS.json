@@ -1,41 +1,44 @@
 {
   "envelope": 1,
   "kind": "status",
-  "at": "2026-09-05T15:05:00Z",
+  "at": "2026-09-05T15:50:00Z",
   "payload": {
-    "reference": "docs/studies/round-3/sheet.png (provisional \u2014 built from the 2026-09-05 brain dump, not user-picked)",
+    "reference": "docs/studies/round-4/sheet.png + liftoff-sequence.png (provisional \u2014 built from the brain dumps, not user-picked)",
     "gates": {
       "score": 8.5,
       "consoleErrors": 0,
       "simClean": true
     },
-    "rounds": 7,
+    "rounds": 9,
     "subsystems": {
       "chrome": {
         "score": 8.5,
         "open": []
       },
       "pad": {
-        "score": 8.5,
+        "score": 9.0,
         "open": [
-          "fuel tanker and pond sit under the LAUNCH button on a phone",
-          "crane height is fixed, not tied to rocket tier"
+          "pond and tanker still sit under the LAUNCH button on a phone",
+          "turnaround desktop runs at 55 fps with 232 draws \u2014 at the budget"
         ]
       },
       "flight": {
-        "score": 8.5,
+        "score": 9.0,
         "open": [
-          "no liftoff smoke or camera shake",
-          "coast time-lapses past tier 8 \u2014 the mile counter jumps; sky stays smooth"
+          "coast time-lapses past tier 8"
         ]
       },
       "space": {
-        "score": 8.5,
-        "open": []
+        "score": 9.0,
+        "open": [
+          "sun is fixed at upper-left; does not parallax"
+        ]
       },
       "descent": {
         "score": 8.5,
-        "open": []
+        "open": [
+          "re-entry sheath hugs the nose while the ship falls tail-first"
+        ]
       },
       "moon": {
         "score": 8.5,
@@ -48,9 +51,9 @@
         "open": []
       },
       "ladder": {
-        "score": 8.0,
+        "score": 8.5,
         "open": [
-          "6.21 and 1.00 mi ticks overlap on a phone"
+          "leader lines from tick to pushed label are faint"
         ]
       },
       "tutorial": {
@@ -64,20 +67,21 @@
         ]
       },
       "turnaround": {
-        "score": 8.5,
-        "open": [
-          "lifted section pops upright instead of rotating off the flatbed"
-        ]
+        "score": 9.0,
+        "open": []
       },
       "rocket": {
+        "score": 9.5,
+        "open": []
+      },
+      "liftoff": {
         "score": 9.0,
         "open": [
-          "7-bell cluster on a tier-1 tank is cramped",
-          "shock diamonds subtle at phone scale"
+          "countdown numerals sit over the crane boom on desktop"
         ]
       }
     },
-    "weakest": "ladder",
-    "note": "Graphics round 1 (2026-09-05, four workers + integrator, ~10 min box). Overall 8.6 against the brain dump. Rounds 5\u20137 on the integrated build: fixed sky darkening by 3 mi, restored the 10 km milestone so the first flight pays for the first upgrade, burnout kick removed. Zero console errors, 59\u201361 fps, sim PASS on every scene."
+    "weakest": "descent",
+    "note": "Graphics round 2 (2026-09-05): four more workers \u2014 farm extras + flatbed hand-off, liftoff sequence, rocket polish with re-entry heat and payload bay, atmosphere layers + twinkle + sun. Integrator wired countdown 3\u00b72\u00b71\u00b7IGNITION (1.55 s), camera shake, steam and smoke, crowd excitement, re-entry heat 120\u219240 km, chute under 12 km. Rounds 8\u20139 on the integrated build: zero console errors, 55\u201361 fps, sim PASS. Overall 9.0."
   }
 }

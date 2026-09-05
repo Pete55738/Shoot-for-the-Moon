@@ -964,12 +964,12 @@ function launch() {
    FLIGHT — replays the sim's samples over a compressed clock, then coasts.
    view = what the scene reads each frame: altitude (km), speed, fuel, phase.
    ═══════════════════════════════════════════════════════════════════════ */
-const view = { km: 0, v: 0, fuel: 1, t: 0, burning: false, para: 0, apogeeKm: 0, flame: 0 };
+const view = { km: 0, v: 0, fuel: 1, t: 0, burning: false, para: 0, apogeeKm: 0, flame: 0, countdown: null, liftT: -1, heat: 0 };
 let anim = null;
 const easeOut = x => 1 - Math.pow(1 - x, 3);
 function runFlight(f, onApogee, onLanded) {
   phase = 'flight'; paintLaunch(); hideChecklist(); if (tourI >= 0 && tourI < TOUR.length) { tourI = TOUR.length; tourPaint(); }
-  if (REDUCED) { view.km = f.apogeeKm; view.v = 0; view.fuel = 0; view.burning = false; onApogee(); view.para = 0; onLanded(); return; }
+  if (REDUCED) { view.km = f.apogeeKm; view.v = 0; view.fuel = 0; view.burning = false; view.countdown = null; view.liftT = -1; onApogee(); view.para = 0; view.heat = 0; onLanded(); return; }
   const burnDur = 2.6 + Math.min(2.4, Math.log10(f.apogeeKm + 1) * 0.6);
   const N = f.samples.length;
   /* Coast: continue at the climb rate the burn ended with, then only decelerate.
@@ -982,26 +982,37 @@ function runFlight(f, onApogee, onLanded) {
   const coastDur = clamp(2 * span / r0, 1.2, 3.5);   // T22: the user wants apogee within ~3 s; realism comes from the ballistic model, not the clock
   const nExp = Math.max(1.05, r0 * coastDur / span);
   const paraDur = 2.6;
-  const t0 = performance.now(); let stage = 0;
+  const CD = [[3, 0.4], [2, 0.4], [1, 0.4], [0, 0.35]], cdDur = CD.reduce((a, c) => a + c[1], 0);   // 3 · 2 · 1 · IGNITION ≈ 1.55 s, out of the flight budget
+  const t0 = performance.now(); let stage = -1;
   cancelAnimationFrame(anim);
   function frame(now) {
-    const t = (now - t0) / 1000;
-    if (stage === 0) {
+    const t = (now - t0) / 1000 - cdDur;
+    if (stage === -1) {
+      let acc = 0, cd = null; for (const [n, d] of CD) { if (t + cdDur < acc + d) { cd = { n, frac: (t + cdDur - acc) / d }; break; } acc += d; }
+      view.countdown = cd; view.liftT = -1; view.km = 0; view.v = 0; view.fuel = 1; view.flame = cd && cd.n === 0 ? cd.frac : 0;
+      if (t >= 0) { stage = 0; view.countdown = null; }
+    } else if (stage === 0) {
+      view.liftT = t;
       const p = Math.min(1, t / burnDur);
       const i = Math.min(N - 1, Math.floor(p * (N - 1)));
       const s = f.samples[i] || [0, 0, 1, 1];
       view.km = s[0] / 1000; view.v = s[1]; view.fuel = s[2]; view.burning = p < 1 && s[3] > 0.05; view.flame = s[3] == null ? 1 : s[3];
       if (p >= 1) { stage = 1; view.burning = false; }
     } else if (stage === 1) {
+      view.liftT = t;
       const p = Math.min(1, (t - burnDur) / coastDur), e = 1 - Math.pow(1 - p, nExp);
       view.km = f.burnoutKm + span * e;
       view.v = f.burnoutV * Math.pow(1 - p, Math.max(1, nExp - 1)); view.flame = 0;   // speed falls to zero at apogee, as gravity would have it
       if (p >= 1) { stage = 2; view.apogeeKm = f.apogeeKm; phase = 'descent'; if (f.moon) view.moonAt = performance.now(); onApogee(); }
     } else if (stage === 2) {
       const p = Math.min(1, (t - burnDur - coastDur) / paraDur);
-      view.para = Math.min(1, p * 3);
-      view.km = f.apogeeKm * (1 - easeOut(p)); view.v = 0;
-      if (p >= 1) { stage = 3; view.para = 0; view.km = 0; hideFlash(); onLanded(); return; }
+      view.km = f.apogeeKm * (1 - easeOut(p));
+      /* falling: heat between 120 and 40 km (only if we got high enough to matter), chute unfurls under 12 km */
+      view.heat = f.apogeeKm > 60 ? clamp(1 - Math.abs(view.km - 80) / 40, 0, 1) : 0;
+      view.para = clamp((12 - view.km) / 6, 0, 1);
+      view.v = Math.min(7000, Math.sqrt(2 * 9.81 * view.km * 1000)) * (view.para > 0 ? (1 - view.para) * 0.5 + 0.02 : 1);
+      view.liftT = -1;
+      if (p >= 1) { stage = 3; view.para = 0; view.heat = 0; view.km = 0; view.v = 0; hideFlash(); onLanded(); return; }
     }
     paintGauges(); drawScene(); anim = requestAnimationFrame(frame);
   }
@@ -1094,6 +1105,7 @@ function drawScene() {
   if (!scene.width) sizeScene();
   const c = sctx, now = performance.now(); drawCount = 0;
   c.setTransform(scene.width / DW, 0, 0, scene.height / DH, 0, 0);
+  if (phase === 'flight' && view.liftT >= 0 && view.liftT < 0.8) { const sh = shakeOffset(view.liftT, now); c.translate(sh.dx, sh.dy); }
   const km = view.km, moonScene = phase !== 'ready' && phase !== 'turnaround' && km >= MOON_KM * 0.999;
   /* Altitude → how far into space we are, on a log scale that spends most of the screen under 100 km. */
   const sp = clamp(Math.log10(km + 1) / 2.6, 0, 1);      // 0 at pad, 1 at ~400 km — blue sky holds to ~10 km, black by ~80 km
@@ -1103,32 +1115,333 @@ function drawScene() {
   g.addColorStop(0, mixHex(ART.skyHi, ART.space, clamp(sp * 1.4, 0, 1)));
   g.addColorStop(1, mixHex(ART.skyLo, ART.space, sp));
   c.fillStyle = g; c.fillRect(0, 0, DW, DH); drawCount++;
-  // stars
-  if (sp > 0.42) { if (!stars) stars = starField(140, 7); c.save(); c.globalAlpha = clamp((sp - 0.42) / 0.35, 0, 1);
-    c.fillStyle = '#FFFFFF'; for (const s of stars) { c.globalAlpha = clamp((sp - 0.42) / 0.35, 0, 1) * s[3]; c.beginPath(); c.arc(s[0], s[1], s[2], 0, 7); c.fill(); drawCount++; } c.restore(); }
+  // stars, haze bands, twinkle (W8)
+  if (!stars) stars = starField(140, 7);
+  if (!moonScene) drawAtmosphere(c, DW, DH, km, now, stars);
   // ground / pad slides down and away as we climb; at height the Earth shows as a curve, then a ball.
   const groundY = DH * 0.78 + sp * DH * 1.1;
   if (groundY < DH + 40) {
     drawFarm(c, groundY, DW, DH, now, km);
-    if (km < 1.5) drawPad(c, groundY, DW, now, phase === 'turnaround' && turn ? turnP() : 1);
+    if (km < 1.5) { drawPad(c, groundY, DW, now, phase === 'turnaround' && turn ? turnP() : 1);
+      drawCrowd(c, groundY, DW, now, !!view.countdown || (phase === 'flight' && view.liftT >= 0 && view.liftT < 3)); }
   } else if (far > 0.3 && !moonScene) {
     drawEarth(c, DW, DH, far);
   }
   // clouds and the things you pass on the way up (W3)
   drawClouds(c, DW, DH, km, now);
   if ((phase === 'flight' || phase === 'descent') && !moonScene) drawSkyExtras(c, DW, DH, km, now, S.launches);
+  if (!moonScene && phase !== 'ready' && phase !== 'turnaround') drawSunAndEarthshine(c, DW, DH, km, far, now);
+  if (phase === 'descent' && view.heat > 0) drawReentry(c, DW, DH, km, view.v, now);
   if (moonScene) drawMoonSurface(c, DW, DH, now);
   // rocket
   const rocketBase = moonScene ? DH * 0.62 : (phase === 'ready' || phase === 'turnaround') ? groundY - 4 : DH * 0.58;
   if (view.para > 0) { const d = rocketDims(S.tiers); drawChute(c, DW / 2, rocketBase - d.bodyH - d.noseH - 118, view.para, now); }
   if (phase === 'turnaround' && turn) drawTurnaround(c, groundY, DW, DH, turnP(), S.tiers, now, drawRocket, rocketDims);
-  else drawRocket(c, DW / 2, rocketBase, S.tiers, view.flame, phase === 'flight' && view.burning, now);
+  else drawRocket(c, DW / 2, rocketBase, S.tiers, view.flame, phase === 'flight' && view.burning, now, { heat: view.heat });
+  if (phase === 'flight' && view.liftT >= 0 && view.liftT < 6 && groundY < DH + 40) drawLiftoffFX(c, groundY, DW, DH, view.liftT, DW / 2, rocketBase, now);
+  if (view.countdown) drawCountdown(c, DW, DH, view.countdown.n, view.countdown.frac, now);
   if (moonScene && S.modules > 0) drawMoonBase(c, DW, DH, S.modules, now - (view.moonAt || 0));
   if (isLight() && sp < 0.5) { c.save(); c.globalCompositeOperation = 'multiply'; c.globalAlpha = (1 - sp * 2) * 0.62;
     c.fillStyle = 'rgb(206,178,150)'; c.fillRect(0, 0, DW, DH); c.restore(); drawCount++; }
 }
 
-/* ── W1 · the rocket ── */
+/* ── W1+W7 · the rocket ── */
+function rocketDims(t) {
+  const bodyH = 48 + t.tank * 6.5;                       // 54.5 .. 113
+  const bodyW = 20 + t.tank * 1.6;                       // 21.6 .. 36
+  const noseH = 12 + t.aero * 3 + (t.aero >= 9 ? 6 : 0); // 15 .. 48 (needle adds a spike)
+  return { bodyH, bodyW, noseH, totalH: bodyH + noseH + 8 }; // tier 1: 77.5 · tier 10: 169
+}
+
+/* hull material scheme */
+function w1_scheme(h) {
+  if (h <= 3) return { lo: '#7F8891', hi: '#CBD2D8', accent: '#4A5561', noseLo: '#6E777F', noseHi: '#AEB6BD', kind: 'steel' };
+  if (h <= 6) return { lo: ART.rocketDk, hi: ART.rocket, accent: ART.nose, noseLo: '#B23E2B', noseHi: '#F07A62', kind: 'paint' };
+  if (h <= 8) return { lo: '#B27F26', hi: '#F6D97F', accent: '#2B2F36', noseLo: ART.rocketDk, noseHi: ART.rocket, kind: 'foil' };
+  return { lo: '#111417', hi: '#3E464F', accent: ART.nose, noseLo: '#111417', noseHi: '#3E464F', kind: 'carbon' };
+}
+function w1_grad(c, x0, x1, lo, hi) {
+  const g = c.createLinearGradient(x0, 0, x1, 0);
+  g.addColorStop(0, lo); g.addColorStop(0.38, hi); g.addColorStop(1, lo); return g;
+}
+function w1_engine(e, bodyW) {
+  const n = e <= 2 ? 1 : e <= 4 ? 2 : e <= 6 ? 3 : e <= 8 ? 5 : 7;
+  const front = n <= 3 ? n : n === 5 ? 3 : 4, back = n - front;   // 7 → 4 front + 3 back
+  const pitch = bodyW / (front + 0.15);
+  // half-width at the lip: scales with bodyW, and the whole front row must fit inside bodyW + 2
+  let bw = clamp(pitch * 0.42, 2.2, 8) * (e % 2 === 0 ? 1.12 : 1);
+  bw = Math.min(bw, (bodyW + 2 - (front - 1) * pitch) / 2);
+  return { n, front, back, pitch, bw };
+}
+
+/* the passenger in the window — recognisable at 8 px */
+function w1_passenger(c, cx, cy, r, p, now) {
+  const s = r / 8; // scale unit: window radius 8 → s = 1
+  c.save(); c.translate(cx, cy); c.scale(s, s); c.lineWidth = 1;
+  switch (p) {
+    case 1: { // balloon
+      c.fillStyle = '#E0523A'; c.beginPath(); c.ellipse(0, -1.5, 3.2, 3.8, 0, 0, 7); c.fill();
+      c.fillStyle = 'rgba(255,255,255,.5)'; c.beginPath(); c.ellipse(-1.2, -2.8, .9, 1.3, -.5, 0, 7); c.fill();
+      c.strokeStyle = '#333'; c.beginPath(); c.moveTo(0, 2.3); c.quadraticCurveTo(1, 4, 0, 6); c.stroke(); drawCount += 3; break; }
+    case 2: { // dog — ears!
+      c.fillStyle = '#5A3A1E'; c.beginPath(); c.ellipse(-3.6, -.5, 1.6, 3.2, .2, 0, 7); c.ellipse(3.6, -.5, 1.6, 3.2, -.2, 0, 7); c.fill();
+      c.fillStyle = '#A9743E'; c.beginPath(); c.arc(0, -.5, 3.4, 0, 7); c.fill();
+      c.fillStyle = '#F3E5CF'; c.beginPath(); c.ellipse(0, 1.4, 1.9, 1.6, 0, 0, 7); c.fill();
+      c.fillStyle = '#222'; c.beginPath(); c.arc(-1.3, -1.4, .55, 0, 7); c.arc(1.3, -1.4, .55, 0, 7); c.arc(0, .8, .7, 0, 7); c.fill();
+      c.fillStyle = '#E86A7A'; c.beginPath(); c.ellipse(0, 2.9, .8, 1.1, 0, 0, 7); c.fill(); drawCount += 5; break; }
+    case 3: { // coffee can
+      c.fillStyle = '#8C3B1F'; c.fillRect(-2.8, -3, 5.6, 6.6);
+      c.fillStyle = '#F3E5CF'; c.fillRect(-2.8, -1, 5.6, 2.4);
+      c.fillStyle = '#8C3B1F'; c.beginPath(); c.arc(0, .2, .8, 0, 7); c.fill();
+      c.fillStyle = '#B9C4CF'; c.beginPath(); c.ellipse(0, -3, 2.8, 1, 0, 0, 7); c.fill(); drawCount += 4; break; }
+    case 4: { // ant farm
+      c.fillStyle = '#B98552'; c.fillRect(-4.2, -3.4, 8.4, 6.8);
+      c.fillStyle = '#EAD7A8'; c.fillRect(-3.4, -2.6, 6.8, 5.2);
+      c.strokeStyle = '#C9A46B'; c.lineWidth = .9; c.beginPath(); c.moveTo(-3.4, -.5); c.quadraticCurveTo(-1, 1.5, 1, -.5); c.quadraticCurveTo(2.5, -1.5, 3.4, 1); c.moveTo(-2, 2.6); c.quadraticCurveTo(-1, .5, .5, 2); c.stroke();
+      c.fillStyle = '#222'; c.beginPath(); c.arc(-2, -.6, .5, 0, 7); c.arc(1.6, -.4, .5, 0, 7); c.arc(-.5, 1.6, .5, 0, 7); c.fill(); drawCount += 4; break; }
+    case 5: { // pizza
+      c.fillStyle = '#D89B4A'; c.beginPath(); c.arc(0, 0, 4.3, 0, 7); c.fill();
+      c.fillStyle = '#F2C14E'; c.beginPath(); c.arc(0, 0, 3.4, 0, 7); c.fill();
+      c.fillStyle = '#C2372A'; c.beginPath(); for (const [a, b] of [[-1.5, -1.2], [1.4, -.6], [-.4, 1.7], [1.6, 1.6]]) { c.moveTo(a, b); c.arc(a, b, .75, 0, 7); } c.fill();
+      c.fillStyle = ART.window; c.beginPath(); c.moveTo(0, 0); c.arc(0, 0, 4.6, -1.15, -.35); c.fill(); drawCount += 4; break; }
+    case 6: { // cubesat
+      c.fillStyle = '#2F6FB7'; c.fillRect(-7, -1.4, 4.2, 2.8); c.fillRect(2.8, -1.4, 4.2, 2.8);
+      c.strokeStyle = '#9FD3F5'; c.lineWidth = .5; c.beginPath(); c.moveTo(-5.6, -1.4); c.lineTo(-5.6, 1.4); c.moveTo(-4.2, -1.4); c.lineTo(-4.2, 1.4); c.moveTo(4.2, -1.4); c.lineTo(4.2, 1.4); c.moveTo(5.6, -1.4); c.lineTo(5.6, 1.4); c.moveTo(-7, 0); c.lineTo(7, 0); c.stroke();
+      c.fillStyle = '#D9A441'; c.fillRect(-2.6, -2.6, 5.2, 5.2); c.fillStyle = '#7A8794'; c.fillRect(-1.8, -1.8, 3.6, 3.6);
+      c.strokeStyle = '#E9EEF3'; c.beginPath(); c.moveTo(0, -2.6); c.lineTo(0, -4.5); c.stroke(); drawCount += 5; break; }
+    case 7: { // houseplant
+      c.fillStyle = '#5FA85A'; c.beginPath(); c.ellipse(-2.2, -1.6, 1.6, 2.6, .6, 0, 7); c.ellipse(2.2, -1.6, 1.6, 2.6, -.6, 0, 7); c.ellipse(0, -2.8, 1.5, 2.8, 0, 0, 7); c.fill();
+      c.strokeStyle = '#2F6B2C'; c.lineWidth = .7; c.beginPath(); c.moveTo(0, 1); c.lineTo(0, -4.5); c.moveTo(0, 0); c.lineTo(-2.4, -2.2); c.moveTo(0, 0); c.lineTo(2.4, -2.2); c.stroke();
+      c.fillStyle = '#C8663A'; c.beginPath(); c.moveTo(-3, .8); c.lineTo(3, .8); c.lineTo(2.2, 4.4); c.lineTo(-2.2, 4.4); c.fill();
+      c.fillStyle = '#A34F2A'; c.fillRect(-3.2, .8, 6.4, 1); drawCount += 4; break; }
+    case 8: { // telescope
+      c.save(); c.rotate(-.65);
+      c.fillStyle = '#E9EEF3'; c.fillRect(-4.6, -1.3, 8.2, 2.6);
+      c.fillStyle = '#4A5561'; c.fillRect(3, -1.6, 1.8, 3.2); c.fillRect(-5.2, -1, 1.2, 2);
+      c.fillStyle = '#4FD9E6'; c.fillRect(4.4, -1.1, .6, 2.2); c.restore();
+      c.strokeStyle = '#4A5561'; c.lineWidth = .9; c.beginPath(); c.moveTo(0, .5); c.lineTo(-2.4, 4.6); c.moveTo(0, .5); c.lineTo(2.4, 4.6); c.moveTo(0, .5); c.lineTo(.4, 4.8); c.stroke(); drawCount += 4; break; }
+    case 9: { // rover
+      c.fillStyle = '#2F6FB7'; c.fillRect(-3.4, -3.6, 6.8, 1.6);
+      c.fillStyle = '#B9C4CF'; c.fillRect(-3.6, -2, 7.2, 3);
+      c.fillStyle = '#4A5561'; c.fillRect(1.4, -5.2, .7, 3.4); c.fillRect(.6, -5.8, 2.4, 1.2);
+      c.fillStyle = '#222'; c.beginPath(); for (const wx of [-3, 0, 3]) { c.moveTo(wx, 1.8); c.arc(wx, 1.8, 1.4, 0, 7); } c.fill(); drawCount += 4; break; }
+    default: { // base module
+      c.fillStyle = '#7A8794'; c.fillRect(-4.6, 2.2, 9.2, 1.6);
+      c.fillStyle = '#DCE3EA'; c.beginPath(); c.arc(0, 2.2, 4.4, Math.PI, 0); c.fill();
+      c.fillStyle = '#FFD46A'; c.fillRect(-2.8, -.2, 1.5, 1.5); c.fillRect(-.7, -1.3, 1.5, 1.5); c.fillRect(1.4, -.2, 1.5, 1.5);
+      c.strokeStyle = '#4A5561'; c.lineWidth = .8; c.beginPath(); c.moveTo(0, -2.2); c.lineTo(0, -4.6); c.moveTo(-1, -4.6); c.lineTo(1, -4.6); c.stroke(); drawCount += 4; }
+  }
+  c.restore();
+}
+
+/* the payload window: frame, glass, passenger, glare */
+function w1_window(c, cx, cy, r, payload, accent, now) {
+  c.fillStyle = accent; c.beginPath(); c.arc(cx, cy, r + 1.6, 0, 7); c.fill();
+  const g = c.createRadialGradient(cx - r * .3, cy - r * .3, r * .2, cx, cy, r);
+  g.addColorStop(0, '#9FEFF7'); g.addColorStop(1, '#1FA9B8');
+  c.fillStyle = g; c.beginPath(); c.arc(cx, cy, r, 0, 7); c.fill(); drawCount += 2;
+  c.save(); c.beginPath(); c.arc(cx, cy, r - .5, 0, 7); c.clip();
+  w1_passenger(c, cx, cy + r * .1, r, payload, now);
+  c.restore();
+  c.strokeStyle = 'rgba(255,255,255,.65)'; c.lineWidth = 1.2; c.beginPath(); c.arc(cx, cy, r * .72, Math.PI * 1.1, Math.PI * 1.5); c.stroke(); drawCount++;
+}
+
+function drawRocket(c, x, baseY, t, flame, burning, now, opts) {
+  now = now || 0; opts = opts || {};
+  const heat = clamp(opts.heat || 0, 0, 1), bayOpen = clamp(opts.bayOpen || 0, 0, 1);
+  const { bodyH, bodyW, noseH } = rocketDims(t);
+  const hw = bodyW / 2, top = baseY - bodyH;
+  const S = w1_scheme(t.hull);
+  const E = w1_engine(t.engine, bodyW);
+  const fx = i => x + (i - (E.front - 1) / 2) * E.pitch;
+  const bx = i => x + (i - (E.back - 1) / 2) * E.pitch;
+  c.save(); c.lineWidth = 1;
+
+  /* ── exhaust ── */
+  if (flame > 0) {
+    const k = (t.engine - 1) / 9;                              // 0 orange .. 1 blue-white
+    const outer = mixHex('#FF7A1A', '#5FA8FF', k), mid = mixHex('#FFB347', '#BFE3FF', k), core = mixHex('#FFF4C2', '#FFFFFF', k);
+    const Lbase = (burning ? 58 + t.engine * 6.5 : 26) * flame;
+    const fl = i => 1 + Math.sin(now / 37 + i * 1.7) * .07 + Math.sin(now / 21 + i) * .05;
+    const plume = (w, lenK, y0) => { c.beginPath(); for (let i = 0; i < E.front; i++) { const nx = fx(i), L = Lbase * fl(i) * lenK, bw = E.bw * w;
+      c.moveTo(nx - bw, baseY + y0); c.quadraticCurveTo(nx - bw * 1.35, baseY + L * .42, nx, baseY + L); c.quadraticCurveTo(nx + bw * 1.35, baseY + L * .42, nx + bw, baseY + y0); } c.fill(); drawCount++; };
+    c.save(); c.filter = 'blur(4px)'; c.globalAlpha = .75 * flame; c.fillStyle = outer; plume(1.35, 1.08, 2); c.restore();
+    c.globalAlpha = .9 * flame; c.fillStyle = mid; plume(.85, .82, 4);
+    c.globalAlpha = flame; c.fillStyle = core; plume(.42, .5, 4);
+    if (t.engine >= 7) { // shock diamonds — 3..5 per plume, a soft halo then a hot white core
+      const nd = t.engine >= 10 ? 5 : t.engine >= 9 ? 4 : 3, spread = Math.max(E.bw, 3.2);
+      const dia = (scale, y0) => { c.beginPath();
+        for (let i = 0; i < E.front; i++) for (let d = 1; d <= nd; d++) { const nx = fx(i), y = baseY + y0 + Lbase * fl(i) * (.12 * d + .05), w = spread * (.95 - d * .1) * scale, h = w * 1.9;
+          c.moveTo(nx, y - h); c.lineTo(nx + w, y); c.lineTo(nx, y + h); c.lineTo(nx - w, y); }
+        c.fill(); drawCount++; };
+      c.globalAlpha = .55 * flame; c.fillStyle = mixHex('#FFD68A', '#BFE3FF', k); dia(1.35, 1);   // halo
+      c.globalAlpha = flame; c.fillStyle = '#FFFFFF'; dia(.7, 0);                                   // core
+    }
+    c.globalAlpha = 1;
+  }
+
+  /* ── fins (behind the body) ── */
+  const finCol = S.kind === 'steel' ? '#6E777F' : S.kind === 'carbon' ? '#2A3038' : ART.fin;
+  const finEdge = S.kind === 'carbon' ? ART.nose : 'rgba(0,0,0,.18)';
+  if (t.aero >= 2 && t.aero <= 3) { const fw = 7 + t.aero * 1.5, fh = 12 + t.aero * 2; // stubby
+    c.fillStyle = finCol; c.beginPath();
+    c.moveTo(x - hw, baseY - fh); c.lineTo(x - hw - fw, baseY - fh * .35); c.lineTo(x - hw - fw, baseY + 1); c.lineTo(x - hw, baseY + 1);
+    c.moveTo(x + hw, baseY - fh); c.lineTo(x + hw + fw, baseY - fh * .35); c.lineTo(x + hw + fw, baseY + 1); c.lineTo(x + hw, baseY + 1); c.fill(); drawCount++;
+  } else if (t.aero >= 4) { const a = Math.min(t.aero, 7), fw = 8 + a * 1.9, fh = 18 + a * 3.2; // swept delta
+    c.fillStyle = finCol; c.beginPath();
+    c.moveTo(x - hw, baseY - fh); c.quadraticCurveTo(x - hw - fw * .45, baseY - fh * .35, x - hw - fw, baseY + 3); c.lineTo(x - hw - fw * .55, baseY + 3); c.lineTo(x - hw, baseY - 1);
+    c.moveTo(x + hw, baseY - fh); c.quadraticCurveTo(x + hw + fw * .45, baseY - fh * .35, x + hw + fw, baseY + 3); c.lineTo(x + hw + fw * .55, baseY + 3); c.lineTo(x + hw, baseY - 1); c.fill();
+    c.fillStyle = 'rgba(0,0,0,.18)'; c.beginPath(); c.moveTo(x + hw, baseY - fh); c.quadraticCurveTo(x + hw + fw * .45, baseY - fh * .35, x + hw + fw, baseY + 3); c.lineTo(x + hw + fw * .55, baseY + 3); c.lineTo(x + hw, baseY - 1); c.fill(); drawCount += 2;
+    if (S.kind === 'carbon') { c.strokeStyle = finEdge; c.lineWidth = 1.5; c.beginPath(); c.moveTo(x - hw, baseY - fh); c.quadraticCurveTo(x - hw - fw * .45, baseY - fh * .35, x - hw - fw, baseY + 3); c.moveTo(x + hw, baseY - fh); c.quadraticCurveTo(x + hw + fw * .45, baseY - fh * .35, x + hw + fw, baseY + 3); c.stroke(); drawCount++; }
+  }
+  if (t.aero >= 8) { // grid fins high on the body
+    const gw = 9 + (t.aero - 8) * 1.5, gh = 6, gy0 = top + bodyH * .36;
+    c.fillStyle = '#5B646D'; c.fillRect(x - hw - gw, gy0, gw, gh); c.fillRect(x + hw, gy0, gw, gh);
+    c.strokeStyle = 'rgba(255,255,255,.55)'; c.lineWidth = .8; c.beginPath();
+    for (let i = 1; i < 4; i++) { const yy = gy0 + gh * i / 4; c.moveTo(x - hw - gw, yy); c.lineTo(x - hw, yy); c.moveTo(x + hw, yy); c.lineTo(x + hw + gw, yy); }
+    for (let i = 1; i < 4; i++) { const dx = gw * i / 4; c.moveTo(x - hw - dx, gy0); c.lineTo(x - hw - dx, gy0 + gh); c.moveTo(x + hw + dx, gy0); c.lineTo(x + hw + dx, gy0 + gh); }
+    c.stroke(); drawCount += 3;
+  }
+  if (t.aero >= 10) { // canards near the nose
+    c.fillStyle = S.kind === 'carbon' ? ART.nose : finCol; c.beginPath();
+    c.moveTo(x - hw + 1, top - 3); c.lineTo(x - hw - 9, top + 7); c.lineTo(x - hw + 1, top + 9);
+    c.moveTo(x + hw - 1, top - 3); c.lineTo(x + hw + 9, top + 7); c.lineTo(x + hw - 1, top + 9); c.fill(); drawCount++;
+  }
+
+  /* ── engine skirt + bells ── */
+  c.fillStyle = '#3A434D'; c.fillRect(x - hw - 1, baseY - 7, bodyW + 2, 5); drawCount++;
+  for (let i = 0; i < E.back; i++) { const nx = bx(i), bw = E.bw * .8; // back row of the cluster, darker
+    c.fillStyle = '#2E353D'; c.beginPath(); c.moveTo(nx - bw * .55, baseY - 4); c.lineTo(nx + bw * .55, baseY - 4); c.lineTo(nx + bw, baseY + 3); c.lineTo(nx - bw, baseY + 3); c.fill(); drawCount++; }
+  for (let i = 0; i < E.front; i++) { const nx = fx(i), bw = E.bw;
+    c.fillStyle = w1_grad(c, nx - bw, nx + bw, '#3A434D', '#8A949E'); c.beginPath(); c.moveTo(nx - bw * .55, baseY - 3); c.lineTo(nx + bw * .55, baseY - 3); c.lineTo(nx + bw, baseY + 6); c.lineTo(nx - bw, baseY + 6); c.fill();
+    c.fillStyle = '#242A30'; c.fillRect(nx - bw, baseY + 5, bw * 2, 1.2); drawCount += 2; }
+
+  /* ── body ── */
+  c.fillStyle = w1_grad(c, x - hw, x + hw, S.lo, S.hi); c.fillRect(x - hw, top, bodyW, bodyH); drawCount++;
+  // material detail
+  if (S.kind === 'steel') { // rivet rows
+    c.fillStyle = 'rgba(0,0,0,.28)'; c.beginPath();
+    const rows = t.hull + 1; for (let r = 0; r <= rows; r++) { const yy = top + 6 + (bodyH - 12) * r / rows; for (let rx = x - hw + 3; rx <= x + hw - 3; rx += 4) { c.moveTo(rx, yy); c.arc(rx, yy, .8, 0, 7); } }
+    for (let yy = top + 6; yy < baseY - 8; yy += 4) { c.moveTo(x - hw + 2, yy); c.arc(x - hw + 2, yy, .8, 0, 7); c.moveTo(x + hw - 2, yy); c.arc(x + hw - 2, yy, .8, 0, 7); }
+    c.fill(); drawCount++;
+    if (t.hull >= 2) { c.fillStyle = 'rgba(0,0,0,.12)'; c.fillRect(x - hw, top + bodyH * .45, bodyW, bodyH * .1); drawCount++; }
+  } else if (S.kind === 'paint') {
+    c.fillStyle = ART.nose; c.fillRect(x - hw, baseY - 7 - bodyH * .12, bodyW, bodyH * .12); drawCount++;   // red skirt band
+    if (t.hull >= 5) { c.fillRect(x - hw, top + 2, bodyW, 4); drawCount++; }                              // top ring
+    if (t.hull >= 6) { const cy = top + bodyH * .5, cs = bodyW / 4; c.fillStyle = '#23272C';                   // roll-pattern checker
+      for (let i = 0; i < 4; i++) for (let j = 0; j < 2; j++) if ((i + j) % 2 === 0) c.fillRect(x - hw + i * cs, cy + j * cs, cs, cs); drawCount++; }
+  } else if (S.kind === 'foil') { // upper white, lower gold foil
+    const split = top + bodyH * .36;
+    c.fillStyle = w1_grad(c, x - hw, x + hw, ART.rocketDk, ART.rocket); c.fillRect(x - hw, top, bodyW, split - top); drawCount++;
+    c.strokeStyle = 'rgba(120,80,10,.45)'; c.lineWidth = .8; c.beginPath();
+    for (let yy = split + 3; yy < baseY - 10; yy += 5) { const j = ((yy * 7) % 5) - 2; c.moveTo(x - hw, yy); c.lineTo(x - hw * .3, yy + j); c.lineTo(x + hw * .35, yy - j); c.lineTo(x + hw, yy + j * .5); }
+    c.stroke(); drawCount++;
+    if (t.hull >= 8) { const th = bodyH * .14, ty = baseY - 7 - th; c.fillStyle = '#23272C'; c.fillRect(x - hw, ty, bodyW, th);                     // heat tiles
+      c.strokeStyle = 'rgba(255,255,255,.22)'; c.lineWidth = .7; c.beginPath(); for (let tx = x - hw + 4; tx < x + hw; tx += 4) { c.moveTo(tx, ty); c.lineTo(tx, ty + th); } c.moveTo(x - hw, ty + th / 2); c.lineTo(x + hw, ty + th / 2); c.stroke(); drawCount += 2; }
+  } else { // carbon: racing stripes + gloss
+    const sw = Math.max(2.5, bodyW * .12);
+    c.fillStyle = ART.nose; c.fillRect(x - sw * .2, top + 4, sw, bodyH - 12);
+    c.fillStyle = '#E9EEF3'; c.fillRect(x + sw * 1.1, top + 4, sw * .5, bodyH - 12); drawCount += 2;
+    if (t.hull >= 10) { c.fillStyle = ART.nose; c.fillRect(x - sw * 1.9, top + 4, sw * .5, bodyH - 12); c.fillStyle = '#FFD46A'; c.fillRect(x + sw * 1.9, top + 4, sw * .4, bodyH - 12); drawCount += 2; }
+    c.fillStyle = 'rgba(255,255,255,.14)'; c.fillRect(x - hw + 2, top, 2.5, bodyH); drawCount++;
+  }
+  // tank seams
+  const seams = Math.ceil(t.tank / 2);
+  c.fillStyle = 'rgba(0,0,0,.18)'; for (let i = 1; i <= seams; i++) c.fillRect(x - hw, top + (bodyH - 8) * i / (seams + 1), bodyW, 1.5); drawCount++;
+  if (t.tank >= 6) { const sy = top + bodyH * .62; // second-stage interstage
+    c.fillStyle = '#2E353D'; c.fillRect(x - hw, sy, bodyW, 5); c.fillStyle = 'rgba(255,255,255,.35)'; c.fillRect(x - hw, sy, bodyW, 1); drawCount += 2;
+    if (t.tank >= 9) { c.fillStyle = '#8A949E'; for (let sx = x - hw + 3; sx < x + hw - 2; sx += 6) c.fillRect(sx, sy + 1, 2, 3); drawCount++; }
+  }
+  // lit edge
+  c.fillStyle = 'rgba(0,0,0,.18)'; c.fillRect(x + hw - 2, top, 2, bodyH); drawCount++;
+
+  /* ── nose ── */
+  c.fillStyle = w1_grad(c, x - hw, x + hw, S.noseLo, S.noseHi); c.beginPath(); c.moveTo(x - hw, top);
+  if (t.aero <= 2) { c.quadraticCurveTo(x - hw, top - noseH * 1.25, x, top - noseH); c.quadraticCurveTo(x + hw, top - noseH * 1.25, x + hw, top); }          // blunt cap
+  else if (t.aero <= 5) { c.lineTo(x, top - noseH); c.lineTo(x + hw, top); }                                                                                  // cone
+  else if (t.aero <= 8) { c.quadraticCurveTo(x - hw * .8, top - noseH * .7, x, top - noseH); c.quadraticCurveTo(x + hw * .8, top - noseH * .7, x + hw, top); } // ogive
+  else { const nh = noseH - 8; c.quadraticCurveTo(x - hw * .8, top - nh * .75, x - 1.2, top - nh); c.lineTo(x, top - noseH); c.lineTo(x + 1.2, top - nh); c.quadraticCurveTo(x + hw * .8, top - nh * .75, x + hw, top); } // needle
+  c.closePath(); c.fill(); drawCount++;
+  if (S.kind === 'foil' || S.kind === 'paint') { c.fillStyle = 'rgba(0,0,0,.18)'; c.fillRect(x - hw, top - 1, bodyW, 2); drawCount++; } // nose join ring
+  if (t.aero >= 9) { c.fillStyle = '#FFD46A'; c.globalAlpha = .6 + .4 * Math.sin(now / 250); c.beginPath(); c.arc(x, top - noseH + 1.5, 1.6, 0, 7); c.fill(); c.globalAlpha = 1; drawCount++; } // tip beacon
+
+  /* ── payload window ── */
+  const wr = clamp(bodyW * .3, 5.5, 9), wy = top + Math.max(12, bodyW * .5);
+  w1_window(c, x, wy, wr, t.payload, S.accent, now);
+
+  /* ── payload bay (opts.bayOpen): a hull panel slides aside to show the cargo ── */
+  if (bayOpen > 0) w1_bay(c, x, top, bodyW, bodyH, wy + wr, S, t.payload, bayOpen, now);
+
+  /* ── re-entry sheath (opts.heat): plasma on the nose + leading edges, faint wake ── */
+  if (heat > 0) w1_heat(c, x, top, baseY, bodyW, noseH, t, heat, now, opts.wakeDir || -1);
+  c.restore();
+}
+
+/* payload bay: door at the body mid-section, below the window. k 0..1 slides the panel to the left. */
+function w1_bay(c, x, top, bodyW, bodyH, belowY, S, payload, k, now) {
+  const hw = bodyW / 2, bh = clamp(bodyH * .3, 16, 34), bw = bodyW * .66;
+  const by = Math.min(belowY + 4, top + bodyH - 12 - bh), bx = x - bw / 2;
+  c.save(); c.beginPath(); c.rect(x - hw, top, bodyW, bodyH); c.clip();
+  // dark interior with a warm cabin light
+  const g = c.createLinearGradient(bx, by, bx + bw, by); g.addColorStop(0, '#0E1216'); g.addColorStop(.5, '#2A3138'); g.addColorStop(1, '#0E1216');
+  c.fillStyle = g; c.fillRect(bx, by, bw, bh); drawCount++;
+  c.fillStyle = 'rgba(255,212,106,' + (.25 * k) + ')'; c.fillRect(bx + 1, by + 1, bw - 2, bh * .35); drawCount++;
+  // the cargo, sat on a shelf, lit
+  c.save(); c.beginPath(); c.rect(bx, by, bw, bh); c.clip();
+  c.fillStyle = '#5B646D'; c.fillRect(bx + 2, by + bh - 3, bw - 4, 2); drawCount++;
+  w1_passenger(c, x, by + bh * .5, Math.min(bh * .42, bw * .5), payload, now);
+  c.restore();
+  // door frame
+  c.strokeStyle = 'rgba(0,0,0,.35)'; c.lineWidth = 1; c.strokeRect(bx + .5, by + .5, bw - 1, bh - 1); drawCount++;
+  // the sliding panel (hull-coloured), slides left; the swing hinge line stays put
+  const px = bx - (bw + 2) * k;
+  c.fillStyle = w1_grad(c, px, px + bw, S.lo, S.hi); c.fillRect(px, by, bw, bh);
+  c.fillStyle = 'rgba(0,0,0,.18)'; c.fillRect(px + bw - 2, by, 2, bh); drawCount += 2;
+  c.fillStyle = 'rgba(255,255,255,.35)'; c.fillRect(px + 2, by + 2, 1.5, bh - 4); drawCount++;   // panel highlight
+  c.fillStyle = S.accent; c.fillRect(px + bw * .3, by + bh * .5 - .75, bw * .4, 1.5); drawCount++; // door stripe
+  c.restore();
+}
+
+/* re-entry sheath: orange-white plasma hugging the nose, glowing fin edges, and a trailing wake.
+   dir = −1: wake streams up past the nose (nose-first descent); +1: down past the bells. */
+function w1_heat(c, x, top, baseY, bodyW, noseH, t, k, now, dir) {
+  const hw = bodyW / 2, tip = top - noseH, flick = 1 + Math.sin(now / 43) * .06 + Math.sin(now / 17) * .04;
+  const finR = t.aero >= 4 ? 8 + Math.min(t.aero, 7) * 1.9 : t.aero >= 2 ? 7 + t.aero * 1.5 : 0;
+  c.save(); c.globalCompositeOperation = 'lighter';
+  // wake + sheath share the one blur pass
+  const wl = (70 + noseH) * k * flick, wy0 = dir < 0 ? tip : baseY;
+  c.save(); c.filter = 'blur(5px)';
+  const wg = c.createLinearGradient(0, wy0, 0, wy0 + dir * wl);
+  wg.addColorStop(0, 'rgba(255,220,150,' + (.8 * k) + ')'); wg.addColorStop(.35, 'rgba(255,140,50,' + (.5 * k) + ')'); wg.addColorStop(1, 'rgba(255,70,20,0)');
+  c.fillStyle = wg; c.beginPath();
+  c.moveTo(x - hw * .9, wy0 + dir * 2); c.quadraticCurveTo(x - hw * 1.1, wy0 + dir * wl * .45, x, wy0 + dir * wl);
+  c.quadraticCurveTo(x + hw * 1.1, wy0 + dir * wl * .45, x + hw * .9, wy0 + dir * 2); c.fill(); drawCount++;
+  // sheath: a radial bloom hugging the nose
+  const sy = tip + noseH * .4, sg = c.createRadialGradient(x, sy, 1, x, sy, hw + noseH * .6);
+  sg.addColorStop(0, 'rgba(255,255,235,' + (.95 * k) + ')'); sg.addColorStop(.5, 'rgba(255,170,60,' + (.65 * k) + ')'); sg.addColorStop(1, 'rgba(255,80,20,0)');
+  c.fillStyle = sg; c.beginPath(); c.ellipse(x, sy, hw + 5 * k, noseH * .7 + 6 * k, 0, 0, 7); c.fill(); drawCount++;
+  c.restore();
+  // hot skin: nose outline + body edges + fin leading edges as glowing strokes
+  c.strokeStyle = 'rgba(255,235,180,' + (.9 * k) + ')'; c.lineWidth = 2.2 * flick; c.lineCap = 'round'; c.beginPath();
+  c.moveTo(x - hw, top + 6); c.quadraticCurveTo(x - hw, tip + 4, x, tip); c.quadraticCurveTo(x + hw, tip + 4, x + hw, top + 6);
+  if (finR) { const fh = t.aero >= 4 ? 18 + Math.min(t.aero, 7) * 3.2 : 12 + t.aero * 2;
+    c.moveTo(x - hw, baseY - fh); c.quadraticCurveTo(x - hw - finR * .45, baseY - fh * .35, x - hw - finR, baseY + 3);
+    c.moveTo(x + hw, baseY - fh); c.quadraticCurveTo(x + hw + finR * .45, baseY - fh * .35, x + hw + finR, baseY + 3); }
+  c.stroke(); drawCount++;
+  // body edge shimmer
+  c.strokeStyle = 'rgba(255,140,50,' + (.45 * k) + ')'; c.lineWidth = 1.5; c.beginPath();
+  c.moveTo(x - hw - .5, top); c.lineTo(x - hw - .5, baseY - 8); c.moveTo(x + hw + .5, top); c.lineTo(x + hw + .5, baseY - 8); c.stroke(); drawCount++;
+  // embers peeling off, seeded and cycling on now
+  c.fillStyle = 'rgba(255,200,90,' + (.85 * k) + ')'; c.beginPath();
+  for (let i = 0; i < 7; i++) { const r = (i * 9301 + 49297) % 233280 / 233280, r2 = ((i + 11) * 7919 + 104729) % 233280 / 233280, p = ((now / 700) + r2) % 1;
+    const ex = x + (r - .5) * (bodyW + finR) * 1.4, ey = (dir < 0 ? tip : baseY) + dir * (4 + p * wl * .9); const rad = 1.6 * (1 - p) + .3;
+    c.moveTo(ex + rad, ey); c.arc(ex, ey, rad, 0, 7); }
+  c.fill(); drawCount++;
+  c.restore();
+}
+
+/* ── preview: tiers 1/4/7/10 burning · a 7-bell cluster on a tank-1 body · re-entry at heat .8 · bay open ── */
+
 /* ── W1 · the rocket ──────────────────────────────────────────────────────────
    rocketDims(t) → { bodyH, bodyW, noseH, totalH }   design units
    drawRocket(c, x, baseY, t, flame, burning, now)
@@ -1870,51 +2183,6 @@ function w2_shadow(c, x, y, rx, ry) { c.fillStyle = 'rgba(0,0,0,.18)'; c.beginPa
 function w2_grad(c, x0, x1, a, b) { const g = c.createLinearGradient(x0, 0, x1, 0); g.addColorStop(0, a); g.addColorStop(1, b); return g; }
 
 /* ── the farm ── */
-function drawFarm(c, gy, DW, DH, now, km) {
-  const k = clamp(km / 1.5, 0, 1), near = k * 26, far = k * 8;
-  c.save();
-  // ground fill, lit near the horizon
-  const gg = c.createLinearGradient(0, gy, 0, DH + 40);
-  gg.addColorStop(0, '#5B8A52'); gg.addColorStop(0.5, ART.ground); gg.addColorStop(1, ART.groundDk);
-  c.fillStyle = gg; c.fillRect(0, gy, DW, DH - gy + 40); drawCount++;
-  // far hills poking over the horizon
-  c.fillStyle = '#6E9668'; c.beginPath(); c.ellipse(DW * 0.22, gy + 3 + far, DW * 0.36, 13, 0, 0, 7); c.fill(); drawCount++;
-  c.fillStyle = '#5F875A'; c.beginPath(); c.ellipse(DW * 0.78, gy + 3 + far, DW * 0.42, 9, 0, 0, 7); c.fill(); drawCount++;
-  // crop rows: alternating wedges fanning from a vanishing point behind the horizon
-  const vx = DW * 0.5, vy = gy - 30 + far, bottom = DH + 40;
-  c.save(); c.beginPath(); c.rect(0, gy + 4 + far, DW, bottom); c.clip();
-  for (let i = -6; i <= 6; i++) {
-    if (Math.abs(i) < 2) continue;                          // leave the pad apron plain
-    const x0 = vx + i * 26, x1 = vx + i * 150, x2 = vx + (i + 1) * 150, x3 = vx + (i + 1) * 26;
-    c.fillStyle = (i & 1) ? 'rgba(40,70,36,.28)' : 'rgba(180,210,120,.10)';
-    c.beginPath(); c.moveTo(x0, vy); c.lineTo(x1, bottom); c.lineTo(x2, bottom); c.lineTo(x3, vy); c.fill(); drawCount++;
-  }
-  c.restore();
-  // fence along the left field
-  const fy = gy + 16 + near * 0.6;
-  c.strokeStyle = '#D9C9A8'; c.lineWidth = 1.2; c.beginPath();
-  for (let x = 6; x < DW / 2 - 96; x += 15) { c.moveTo(x, fy - 9); c.lineTo(x, fy); }
-  c.moveTo(4, fy - 7); c.lineTo(DW / 2 - 98, fy - 7); c.moveTo(4, fy - 3); c.lineTo(DW / 2 - 98, fy - 3); c.stroke(); drawCount++;
-  // barn far left, on the horizon
-  const bx = 12, by = gy + 2 + far;
-  w2_shadow(c, bx + 22, by + 2, 26, 3);
-  c.fillStyle = w2_grad(c, bx, bx + 36, '#C24E42', '#8F3129'); c.fillRect(bx, by - 18, 36, 18); drawCount++;
-  c.fillStyle = '#6E2A24'; c.beginPath(); c.moveTo(bx - 2, by - 18); c.lineTo(bx + 6, by - 28); c.lineTo(bx + 18, by - 32); c.lineTo(bx + 30, by - 28); c.lineTo(bx + 38, by - 18); c.fill(); drawCount++;
-  c.fillStyle = '#F3F4F6'; c.fillRect(bx + 14, by - 12, 8, 12); c.fillStyle = '#8F3129'; c.fillRect(bx + 17.4, by - 12, 1.2, 12); drawCount++;
-  c.fillStyle = '#F3F4F6'; c.fillRect(bx + 4, by - 15, 5, 5); c.fillRect(bx + 27, by - 15, 5, 5); drawCount++;
-  // silo
-  c.fillStyle = w2_grad(c, bx + 40, bx + 50, '#DCE3EA', '#9AA6B2'); c.fillRect(bx + 40, by - 30, 10, 30); c.beginPath(); c.arc(bx + 45, by - 30, 5, Math.PI, 0); c.fill(); drawCount++;
-  // a round tree or two on the right horizon
-  c.fillStyle = '#4E3A22'; c.fillRect(DW * 0.9 - 1, by - 10, 2, 10); c.fillStyle = '#4C8A44'; c.beginPath(); c.arc(DW * 0.9, by - 14, 8, 0, 7); c.arc(DW * 0.9 + 6, by - 10, 6, 0, 7); c.fill(); drawCount += 2;
-  // pond with a wobbling sky reflection
-  const px = DW * 0.8, py = gy + 34 + near, wob = Math.sin(now / 700) * 2;
-  c.fillStyle = '#2E6A9C'; c.beginPath(); c.ellipse(px, py, 36, 9, 0, 0, 7); c.fill(); drawCount++;
-  const pg = c.createLinearGradient(0, py - 8, 0, py + 8); pg.addColorStop(0, ART.skyLo); pg.addColorStop(1, '#3F87C4');
-  c.fillStyle = pg; c.beginPath(); c.ellipse(px, py, 33, 7, 0, 0, 7); c.fill(); drawCount++;
-  c.fillStyle = 'rgba(255,255,255,.38)'; c.beginPath(); c.ellipse(px - 8 + wob, py - 2, 12, 1.2, 0, 0, 7); c.ellipse(px + 10 - wob, py + 2.5, 8, 1, 0, 0, 7); c.fill(); drawCount++;
-  c.strokeStyle = '#7FA35A'; c.lineWidth = 1.2; c.beginPath(); for (const d of [-30, -26, 30]) { c.moveTo(px + d, py + 3); c.lineTo(px + d + 1, py - 8); } c.stroke(); drawCount++;
-  c.restore();
-}
 
 /* ── crew person: feet at (x, y), ~13 units tall ── */
 function w2_person(c, x, y, i, moving, working, now, face) {
@@ -2018,6 +2286,451 @@ function drawPad(c, gy, DW, now, tp) {
 }
 
 /* ── the turnaround theatre ── */
+
+/* ── preview ── */
+
+/* ── W6 · the liftoff sequence ── */
+/* ═══════════ W6 · the liftoff sequence — countdown, ignition flash, steam, smoke column, camera shake ═══════════ */
+const W6_MONO = 'ui-monospace, "SF Mono", "Cascadia Mono", "Segoe UI Mono", "Roboto Mono", Menlo, Consolas, monospace';
+function w6_ease(k) { k = clamp(k, 0, 1); return 1 - (1 - k) * (1 - k) * (1 - k); }
+function w6_r(i) { return ((i * 9301 + 49297) % 233280) / 233280; }
+// soft-edged puff: radial gradient lit from below-centre (warm) fading to the rim
+function w6_puff(c, x, y, r, rgb, a, warm) {
+  const g = c.createRadialGradient(x, y + r * 0.15, r * 0.05, x, y, r);
+  g.addColorStop(0, 'rgba(' + (warm ? '255,210,160' : rgb) + ',' + a + ')');
+  g.addColorStop(0.45, 'rgba(' + rgb + ',' + a * 0.85 + ')');
+  g.addColorStop(1, 'rgba(' + rgb + ',0)');
+  c.fillStyle = g; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill(); drawCount++;
+}
+
+/* ── countdown: 3 · 2 · 1 · IGNITION — centred in the upper third, pops in, fades out ── */
+function drawCountdown(c, DW, DH, n, frac, now) {
+  frac = clamp(frac, 0, 1);
+  const word = n === 0 ? 'IGNITION' : String(n);
+  const pop = 1 + 0.6 * (1 - w6_ease(frac / 0.18));          // 1.6 → 1 over the first 18 % of the second
+  const alpha = frac < 0.55 ? 1 : 1 - (frac - 0.55) / 0.45;
+  const size = n === 0 ? Math.min(DW * 0.15, DH * 0.09) : Math.min(DW * 0.42, DH * 0.2);
+  c.save();
+  c.translate(DW / 2, DH * 0.3); c.scale(pop, pop);
+  c.globalAlpha = alpha; c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.font = '800 ' + size + 'px ' + W6_MONO;
+  c.shadowColor = 'rgba(0,0,0,.65)'; c.shadowBlur = size * 0.18; c.shadowOffsetY = size * 0.05;
+  c.fillStyle = '#FFFFFF'; c.fillText(word, 0, 0); drawCount++;
+  c.shadowColor = 'transparent';
+  c.strokeStyle = 'rgba(15,25,45,.5)'; c.lineWidth = Math.max(1, size * 0.03); c.strokeText(word, 0, 0); drawCount++;
+  c.restore();
+}
+
+/* ── liftoff gas and light. t = s since ignition; x = pad centre; rocketBaseY = where the bells are now ── */
+function drawLiftoffFX(c, gy, DW, DH, t, x, rocketBaseY, now) {
+  if (t < 0 || t > 6) return;
+  const trenchY = gy - 7;                                       // W2's flame trench sits in the slab top at gy − 9 … gy − 5
+  c.save();
+  // 1 · ignition flash, 0–0.4 s: a white-hot ball at the base and a warm wash over the scene
+  if (t < 0.4) {
+    const k = t / 0.4, R = lerp(18, 110, w6_ease(k)), a = 1 - k;
+    c.fillStyle = 'rgba(255,220,170,' + (0.32 * a) + ')'; c.fillRect(0, 0, DW, DH); drawCount++;
+    const g = c.createRadialGradient(x, trenchY, 0, x, trenchY, R);
+    g.addColorStop(0, 'rgba(255,255,255,' + a + ')'); g.addColorStop(0.35, 'rgba(255,236,190,' + (0.8 * a) + ')'); g.addColorStop(1, 'rgba(255,160,80,0)');
+    c.fillStyle = g; c.beginPath(); c.arc(x, trenchY, R, 0, 7); c.fill(); drawCount++;
+  }
+  // 2 · smoke column, 0.5–6 s: grey-brown exhaust piled on the slab, reaching up to the rocket, thinning with t
+  if (t > 0.5) {
+    const born = clamp((t - 0.5) / 0.4, 0, 1), thin = clamp(1 - (t - 1.2) / 4.2, 0, 1);
+    const top = Math.max(Math.min(rocketBaseY + 6, gy - 20), gy - 170), span = Math.max(20, gy - 4 - top);
+    const N = 14, pile = 1 + 0.35 * Math.min(t, 4), tall = clamp(span / 90, 0.35, 1);   // a low rocket → a flat wide pile, not a ball            // the pile at the slab spreads sideways as the seconds pass
+    for (let i = 0; i < N; i++) {
+      const u = i / (N - 1), r0 = w6_r(i + 7), r1 = w6_r(i + 31);
+      const y = gy - 4 - u * span - Math.sin(now / 420 + i) * 2;
+      const wob = Math.sin(now / 260 + i * 1.7) * (4 + 10 * u);
+      const px = x + (r0 - 0.5) * (22 * (1 - u) + 30 * u) * pile / tall + wob;
+      const rad = lerp(28, 20, u) * (0.75 + 0.5 * r1) * pile * (u > 0.7 ? 1.3 : 1) * lerp(0.6, 1, tall);
+      const a = born * thin * lerp(0.75, 0.3, u) * lerp(0.7, 1, tall);
+      // lower puffs are lit by the flame: warmer core
+      const col = u < 0.35 ? '150,128,108' : u < 0.7 ? '124,110,100' : '108,98,92';
+      w6_puff(c, px, y, rad, col, a, u < 0.3);
+    }
+    // ground glow of the flame on the underside of the cloud while the rocket is still low
+    const low = clamp(1 - (gy - rocketBaseY) / 120, 0, 1);
+    if (low > 0) {
+      const g = c.createRadialGradient(x, gy - 6, 0, x, gy - 6, 60);
+      g.addColorStop(0, 'rgba(255,190,110,' + (0.55 * low * thin) + ')'); g.addColorStop(1, 'rgba(255,150,60,0)');
+      c.fillStyle = g; c.beginPath(); c.arc(x, gy - 6, 60, 0, 7); c.fill(); drawCount++;
+    }
+  }
+  // 3 · steam, 0.2–3 s: white lobes out of the trench both sides, rolling across the slab and beyond
+  if (t > 0.2 && t < 3.2) {
+    const k = (t - 0.2) / 2.8, fade = clamp((3.2 - t) / 0.9, 0, 1);
+    for (let side = -1; side <= 1; side += 2) for (let i = 0; i < 10; i++) {
+      const ri = w6_r(i * 3 + (side + 1) * 50), rj = w6_r(i * 5 + 17 + (side + 1) * 50);
+      const start = (i / 10) * 0.55, q = w6_ease((k - start) / 0.5);
+      if (q <= 0) continue;
+      const px = x + side * (14 + q * (48 + ri * 44)) + Math.sin(now / 300 + i) * 2;
+      const py = trenchY - q * (8 + rj * 26) - (1 - q) * 2;
+      const rad = 5 + q * (16 + ri * 12);
+      const a = fade * (1 - q * 0.55) * 0.95;
+      w6_puff(c, px, py, rad, '244,246,250', a, q < 0.3);
+    }
+  }
+  // 4 · sparks, 0–2 s: hot bits flung from the trench on arcs
+  if (t < 2) {
+    const a = 1 - t / 2;
+    c.fillStyle = 'rgba(255,214,120,' + a + ')';
+    c.beginPath();
+    for (let i = 0; i < 12; i++) {
+      const r0 = w6_r(i + 3), r1 = w6_r(i + 21), life = (t * (0.8 + r1) + r0) % 1;
+      const vx = (r0 - 0.5) * 160, vy = -(60 + r1 * 90);
+      const sx = x + vx * life, sy = trenchY + vy * life + 160 * life * life;
+      if (sy > gy) continue;
+      c.moveTo(sx + 1.2, sy); c.arc(sx, sy, 1.2, 0, 7);
+    }
+    c.fill(); drawCount++;
+  }
+  c.restore();
+}
+
+/* ── camera shake: ≤ 4 units, gone by t = 0.8 ── */
+function shakeOffset(t, now) {
+  const amp = 4 * clamp(1 - t / 0.8, 0, 1);
+  return { dx: amp * 0.7 * Math.sin(now / 23) * Math.sin(now / 7.3), dy: amp * 0.7 * Math.cos(now / 17 + 1) };
+}
+
+/* ── W8 · atmosphere and space ── */
+/* ───────── W8 · atmosphere and space polish ─────────
+   drawAtmosphere(c, DW, DH, km, now, stars)  — haze bands + twinkling stars (sits on top of the sky gradient)
+   drawReentry(c, DW, DH, km, v, now)         — plasma streak / shimmer / embers behind a descending ship at (DW/2, DH*0.58)
+   drawSunAndEarthshine(c, DW, DH, km, far, now) — sun disc with lens streak above 60 km; Earthshine on the bottom edge above 200 km
+   All deterministic on `now`; each ≤ 45 draws. */
+
+const w8_sp = km => clamp(Math.log10(km + 1) / 2.6, 0, 1);            // same curve drawScene uses
+const w8_rand = i => { const v = Math.sin(i * 127.1 + 311.7) * 43758.5453; return v - Math.floor(v); };   // sine hash: no diagonal correlation between neighbours
+/* smooth 0→1→0 window: full between a1..b1, ramps over a0..a1 and b1..b0 */
+const w8_win = (x, a0, a1, b1, b0) => x <= a0 || x >= b0 ? 0 : x < a1 ? (x - a0) / (a1 - a0) : x > b1 ? (b0 - x) / (b0 - b1) : 1;
+
+/* A soft horizontal band: a vertical gradient that peaks at y with half-height h. 1 draw. */
+function w8_band(c, DW, y, h, rgb, alpha) {
+  if (alpha <= 0.005) return;
+  const g = c.createLinearGradient(0, y - h, 0, y + h);
+  g.addColorStop(0, `rgba(${rgb},0)`); g.addColorStop(0.5, `rgba(${rgb},${alpha})`); g.addColorStop(1, `rgba(${rgb},0)`);
+  c.fillStyle = g; c.fillRect(0, y - h, DW, h * 2); drawCount++;
+}
+
+function drawAtmosphere(c, DW, DH, km, now, stars) {
+  const sp = w8_sp(km), groundY = DH * 0.78 + sp * DH * 1.1;
+  c.save();
+  /* ── stars: fade in above ~11 km, twinkle per star, bucketed into 4 alpha groups so it costs 4 draws not 120 ── */
+  const sa = clamp((sp - 0.42) / 0.35, 0, 1);
+  if (sa > 0 && stars && stars.length) {
+    const buckets = [[], [], [], []];
+    for (let i = 0; i < stars.length; i++) {
+      const s = stars[i], ph = w8_rand(i) * 6.283, sp2 = 0.6 + w8_rand(i + 77) * 1.2;
+      const tw = 0.55 + 0.45 * Math.sin(now / 1000 * sp2 * 2 + ph);
+      const a = clamp(sa * (s[3] == null ? 1 : s[3]) * tw, 0, 1);
+      buckets[Math.min(3, Math.floor(a * 4))].push(s);
+    }
+    c.fillStyle = '#FFFFFF';
+    for (let b = 0; b < 4; b++) {
+      if (!buckets[b].length) continue;
+      c.globalAlpha = (b + 0.6) / 4; c.beginPath();
+      for (const s of buckets[b]) { c.moveTo(s[0] + s[2], s[1]); c.arc(s[0], s[1], s[2], 0, 6.283); }
+      c.fill(); drawCount++;
+    }
+    /* four brightest get a tiny cross sparkle */
+    c.globalAlpha = sa * 0.55; c.strokeStyle = '#FFFFFF'; c.lineWidth = 0.8; c.beginPath();
+    for (let i = 0; i < Math.min(4, stars.length); i++) {
+      const s = stars[Math.floor(w8_rand(i + 5) * stars.length)], L = s[2] * 2.2 + 1.5 * (0.5 + 0.5 * Math.sin(now / 350 + i));
+      c.moveTo(s[0] - L, s[1]); c.lineTo(s[0] + L, s[1]); c.moveTo(s[0], s[1] - L); c.lineTo(s[0], s[1] + L);
+    }
+    c.stroke(); drawCount++;
+    c.globalAlpha = 1;
+  }
+  /* ── warm horizon band under 5 km: a peach glow hugging the ground line, thinning with altitude ── */
+  const warm = w8_win(km, -1, 0, 1.5, 5.5);
+  if (warm > 0 && groundY < DH + 60) {
+    w8_band(c, DW, groundY - 14, 44 + km * 6, '255,190,130', 0.6 * warm);
+    w8_band(c, DW, groundY - 4, 12, '255,232,200', 0.5 * warm);
+  }
+  /* ── tropopause haze: a thin blue-white line that slides down the screen as the ship passes 10–14 km ── */
+  const trop = w8_win(km, 6, 10, 14, 19);
+  if (trop > 0) {
+    const y = DH * 0.58 + (12 - km) * (DH / 9);
+    w8_band(c, DW, y, 22, '190,220,255', 0.28 * trop);
+    w8_band(c, DW, y, 5, '245,250,255', 0.32 * trop);
+    /* a few flat cirrus streaks riding the line, drifting on now */
+    c.globalAlpha = 0.32 * trop; c.fillStyle = '#F4F8FF';
+    for (let i = 0; i < 5; i++) {
+      const r = w8_rand(i + 11), w = 40 + r * 70, x = ((r * DW * 1.6 + now * (0.006 + r * 0.004)) % (DW + w)) - w;
+      c.beginPath(); c.ellipse(x + w / 2, y + (w8_rand(i + 31) - 0.5) * 14, w / 2, 1.4 + r, 0, 0, 6.283); c.fill(); drawCount++;
+    }
+    c.globalAlpha = 1;
+  }
+  /* ── noctilucent cloud at ~80 km: a faint silver-blue ripple band softening the dark-blue → black handoff ── */
+  const noct = w8_win(km, 55, 72, 90, 115);
+  if (noct > 0) {
+    const y = DH * 0.58 + (80 - km) * (DH / 60);
+    w8_band(c, DW, y, 30, '120,170,235', 0.22 * noct);
+    c.globalAlpha = 0.5 * noct; c.strokeStyle = '#CFE3FF'; c.lineWidth = 1.2;
+    for (let k = 0; k < 3; k++) {
+      c.beginPath();
+      for (let x = -4; x <= DW + 4; x += 6) {
+        const yy = y + (k - 1) * 9 + Math.sin(x / 26 + now / 1400 + k * 2) * 3 + Math.sin(x / 9 - now / 900) * 1.2;
+        x < 0 ? c.moveTo(x, yy) : c.lineTo(x, yy);
+      }
+      c.stroke(); drawCount++;
+    }
+    c.globalAlpha = 1;
+  }
+  c.restore();
+}
+
+function drawReentry(c, DW, DH, km, v, now) {
+  const k = w8_win(km, 35, 45, 105, 125) * clamp(v / 2200, 0, 1);
+  if (k <= 0.01) return;
+  const x = DW / 2, y = DH * 0.58, L = 70 + 90 * k;         // ship descends: the streak trails UP the screen
+  c.save();
+  /* wide soft plasma wake */
+  c.globalAlpha = 0.6 * k;
+  c.translate(x, y - 10); c.scale(1, L / 42);
+  let g = c.createRadialGradient(0, -24, 0, 0, -32, 40);   // centred well above the ship so the wake trails up and fades before its base
+  g.addColorStop(0, 'rgba(255,230,180,0.95)'); g.addColorStop(0.35, 'rgba(255,150,70,0.7)'); g.addColorStop(1, 'rgba(255,80,40,0)');
+  c.fillStyle = g; c.beginPath(); c.arc(0, -32, 40, 0, 6.283); c.fill(); drawCount++;
+  c.restore(); c.save();
+  /* bright core tongue right behind the ship */
+  c.globalAlpha = 0.85 * k;
+  g = c.createLinearGradient(0, y, 0, y - L * 0.6);
+  g.addColorStop(0, 'rgba(255,250,230,0.95)'); g.addColorStop(0.3, 'rgba(255,190,90,0.6)'); g.addColorStop(1, 'rgba(255,120,60,0)');
+  c.fillStyle = g; c.beginPath();
+  const wob = Math.sin(now / 90) * 3;
+  c.moveTo(x - 14, y + 4); c.quadraticCurveTo(x - 10 + wob, y - L * 0.3, x, y - L * 0.6);
+  c.quadraticCurveTo(x + 10 + wob, y - L * 0.3, x + 14, y + 4); c.closePath(); c.fill(); drawCount++;
+  /* heat shimmer: wavy translucent lines in the wake */
+  c.globalAlpha = 0.28 * k; c.strokeStyle = '#FFE0B0'; c.lineWidth = 1;
+  for (let i = 0; i < 3; i++) {
+    const ox = (i - 1) * 10; c.beginPath();
+    for (let t = 0; t <= 1; t += 0.1) {
+      const yy = y - t * L * 0.7, xx = x + ox * (1 + t * 1.6) + Math.sin(t * 9 + now / 120 + i * 2) * (1.5 + t * 2.5);
+      t === 0 ? c.moveTo(xx, yy) : c.lineTo(xx, yy);
+    }
+    c.stroke(); drawCount++;
+  }
+  /* embers: 14 sparks streaming up and outward, flickering */
+  c.fillStyle = '#FFB347';
+  for (let i = 0; i < 14; i++) {
+    const r = w8_rand(i + 3), r2 = w8_rand(i + 41), t = ((now / (900 + r * 700)) + r2) % 1;
+    const yy = y - 6 - t * L * 1.05, xx = x + (r - 0.5) * 24 * (1 + t * 3) + Math.sin(now / 150 + i) * 2;
+    c.globalAlpha = k * (1 - t) * (0.5 + 0.5 * Math.sin(now / 60 + i * 2));
+    c.fillStyle = r2 > 0.6 ? '#FFF4C2' : '#FFB347';
+    c.beginPath(); c.arc(xx, yy, 1 + r * 1.6 * (1 - t), 0, 6.283); c.fill(); drawCount++;
+  }
+  /* hot rim glow on the ship's leading (lower) edge */
+  c.globalAlpha = 0.55 * k;
+  g = c.createRadialGradient(x, y + 12, 0, x, y + 12, 34);
+  g.addColorStop(0, 'rgba(255,240,200,0.7)'); g.addColorStop(1, 'rgba(255,120,60,0)');
+  c.fillStyle = g; c.beginPath(); c.arc(x, y + 12, 34, 0, 6.283); c.fill(); drawCount++;
+  c.restore();
+}
+
+function drawSunAndEarthshine(c, DW, DH, km, far, now) {
+  c.save();
+  /* ── sun: upper-left, fades in 60–120 km ── */
+  const sk = clamp((km - 60) / 60, 0, 1);
+  if (sk > 0) {
+    const sx = DW * 0.17, sy = DH * 0.13, R = 15;
+    c.globalAlpha = sk;
+    let g = c.createRadialGradient(sx, sy, R * 0.6, sx, sy, R * 4.2);
+    g.addColorStop(0, 'rgba(255,245,215,0.75)'); g.addColorStop(0.4, 'rgba(255,220,160,0.22)'); g.addColorStop(1, 'rgba(255,200,140,0)');
+    c.fillStyle = g; c.beginPath(); c.arc(sx, sy, R * 4.2, 0, 6.283); c.fill(); drawCount++;
+    /* lens streak: a long horizontal flare through the disc */
+    g = c.createLinearGradient(sx - DW * 0.5, 0, sx + DW * 0.75, 0);
+    g.addColorStop(0, 'rgba(255,240,220,0)'); g.addColorStop(0.4, 'rgba(255,240,220,0.55)'); g.addColorStop(0.6, 'rgba(255,240,220,0.35)'); g.addColorStop(1, 'rgba(255,240,220,0)');
+    c.fillStyle = g; c.fillRect(sx - DW * 0.5, sy - 1.2, DW * 1.25, 2.4); drawCount++;
+    /* a slimmer tilted streak for character */
+    c.save(); c.translate(sx, sy); c.rotate(-0.55);
+    g = c.createLinearGradient(-90, 0, 90, 0); g.addColorStop(0, 'rgba(255,235,205,0)'); g.addColorStop(0.5, 'rgba(255,235,205,0.45)'); g.addColorStop(1, 'rgba(255,235,205,0)');
+    c.fillStyle = g; c.fillRect(-90, -0.8, 180, 1.6); drawCount++; c.restore();
+    /* disc with a lit-side gradient */
+    g = c.createRadialGradient(sx - 4, sy - 4, 1, sx, sy, R);
+    g.addColorStop(0, '#FFFFFF'); g.addColorStop(0.7, '#FFF4C2'); g.addColorStop(1, '#FFD98A');
+    c.fillStyle = g; c.beginPath(); c.arc(sx, sy, R, 0, 6.283); c.fill(); drawCount++;
+    /* ghost flares along the line from sun through centre — the goofy lens-ring bits */
+    const dx = DW / 2 - sx, dy = DH / 2 - sy;
+    const ghosts = [[0.4, 7, '120,200,255'], [0.6, 4, '255,180,220'], [0.8, 11, '170,230,255']];   // stay above the ship at DH*0.58
+    for (const [t, r, col] of ghosts) {
+      const gx = sx + dx * t, gy = sy + dy * t, pulse = 0.8 + 0.2 * Math.sin(now / 700 + t * 5);
+      c.globalAlpha = sk * 0.28 * pulse; c.strokeStyle = `rgb(${col})`; c.lineWidth = 1.5;
+      c.beginPath(); c.arc(gx, gy, r, 0, 6.283); c.stroke(); drawCount++;
+    }
+    c.globalAlpha = 1;
+  }
+  /* ── Earthshine: a soft blue glow creeping up from the bottom edge above 200 km ── */
+  const ek = clamp((km - 200) / 200, 0, 1) * (1 - clamp((far - 0.85) / 0.15, 0, 1));   // gone when the Moon fills the frame
+  if (ek > 0) {
+    const h = DH * 0.34;
+    const g = c.createLinearGradient(0, DH - h, 0, DH);
+    g.addColorStop(0, 'rgba(90,150,235,0)'); g.addColorStop(0.7, `rgba(90,150,235,${0.18 * ek})`); g.addColorStop(1, `rgba(140,190,255,${0.42 * ek})`);
+    c.fillStyle = g; c.fillRect(0, DH - h, DW, h); drawCount++;
+    /* a whisper of the same blue on the frame's lower corners, like light wrapping around */
+    const g2 = c.createRadialGradient(DW / 2, DH + DW * 0.3, DW * 0.2, DW / 2, DH + DW * 0.3, DW * 0.9);
+    g2.addColorStop(0, `rgba(160,205,255,${0.22 * ek})`); g2.addColorStop(1, 'rgba(160,205,255,0)');
+    c.fillStyle = g2; c.fillRect(0, DH * 0.5, DW, DH * 0.5); drawCount++;
+  }
+  c.restore();
+}
+
+/* ───────── preview ───────── */
+
+/* ── W5 · farm extras, the crowd, the flatbed hand-off ── */
+/* ── W5 · farm extras and the flatbed hand-off ──────────────────────────────
+   Returns the COMPLETE drawFarm(c, gy, DW, DH, now, km) and drawTurnaround(...) (replacing W2's),
+   plus drawCrowd(c, gy, DW, now, excited). New private helpers are w5_*.
+   Integration: call drawCrowd(c, gy, DW, now, excited) right after drawPad (it sits on the ground,
+   bottom-left, x from DW*0.04 to DW/2 − 70, never under the LAUNCH corner).
+   W2's helpers (w2_ease, w2_rr, w2_shadow, w2_grad, w2_person, w2_truckBase, w2_crane, w2_craneTop,
+   w2_hook, drawPad) are unchanged and only repeated inside the PREVIEW-ONLY block. */
+
+
+
+/* ── W5 helpers ── */
+function w5_r(i) { return (i * 9301 + 49297) % 233280 / 233280; }
+function w5_trees(c, list) {                          // list of [x, footY, r, i] — the whole line in 3 fills
+  c.fillStyle = '#4E3A22'; c.beginPath(); for (const [x, y, r] of list) c.rect(x - 1, y - r * 0.9, 2, r * 0.9); c.fill(); drawCount++;
+  for (const pass of [0, 1]) {                                  // pass 0: darker trees, pass 1: lighter trees
+    c.fillStyle = pass ? '#5FA24C' : '#3F7A3A'; c.beginPath();
+    for (const [x, y, r, i] of list) if ((w5_r(i) > 0.5) === !pass) { c.moveTo(x + r, y - r * 1.3); c.arc(x, y - r * 1.3, r, 0, 7); c.moveTo(x + r * 1.3, y - r * 0.9); c.arc(x + r * 0.6, y - r * 0.9, r * 0.7, 0, 7); }
+    c.fill(); drawCount++;
+  }
+  c.fillStyle = 'rgba(255,255,255,.22)'; c.beginPath();          // lit lobe on every tree
+  for (const [x, y, r] of list) { c.moveTo(x - r * 0.3 + r * 0.45, y - r * 1.55); c.arc(x - r * 0.3, y - r * 1.55, r * 0.45, 0, 7); }
+  c.fill(); drawCount++;
+}
+function w5_poplar(c, x, y, h) {
+  c.fillStyle = '#4E3A22'; c.fillRect(x - 0.8, y - 6, 1.6, 6); drawCount++;
+  c.fillStyle = w2_grad(c, x - 4, x + 4, '#5FA24C', '#3F7A3A'); c.beginPath(); c.ellipse(x, y - h / 2 - 4, 4, h / 2, 0, 0, 7); c.fill(); drawCount++;
+}
+function w5_cow(c, x, y, i, now, face) {                // hooves at (x, y), ~14 long, faces `face` (±1)
+  const bob = Math.sin(now / 900 + i * 2.1) * 1.4, graze = Math.sin(now / 900 + i * 2.1) > 0.6;
+  c.save(); c.translate(x, y); c.scale(face, 1);
+  w2_shadow(c, 0, 0.5, 9, 1.6);
+  c.strokeStyle = '#2A2F36'; c.lineWidth = 1.4; c.lineCap = 'round'; c.beginPath();
+  for (const lx of [-5, -3, 3, 5]) { c.moveTo(lx, -4); c.lineTo(lx, 0); } c.stroke(); drawCount++;   // legs
+  c.fillStyle = '#F3F4F6'; c.beginPath(); c.ellipse(0, -7, 7.5, 4, 0, 0, 7); c.fill(); drawCount++;  // body
+  c.fillStyle = '#2A2F36'; c.beginPath(); c.ellipse(-2 + w5_r(i) * 3, -7.5, 2.6, 2, 0.3, 0, 7); c.ellipse(4, -6, 1.6, 1.4, 0, 0, 7); c.fill(); drawCount++;  // patches
+  c.fillStyle = '#F2C9A0'; c.beginPath(); c.ellipse(-8, -8.5, 2.2, 1.4, 0, 0, 7); c.fill(); drawCount++;  // udder-ish pink
+  c.save(); c.translate(7, -9); c.rotate(graze ? 0.9 : 0.15 + bob * 0.08);                          // head bobs, dips to graze
+  c.fillStyle = '#F3F4F6'; c.beginPath(); c.ellipse(2, 0, 3.2, 2.2, 0, 0, 7); c.fill();
+  c.fillStyle = '#2A2F36'; c.beginPath(); c.arc(1, -1, 1.2, 0, 7); c.fill(); c.fillRect(-0.5, -2.8, 2, 1.2);   // eye patch + ear
+  c.fillStyle = '#F2C9A0'; c.beginPath(); c.ellipse(4, 0.6, 1.6, 1.1, 0, 0, 7); c.fill(); drawCount += 3;    // muzzle
+  c.restore(); c.restore();
+}
+
+/* ── the farm ── */
+function drawFarm(c, gy, DW, DH, now, km) {
+  const k = clamp(km / 1.5, 0, 1), near = k * 26, far = k * 8, X = DW / 2;
+  c.save();
+  // ground fill, lit near the horizon
+  const gg = c.createLinearGradient(0, gy, 0, DH + 40);
+  gg.addColorStop(0, '#5B8A52'); gg.addColorStop(0.5, ART.ground); gg.addColorStop(1, ART.groundDk);
+  c.fillStyle = gg; c.fillRect(0, gy, DW, DH - gy + 40); drawCount++;
+  // a sliver of sea on the right horizon, behind the hills
+  const sx0 = DW * 0.56;
+  const sg = c.createLinearGradient(0, gy - 3 + far, 0, gy + 5 + far); sg.addColorStop(0, '#2E6A9C'); sg.addColorStop(1, '#5FA8D8');
+  c.fillStyle = sg; c.fillRect(sx0, gy - 4 + far, DW - sx0, 9); drawCount++;
+  c.fillStyle = 'rgba(255,255,255,.55)'; const gl = Math.sin(now / 900) * 6;                          // glint
+  c.fillRect(DW * 0.74 + gl, gy - 2 + far, 10, 0.9); c.fillRect(DW * 0.88 - gl, gy + 1 + far, 7, 0.9); drawCount++;
+  { const bx = DW * 0.8 + Math.sin(now / 4000) * 14, by = gy - 0.5 + far;                          // one tiny sailboat
+    c.fillStyle = '#F3F4F6'; c.beginPath(); c.moveTo(bx, by - 7); c.lineTo(bx + 3.5, by - 1); c.lineTo(bx, by - 1); c.fill();
+    c.fillStyle = '#E0523A'; c.fillRect(bx - 2.5, by - 1, 6, 1.5); drawCount += 2; }
+  // far hills poking over the horizon (left; the right one stays low so the sea shows)
+  c.fillStyle = '#6E9668'; c.beginPath(); c.ellipse(DW * 0.2, gy + 3 + far, DW * 0.34, 13, 0, 0, 7); c.fill(); drawCount++;
+  c.fillStyle = '#5F875A'; c.beginPath(); c.ellipse(DW * 0.55, gy + 7 + far, DW * 0.16, 7, 0, 0, 7); c.fill(); drawCount++;
+  // near-horizon ground strip in front of the sea
+  c.fillStyle = '#5B8A52'; c.fillRect(0, gy + 5 + far, DW, 4); drawCount++;
+  // crop rows: alternating wedges fanning from a vanishing point behind the horizon
+  const vx = X, vy = gy - 30 + far, bottom = DH + 40;
+  c.save(); c.beginPath(); c.rect(0, gy + 4 + far, DW, bottom); c.clip();
+  for (let i = -6; i <= 6; i++) {
+    if (Math.abs(i) < 2) continue;                          // leave the pad apron plain
+    const x0 = vx + i * 26, x1 = vx + i * 150, x2 = vx + (i + 1) * 150, x3 = vx + (i + 1) * 26;
+    c.fillStyle = (i & 1) ? 'rgba(40,70,36,.28)' : 'rgba(180,210,120,.10)';
+    c.beginPath(); c.moveTo(x0, vy); c.lineTo(x1, bottom); c.lineTo(x2, bottom); c.lineTo(x3, vy); c.fill(); drawCount++;
+  }
+  c.restore();
+  // tree line on the horizon: behind the fence on the left, a few around the site edge on the right (low, so the sea shows)
+  const trees = [], nT = DW > 500 ? 7 : 5;
+  for (let i = 0; i < nT; i++) trees.push([lerp(70, X - 118, (i + 0.5) / nT) + (w5_r(i) - 0.5) * 10, gy + 7 + far, 5.5 + w5_r(i + 3) * 2.5, i]);
+  for (let i = 0; i < 3; i++) trees.push([lerp(X + 126, DW - 10, (i + 0.5) / 3) + (w5_r(i + 9) - 0.5) * 8, gy + 15 + far, 5 + w5_r(i + 12) * 2, i + 9]);
+  trees.push([DW * 0.8 + 44, gy + 28 + near, 7, 21]);       // the one behind the pond
+  w5_trees(c, trees);
+  // fence along the left field
+  const fy = gy + 16 + near * 0.6;
+  c.strokeStyle = '#D9C9A8'; c.lineWidth = 1.2; c.beginPath();
+  for (let x = 6; x < X - 96; x += 15) { c.moveTo(x, fy - 9); c.lineTo(x, fy); }
+  c.moveTo(4, fy - 7); c.lineTo(X - 98, fy - 7); c.moveTo(4, fy - 3); c.lineTo(X - 98, fy - 3); c.stroke(); drawCount++;
+  // barn far left, on the horizon, with two poplars beside the silo
+  const bx = 12, by = gy + 2 + far;
+  w5_poplar(c, bx + 58, by + 1, 30); w5_poplar(c, bx + 66, by + 2, 24);
+  w2_shadow(c, bx + 22, by + 2, 26, 3);
+  c.fillStyle = w2_grad(c, bx, bx + 36, '#C24E42', '#8F3129'); c.fillRect(bx, by - 18, 36, 18); drawCount++;
+  c.fillStyle = '#6E2A24'; c.beginPath(); c.moveTo(bx - 2, by - 18); c.lineTo(bx + 6, by - 28); c.lineTo(bx + 18, by - 32); c.lineTo(bx + 30, by - 28); c.lineTo(bx + 38, by - 18); c.fill(); drawCount++;
+  c.fillStyle = '#F3F4F6'; c.fillRect(bx + 14, by - 12, 8, 12); c.fillStyle = '#8F3129'; c.fillRect(bx + 17.4, by - 12, 1.2, 12); drawCount++;
+  c.fillStyle = '#F3F4F6'; c.fillRect(bx + 4, by - 15, 5, 5); c.fillRect(bx + 27, by - 15, 5, 5); drawCount++;
+  // silo
+  c.fillStyle = w2_grad(c, bx + 40, bx + 50, '#DCE3EA', '#9AA6B2'); c.fillRect(bx + 40, by - 30, 10, 30); c.beginPath(); c.arc(bx + 45, by - 30, 5, Math.PI, 0); c.fill(); drawCount++;
+  // pond with a wobbling sky reflection (right field), a tree behind it
+  const px = DW * 0.8, py = gy + 34 + near, wob = Math.sin(now / 700) * 2;
+  c.fillStyle = '#2E6A9C'; c.beginPath(); c.ellipse(px, py, 36, 9, 0, 0, 7); c.fill(); drawCount++;
+  const pg = c.createLinearGradient(0, py - 8, 0, py + 8); pg.addColorStop(0, ART.skyLo); pg.addColorStop(1, '#3F87C4');
+  c.fillStyle = pg; c.beginPath(); c.ellipse(px, py, 33, 7, 0, 0, 7); c.fill(); drawCount++;
+  c.fillStyle = 'rgba(255,255,255,.38)'; c.beginPath(); c.ellipse(px - 8 + wob, py - 2, 12, 1.2, 0, 0, 7); c.ellipse(px + 10 - wob, py + 2.5, 8, 1, 0, 0, 7); c.fill(); drawCount++;
+  c.strokeStyle = '#7FA35A'; c.lineWidth = 1.2; c.beginPath(); for (const d of [-30, -26, 30]) { c.moveTo(px + d, py + 3); c.lineTo(px + d + 1, py - 8); } c.stroke(); drawCount++;
+  // cows grazing bottom-left of the pad — right of the grandstand (ends at X − 70), below the crew's safe line (gy + 12..26)
+  const cy = gy + 44 + near;
+  const cx0 = DW > 500 ? X - 52 : X - 44;
+  w5_cow(c, cx0, cy, 0, now, 1); w5_cow(c, cx0 + 22, cy + 9, 1, now, -1); if (DW > 500) w5_cow(c, X - 78, cy + 12, 2, now, 1);
+  c.restore();
+}
+
+/* ── the grandstand — bottom-left, x from DW*0.04 to DW/2 − 70 ── */
+function drawCrowd(c, gy, DW, now, excited) {
+  const x0 = DW * 0.04, x1 = Math.min(DW / 2 - 70, x0 + 170), w = x1 - x0, base = gy + 56, step = 8, depth = 7;
+  if (w < 50) return;
+  c.save();
+  w2_shadow(c, (x0 + x1) / 2, base + 2, w / 2 + 4, 3);
+  // three tiers of bench, back tier highest; each tier is a riser (dark face) + a plank (lit top)
+  for (let t = 2; t >= 0; t--) {
+    const y = base - t * step, xs = x0 + t * 3, xe = x1 - t * 3;
+    c.fillStyle = '#5A6470'; c.fillRect(xs, y - depth, xe - xs, depth); drawCount++;
+    c.fillStyle = w2_grad(c, xs, xe, '#C9A065', '#9A7442'); c.fillRect(xs - 1, y - depth - 2.5, xe - xs + 2, 2.5); drawCount++;
+    // spectators on this tier: shirts batched by colour, then heads, then (excited) arms — ≈10 fills per tier
+    const n = Math.max(8, Math.floor((xe - xs) / 9)), sy = y - depth - 2.5, folk = [];
+    for (let i = 0; i < n; i++) {
+      const id = t * 40 + i, r = w5_r(id), r2 = w5_r(id + 7), px = xs + 5 + (i + 0.5) * (xe - xs - 10) / n + (r - 0.5) * 3;
+      const ph = now / 110 + id * 1.3, jump = excited ? Math.max(0, Math.sin(ph)) * 4 * (0.5 + r2) : 0;
+      folk.push({ px, jump, col: Math.floor(r * 6), dark: r2 > 0.5, wv: Math.sin(ph * 1.7) * 1.5 });
+    }
+    const shirts = ['#E0523A', '#FFC24D', '#4FD9E6', '#8AC46A', '#F3F4F6', '#B36BE0'];
+    shirts.forEach((col, k) => { c.fillStyle = col; c.beginPath(); for (const f of folk) if (f.col === k) c.roundRect(f.px - 2.6, sy - 6.5 - f.jump, 5.2, 6.5, 1.5); c.fill(); drawCount++; });
+    for (const dark of [false, true]) {
+      c.fillStyle = dark ? '#8D5A3A' : '#F2C9A0'; c.beginPath();
+      for (const f of folk) if (f.dark === dark) { c.moveTo(f.px + 2.1, sy - 8.5 - f.jump); c.arc(f.px, sy - 8.5 - f.jump, 2.1, 0, 7); }
+      c.fill(); drawCount++;
+      if (excited) {                                                                                      // arms up, waving
+        c.strokeStyle = c.fillStyle; c.lineWidth = 1.2; c.lineCap = 'round'; c.beginPath();
+        for (const f of folk) if (f.dark === dark) { c.moveTo(f.px - 2.4, sy - 6 - f.jump); c.lineTo(f.px - 4 + f.wv, sy - 12 - f.jump); c.moveTo(f.px + 2.4, sy - 6 - f.jump); c.lineTo(f.px + 4 - f.wv, sy - 12 - f.jump); }
+        c.stroke(); drawCount++;
+      }
+    }
+  }
+  // GO! banner along the front rail
+  const bw = Math.min(46, w * 0.5), bxc = x0 + w * 0.5, by = base - 2.5;
+  c.fillStyle = '#F3F4F6'; w2_rr(c, bxc - bw / 2, by - 9, bw, 9, 1.5); c.fill(); drawCount++;
+  c.fillStyle = '#E0523A'; c.font = '800 7.5px system-ui, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('GO!', bxc, by - 4.3); drawCount++;
+  // rail posts
+  c.fillStyle = '#5A6470'; c.fillRect(x0 - 1, base - 16, 2, 16); c.fillRect(x1 - 1, base - 16, 2, 16); drawCount++;
+  c.restore();
+}
+
+/* ── the turnaround theatre (W2's, with the flatbed hand-off) ── */
 function drawTurnaround(c, gy, DW, DH, p, t, now, drawRocketFn, rocketDimsFn) {
   p = clamp(p, 0, 1);
   const X = DW / 2, B = gy - 4, d = rocketDimsFn(t), totalH = d.totalH || d.bodyH + d.noseH;
@@ -2028,10 +2741,11 @@ function drawTurnaround(c, gy, DW, DH, p, t, now, drawRocketFn, rocketDimsFn) {
   const parkX = X - 158, tx = lerp(-130, parkX, w2_ease(p / 0.3)), bedTop = gy - 4, bedMid = tx + 26;
   const jolt = p < 0.3 ? Math.sin(now / 45) * 0.6 : 0;
   w2_truckBase(c, tx, gy + 4 + jolt, 72, true, '#5F6B78', '#3A434D');
-  // sections still on the bed, lying down at 0.5 scale
+  // sections still on the bed, lying down (nose toward the cab) at 0.5 scale
+  const bedOx = bedMid - 0.5 * totalH / 2 - 2, bedOy = bedTop - 0.5 * d.bodyW / 2;   // rocket origin on the bed
   const lifting = p < 0.3 ? -1 : p >= 0.85 ? 3 : Math.floor((p - 0.3) / 0.1834);
   if (lifting < 3) {
-    c.save(); c.translate(bedMid - 0.5 * totalH / 2 - 2, bedTop - 0.5 * d.bodyW / 2 + jolt); c.rotate(Math.PI / 2); c.scale(0.5, 0.5);
+    c.save(); c.translate(bedOx, bedOy + jolt); c.rotate(Math.PI / 2); c.scale(0.5, 0.5);
     c.beginPath(); for (let i = Math.max(0, lifting + 1); i < 3; i++) c.rect(-xm, bands[i][0], xm * 2, bands[i][1] - bands[i][0]); c.clip();
     drawRocketFn(c, 0, 0, t, 0, false, now); c.restore();
   }
@@ -2041,25 +2755,29 @@ function drawTurnaround(c, gy, DW, DH, p, t, now, drawRocketFn, rocketDimsFn) {
     c.save(); c.beginPath(); for (let i = 0; i < lifting; i++) c.rect(X - xm, B + bands[i][0], xm * 2, bands[i][1] - bands[i][0]); c.clip();
     drawRocketFn(c, X, B, t, 0, false, now); c.restore();
   }
-  // the section on the crane
+  // the section on the crane: the hook takes the top end while it lies on the bed, and the piece
+  // rotates from flat (π/2, matching the bed) to upright and grows from bed scale to full over the first 30 % of its lift
   if (lifting >= 0 && lifting < 3) {
     const q = ((p - 0.3) - lifting * 0.1834) / 0.1834, [y0, y1] = bands[lifting];
-    const Btruck = bedTop - y1, Bhigh = Math.max(B - totalH - 26 - y1, cr.top + 12 - y0);
-    let sx, sB, sw = 0;
-    if (q < 0.3) { sx = bedMid; sB = lerp(Btruck, Bhigh, w2_ease(q / 0.3)); sw = q / 0.3; }
-    else if (q < 0.72) { const u = w2_ease((q - 0.3) / 0.42); sx = lerp(bedMid, X, u); sB = Bhigh; sw = 1; }
+    const pivotBedX = bedOx - 0.5 * y0, pivotBedY = bedOy;          // where the section's top end lies on the bed
+    const Bhigh = Math.max(B - totalH - 26 - y1, cr.top + 12 - y0);
+    const Bclear = pivotBedY - (y1 - y0) - 8 - y0;                    // hook height at which the upright piece just clears the bed
+    let sx, sB, sw = 0, rot = 0, sc = 1;
+    if (q < 0.3) { const u = w2_ease(q / 0.3); sx = lerp(pivotBedX, bedMid, u); sB = lerp(pivotBedY - y0, Bclear, u); sw = u * 0.6; rot = (1 - u) * Math.PI / 2; sc = lerp(0.5, 1, u); }
+    else if (q < 0.72) { const u = w2_ease((q - 0.3) / 0.42); sx = lerp(bedMid, X, u); sB = lerp(Bclear, Bhigh, Math.min(1, u * 1.6)); sw = 1; }
     else { sx = X; sB = lerp(Bhigh, B, w2_ease((q - 0.72) / 0.28)); sw = 1 - w2_ease((q - 0.72) / 0.28); }
     const swing = Math.sin(now / 420 + lifting) * 7 * sw, tilt = Math.cos(now / 420 + lifting) * 0.05 * sw;
-    w2_hook(c, sx, cr.top, sB + y0 - 6 + swing * 0.05);
-    c.save(); c.translate(sx + swing, sB + y0); c.rotate(tilt); c.translate(-sx, -(sB + y0));
-    c.beginPath(); c.rect(sx - xm, sB + y0, xm * 2, y1 - y0); c.clip(); drawRocketFn(c, sx, sB, t, 0, false, now); c.restore();
+    const hy = sB + y0;                                                // hook point = top of the section
+    w2_hook(c, sx + swing * 0.5, cr.top, hy - 6 + swing * 0.05);
+    c.save(); c.translate(sx + swing, hy); c.rotate(tilt + rot); c.scale(sc, sc); c.translate(-sx, -hy);
+    c.beginPath(); c.rect(sx - xm, hy, xm * 2, y1 - y0); c.clip(); drawRocketFn(c, sx, sB, t, 0, false, now); c.restore();
   } else if (p >= 0.85) {
     const u = w2_ease((p - 0.85) / 0.15); w2_hook(c, lerp(X, cr.mx - 30, u), cr.top, cr.top + lerp(60, 22, u));   // hook goes home
   } else w2_hook(c, cr.mx - 30, cr.top, cr.top + 22);
-  // crew: 7 people, each with a job, all left of X + 60
+  // crew: 7 people, each with a job, all left of X + 60; the safe line stays on screen at 360 wide
   const barnX = 34, stations = [[X - 34, gy + 10], [X - 80, gy + 8], [X - 52, gy + 12], [X - 20, gy + 14], [X - 100, gy + 12], [X + 8, gy + 10], [X - 66, gy + 6]];
   for (let i = 0; i < 7; i++) {
-    const [sxp, syp] = stations[i], safeX = X - 120 - i * 11, safeY = gy + 12 + (i % 3) * 3;
+    const [sxp, syp] = stations[i], safeX = Math.max(10 + (i % 3) * 6, X - 120 - i * 11), safeY = gy + 12 + (i % 3) * 3;
     let x, y, moving = false, working = false, face = 1;
     if (p < 0.3) { const u = w2_ease((p - 0.02 - i * 0.025) / 0.2); x = lerp(barnX + i * 4, sxp, u); y = lerp(gy + 8, syp, u); moving = u > 0 && u < 1; }
     else if (p < 0.85) { x = sxp; y = syp; working = true; face = i % 2 ? -1 : 1; }
@@ -2067,10 +2785,8 @@ function drawTurnaround(c, gy, DW, DH, p, t, now, drawRocketFn, rocketDimsFn) {
     w2_person(c, x, y, i, moving, working, now, face);
   }
   // safe line rope when they are clearing
-  if (p > 0.9) { c.save(); c.globalAlpha = w2_ease((p - 0.9) / 0.1); c.strokeStyle = '#F2C230'; c.lineWidth = 1.5; c.beginPath(); c.moveTo(X - 110, gy + 22); c.lineTo(X - 200, gy + 26); c.stroke(); c.restore(); drawCount++; }
+  if (p > 0.9) { c.save(); c.globalAlpha = w2_ease((p - 0.9) / 0.1); c.strokeStyle = '#F2C230'; c.lineWidth = 1.5; c.beginPath(); c.moveTo(X - 110, gy + 22); c.lineTo(Math.max(6, X - 200), gy + 26); c.stroke(); c.restore(); drawCount++; }
 }
-
-/* ── preview ── */
 
 /* ── ground starfield — drawn once, behind everything ── */
 function drawGround() {
@@ -2097,9 +2813,13 @@ function drawLadder() {
   const y = km => H - 8 - clamp(Math.log10(km + 1) / Math.log10(MOON_KM + 1), 0, 1) * (H - 16);
   c.strokeStyle = col('--h-border'); c.lineWidth = 2; c.beginPath(); c.moveTo(14, 8); c.lineTo(14, H - 8); c.stroke();
   c.font = '600 9px ' + col('--wa-font-family-heading'); c.textBaseline = 'middle';
-  for (const m of MILESTONES) { const yy = y(m.km); const got = S.milestones.includes(m.km);
-    c.strokeStyle = got ? col('--h-accent') : col('--h-border'); c.beginPath(); c.moveTo(8, yy); c.lineTo(20, yy); c.stroke();
-    c.fillStyle = got ? col('--h-text') : col('--h-text-muted'); c.fillText((m.km >= MOON_KM ? 'MOON' : fmtMi(m.km) + ' mi').toUpperCase(), 24, yy); }
+  /* Ticks sit at their true height; labels are pushed apart (bottom-up) so none overlap on a short phone strip. */
+  const rows = MILESTONES.map(m => ({ m, yy: y(m.km), ly: y(m.km) })).sort((a, b) => b.yy - a.yy);
+  for (let i = 1; i < rows.length; i++) if (rows[i - 1].ly - rows[i].ly < 10) rows[i].ly = rows[i - 1].ly - 10;
+  for (const r of rows) { const got = S.milestones.includes(r.m.km);
+    c.strokeStyle = got ? col('--h-accent') : col('--h-border'); c.beginPath(); c.moveTo(8, r.yy); c.lineTo(20, r.yy); c.stroke();
+    if (Math.abs(r.ly - r.yy) > 1) { c.beginPath(); c.moveTo(20, r.yy); c.lineTo(23, r.ly); c.stroke(); }
+    c.fillStyle = got ? col('--h-text') : col('--h-text-muted'); c.fillText((r.m.km >= MOON_KM ? 'MOON' : fmtMi(r.m.km) + ' mi').toUpperCase(), 24, r.ly); }
   if (S.bestKm > 0) { const yb = y(S.bestKm); c.fillStyle = col('--h-positive'); c.beginPath(); c.arc(14, yb, 4, 0, 7); c.fill();
     /* the BEST tag sits right of the dot; nudged off a milestone label if one is within a line-height */
     const near = MILESTONES.some(m => Math.abs(y(m.km) - yb) < 10); c.font = '700 8px ' + col('--wa-font-family-heading');
