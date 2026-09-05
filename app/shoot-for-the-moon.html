@@ -620,10 +620,10 @@ body {
   <section class="panel act" id="p-pad">
     <div class="stage">
       <aside class="hud" id="hud">
-        <div class="gauge" title="How high the last (or current) flight got"><div class="k">Altitude</div>
-          <div class="v" id="g-alt">0<small>km</small></div><div class="bar"><i id="b-alt"></i></div></div>
-        <div class="gauge" title="Speed right now"><div class="k">Speed</div>
-          <div class="v" id="g-spd">0<small>m/s</small></div><div class="bar spd"><i id="b-spd"></i></div></div>
+        <div class="gauge" title="How high the last (or current) flight got, in miles"><div class="k">Altitude</div>
+          <div class="v" id="g-alt">0<small>mi</small></div><div class="bar"><i id="b-alt"></i></div></div>
+        <div class="gauge" title="Speed right now, in miles per hour"><div class="k">Speed</div>
+          <div class="v" id="g-spd">0<small>mph</small></div><div class="bar spd"><i id="b-spd"></i></div></div>
         <div class="gauge" title="Fuel left in the tank"><div class="k">Fuel</div>
           <div class="v" id="g-fuel">100<small>%</small></div><div class="bar fuel"><i id="b-fuel"></i></div></div>
         <div class="gauge ladder" title="The altitude ladder — pad to Moon, log scale. Ticks are milestones; the dot is your best.">
@@ -695,6 +695,8 @@ body {
         </tbody></table></div>
       <p>No scheduled work runs for this project — nothing fires without you pressing it.</p>
       <h3>Scoring</h3>
+      <p>Distances are shown in miles and speeds in miles per hour; the sim underneath is metric and is
+         converted only at display time.</p>
       <p>Records are kept on this device only. There is no shared leaderboard yet; if one arrives it
          follows the house rules in <code>docs/GAMES.md</code>.</p>
     </div>
@@ -749,8 +751,9 @@ body {
 /* ═══════════════════════════════════════════════════════════════════════
    BALANCE TABLE — the only numbers that decide how the game feels.
    Every constant here was measured by the sim in the DEV section (and
-   scripts/sim.mjs, which evals this exact block): 70–100 launches to the
-   Moon on the natural strategies, no strategy dry for more than 17 launches.
+   scripts/sim.mjs, which evals this exact block): 79–109 launches to the
+   Moon on the natural strategies (noPayload 295), no strategy dry for more
+   than 18 launches. Re-measured 2026-09-05 after the 1 s throttle ramp.
    Change a number → run the sim → paste the new measurement here.
    ═══════════════════════════════════════════════════════════════════════ */
 /*BAL-START*/
@@ -763,13 +766,14 @@ const SPREAD = 2;                   // no rocket part more than 2 tiers above th
 const BASE_COST = { engine: 40, tank: 30, aero: 25, hull: 35, payload: 60 };
 const REWARD_K = 6, REWARD_P = 0.7; // reward = (K·alt^P + 5) · payMult — 0.78 let income outrun costs (Moon in 16 launches)
 const PAY_MULT = 1.3;               // per payload tier; 1.45 made payload-first the only strategy
+const THROTTLE_RAMP_S = 1.0;        // engine spools down over the last second of fuel (T2)
 const MILESTONES = [
-  { km: 1,       name: 'Cleared the tower',   bonus: 15 },
-  { km: 10,      name: 'Above the clouds',    bonus: 60 },
-  { km: 100,     name: 'Kármán line · space', bonus: 450 },
-  { km: 400,     name: 'ISS altitude',        bonus: 1800 },
-  { km: 2000,    name: 'Past the satellites', bonus: 6000 },
-  { km: 36000,   name: 'Geostationary',       bonus: 30000 },
+  { km: 1.609,   name: 'Cleared the tower · 1 mi',   bonus: 15 },
+  { km: 16.09,   name: 'Above the clouds · 10 mi',   bonus: 60 },
+  { km: 100,     name: 'Kármán line · space · 62 mi', bonus: 450 },
+  { km: 400,     name: 'ISS altitude · 250 mi',       bonus: 1800 },
+  { km: 2000,    name: 'Past the satellites · 1,243 mi', bonus: 6000 },
+  { km: 36000,   name: 'Geostationary · 22,369 mi',   bonus: 30000 },
   { km: MOON_KM, name: 'The Moon',            bonus: 150000 },
 ];
 const BASE_MODULES = ['Habitat', 'Solar array', 'Greenhouse', 'Comms dish', 'Observatory'];
@@ -796,11 +800,13 @@ function flyRocket(t) {
     const g = GM / ((R + h) * (R + h));
     const rho = 1.225 * Math.exp(-h / 7500);
     const drag = 0.5 * rho * s.cd * s.area * v * v / 1000;
-    const a = (s.thrust - drag) / m - g;
+    /* Throttle ramps to zero over the last THROTTLE_RAMP_S of fuel — no cliff at burnout. */
+    const thr = Math.min(1, fuel / (s.burnRate * THROTTLE_RAMP_S));
+    const a = (s.thrust * thr - drag) / m - g;
     v += a * dt; if (v < 0) v = 0;
     h += v * dt; fuel -= s.burnRate * dt; time += dt;
     if (v > maxV) maxV = v;
-    samples.push([h, v, Math.max(0, fuel / s.fuel)]);
+    samples.push([h, v, Math.max(0, fuel / s.fuel), thr]);
   }
   const e = v * v / 2 - GM / (R + h);
   let apogeeKm, moon = false;
@@ -902,8 +908,11 @@ function rng() { S.seed = (S.seed * 1664525 + 1013904223) >>> 0; return S.seed /
    ═══════════════════════════════════════════════════════════════════════ */
 const fmtMoney = n => { const a = Math.abs(n);
   return '$' + (a >= 1e9 ? (n / 1e9).toFixed(2) + 'B' : a >= 1e6 ? (n / 1e6).toFixed(2) + 'M' : a >= 1e4 ? (n / 1e3).toFixed(1) + 'k' : Math.round(n).toLocaleString('en-US')); };
-const fmtKm = km => km >= MOON_KM ? 'MOON' : km >= 10000 ? Math.round(km).toLocaleString('en-US') : km >= 100 ? km.toFixed(0) : km >= 10 ? km.toFixed(1) : km.toFixed(2);
-const fmtV = v => v >= 1000 ? (v / 1000).toFixed(2) + ' km/s' : Math.round(v) + ' m/s';
+/* Display is imperial (T1); the sim and balance stay SI. Conversion happens here and nowhere else. */
+const KM_TO_MI = 0.621371, MS_TO_MPH = 2.236936;
+const fmtMi = km => { const mi = km * KM_TO_MI; return km >= MOON_KM ? 'MOON' : mi >= 10000 ? Math.round(mi).toLocaleString('en-US') : mi >= 100 ? mi.toFixed(0) : mi >= 10 ? mi.toFixed(1) : mi.toFixed(2); };
+const fmtKm = fmtMi;
+const fmtV = v => { const mph = v * MS_TO_MPH; return mph >= 10000 ? Math.round(mph / 1000).toLocaleString('en-US') + 'k mph' : Math.round(mph).toLocaleString('en-US') + ' mph'; };
 
 /* ═══════════════════════════════════════════════════════════════════════
    ACTIONS — the only way state changes.
@@ -961,23 +970,31 @@ function runFlight(f, onApogee, onLanded) {
   phase = 'flight'; paintLaunch(); hideChecklist();
   if (REDUCED) { view.km = f.apogeeKm; view.v = 0; view.fuel = 0; view.burning = false; onApogee(); view.para = 0; onLanded(); return; }
   const burnDur = 2.6 + Math.min(2.4, Math.log10(f.apogeeKm + 1) * 0.6);
-  const coastDur = 1.2 + Math.min(3, Math.log10(f.apogeeKm + 1) * 0.5);
+  const N = f.samples.length;
+  /* Coast: continue at the climb rate the burn ended with, then only decelerate.
+     r0 = km per animation-second at the last burn sample; g(u) = 1-(1-u)^n with g'(0) matched to r0. */
+  const span = Math.max(0.001, f.apogeeKm - f.burnoutKm);
+  const lastA = f.samples[N - 1] || [0, 0], prevA = f.samples[Math.max(0, N - 12)] || lastA;
+  const r0 = Math.max(0.01, (lastA[0] - prevA[0]) / 1000 / (burnDur * 11 / Math.max(1, N - 1)));
+  /* Up to 9 s of coast so a tier-5 flight (290 km of coast) joins the burn's rate within ~1.3×.
+     Past tier 8 the coast span is thousands of km and the linear number must time-lapse; the sky is log-scaled and stays smooth. */
+  const coastDur = clamp(2 * span / r0, 1.5, 9);
+  const nExp = Math.max(1.05, r0 * coastDur / span);
   const paraDur = 2.6;
   const t0 = performance.now(); let stage = 0;
-  const N = f.samples.length;
   cancelAnimationFrame(anim);
   function frame(now) {
     const t = (now - t0) / 1000;
     if (stage === 0) {
       const p = Math.min(1, t / burnDur);
       const i = Math.min(N - 1, Math.floor(p * (N - 1)));
-      const s = f.samples[i] || [0, 0, 1];
-      view.km = s[0] / 1000; view.v = s[1]; view.fuel = s[2]; view.burning = p < 1; view.flame = 1;
+      const s = f.samples[i] || [0, 0, 1, 1];
+      view.km = s[0] / 1000; view.v = s[1]; view.fuel = s[2]; view.burning = p < 1 && s[3] > 0.05; view.flame = s[3] == null ? 1 : s[3];
       if (p >= 1) { stage = 1; view.burning = false; }
     } else if (stage === 1) {
-      const p = Math.min(1, (t - burnDur) / coastDur), e = easeOut(p);
-      view.km = f.burnoutKm + (f.apogeeKm - f.burnoutKm) * e;
-      view.v = f.burnoutV * (1 - e); view.flame = Math.max(0, 1 - p * 4);
+      const p = Math.min(1, (t - burnDur) / coastDur), e = 1 - Math.pow(1 - p, nExp);
+      view.km = f.burnoutKm + span * e;
+      view.v = f.burnoutV * Math.pow(1 - p, Math.max(1, nExp - 1)); view.flame = 0;   // speed falls to zero at apogee, as gravity would have it
       if (p >= 1) { stage = 2; view.apogeeKm = f.apogeeKm; phase = 'descent'; onApogee(); }
     } else if (stage === 2) {
       const p = Math.min(1, (t - burnDur - coastDur) / paraDur);
@@ -1224,7 +1241,7 @@ function drawLadder() {
   c.font = '600 9px ' + col('--wa-font-family-heading'); c.textBaseline = 'middle';
   for (const m of MILESTONES) { const yy = y(m.km); const got = S.milestones.includes(m.km);
     c.strokeStyle = got ? col('--h-accent') : col('--h-border'); c.beginPath(); c.moveTo(8, yy); c.lineTo(20, yy); c.stroke();
-    c.fillStyle = got ? col('--h-text') : col('--h-text-muted'); c.fillText((m.km >= MOON_KM ? 'MOON' : fmtKm(m.km) + ' km').toUpperCase(), 24, yy); }
+    c.fillStyle = got ? col('--h-text') : col('--h-text-muted'); c.fillText((m.km >= MOON_KM ? 'MOON' : fmtMi(m.km) + ' mi').toUpperCase(), 24, yy); }
   if (S.bestKm > 0) { c.fillStyle = col('--h-positive'); c.beginPath(); c.arc(14, y(S.bestKm), 4, 0, 7); c.fill(); }
   if (phase === 'flight' || phase === 'descent') { c.fillStyle = col('--h-warning'); c.beginPath(); c.arc(14, y(view.km), 3, 0, 7); c.fill(); }
 }
@@ -1234,9 +1251,9 @@ function drawLadder() {
    ═══════════════════════════════════════════════════════════════════════ */
 function paintGauges() {
   const s = statsOf(S.tiers);
-  $('g-alt').innerHTML = fmtKm(view.km) + '<small>' + (view.km >= MOON_KM ? '' : 'km') + '</small>';
+  $('g-alt').innerHTML = fmtMi(view.km) + '<small>' + (view.km >= MOON_KM ? '' : 'mi') + '</small>';
   $('b-alt').style.width = (clamp(Math.log10(view.km + 1) / Math.log10(MOON_KM + 1), 0, 1) * 100) + '%';
-  $('g-spd').innerHTML = (view.v >= 1000 ? (view.v / 1000).toFixed(2) + '<small>km/s</small>' : Math.round(view.v) + '<small>m/s</small>');
+  { const mph = view.v * MS_TO_MPH; $('g-spd').innerHTML = (mph >= 10000 ? (mph / 1000).toFixed(1) + '<small>k mph</small>' : Math.round(mph).toLocaleString('en-US') + '<small>mph</small>'); }
   $('b-spd').style.width = clamp(view.v / 12000, 0, 1) * 100 + '%';
   $('g-fuel').innerHTML = Math.round(view.fuel * 100) + '<small>% · ' + s.fuel.toFixed(0) + 't</small>';
   $('b-fuel').style.width = view.fuel * 100 + '%';
@@ -1247,7 +1264,7 @@ function paintLaunch() {
   const b = $('launch');
   b.disabled = phase !== 'ready'; b.classList.toggle('ready', phase === 'ready');
   $('launch-sub').textContent = phase === 'ready' ? (S.launches ? 'flight ' + (S.launches + 1) : 'first flight')
-    : phase === 'flight' ? 'in flight' : phase === 'descent' ? 'recovering' : 'prepping';
+    : phase === 'flight' ? (view.burning ? 'burning' : view.fuel <= 0 ? 'coasting' : 'in flight') : phase === 'descent' ? 'recovering' : 'prepping';
 }
 function paintShop() {
   const box = $('ups'); box.textContent = '';
@@ -1282,7 +1299,7 @@ function paintBadge() {
 }
 function paintLog() {
   const st = $('stats'); st.textContent = '';
-  const rows = [['Best altitude', S.bestKm >= MOON_KM ? 'THE MOON' : fmtKm(S.bestKm) + ' km'], ['Top speed', fmtV(S.bestV)],
+  const rows = [['Best altitude', S.bestKm >= MOON_KM ? 'THE MOON' : fmtMi(S.bestKm) + ' mi'], ['Top speed', fmtV(S.bestV)],
                 ['Launches', S.launches.toLocaleString('en-US')], ['Earned, all time', fmtMoney(S.earned)],
                 ['Moon base', S.modules + ' / ' + BASE_MODULES.length + ' modules']];
   for (const [k, v] of rows) { const d = document.createElement('div'); d.className = 'stat';
@@ -1290,13 +1307,13 @@ function paintLog() {
   const tb = $('log-body'); tb.textContent = '';
   if (!S.log.length) { const tr = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = 5; td.textContent = 'No flights yet. Press LAUNCH.'; tr.appendChild(td); tb.appendChild(tr); }
   for (const e of S.log) { const tr = document.createElement('tr');
-    for (const [txt, cls] of [[e.n, 'tabular'], [e.km >= MOON_KM ? 'MOON' : fmtKm(e.km) + ' km', 'tabular r'], [fmtV(e.v), 'tabular r'], [fmtMoney(e.earned), 'tabular r'], [e.note || '', '']]) {
+    for (const [txt, cls] of [[e.n, 'tabular'], [e.km >= MOON_KM ? 'MOON' : fmtMi(e.km) + ' mi', 'tabular r'], [fmtV(e.v), 'tabular r'], [fmtMoney(e.earned), 'tabular r'], [e.note || '', '']]) {
       const td = document.createElement('td'); td.className = cls; td.textContent = txt; tr.appendChild(td); } tb.appendChild(tr); }
 }
 function paintRegister() { const r = $('reg-save'); r.textContent = saveStatus; r.className = 'reg-status ' + (/saved/.test(saveStatus) && !/could not|ignored|unreadable/.test(saveStatus) ? 'on' : 'warn'); }
 let flashTimer = null;
 function showFlash(f, r, record, hit, module) {
-  const big = f.moon ? (module ? 'MOON · ' + module.toUpperCase() : 'THE MOON') : 'APOGEE ' + fmtKm(f.apogeeKm) + ' KM';
+  const big = f.moon ? (module ? 'MOON · ' + module.toUpperCase() : 'THE MOON') : 'APOGEE ' + fmtMi(f.apogeeKm) + ' MI';
   $('fl-big').textContent = big;
   $('fl-sub').textContent = module && S.modules >= BASE_MODULES.length ? 'MOON BASE COMPLETE — you did it'
     : hit.length ? hit.map(m => m.name).join(' · ') : record ? 'New record' : 'Top speed ' + fmtV(f.maxV);
