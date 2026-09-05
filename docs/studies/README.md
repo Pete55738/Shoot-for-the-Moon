@@ -32,6 +32,11 @@ Contract-driven: each worker drew one part against a written contract and a prev
 
 Identity unchanged: steel-blue, starfield, altitude ladder. Art direction is now firmly *goofy hi-res vector*: Superman at 150 km, a cow over the Moon, a dog in the window.
 
+## round-4 — graphics round 2 (four more workers)
+
+8. Round eight (`round-4/`): farm extras (cows, trees, ocean sliver, grandstand), flatbed section tips upright, rocket polish (bells fit, louder diamonds, heat sheath, payload bay), atmosphere haze bands, twinkle, sun and Earthshine, re-entry plasma. All scenes clean, phone and desktop.
+9. Round nine (`liftoff-sequence.png`): a real launch captured at six moments — countdown 2, IGNITION, steam and sparks at t+2.1 s, climb through clouds with the airliner, coast with the paper plane, apogee with the sun, Superman and the lost astronaut. Nothing found to fix.
+
 ## What to decide in the design cycle
 
 - **Art direction**, shown as pictures: keep hi-res vector, or move to rendered 2D (blur halos, glow, multiply shadows) for warmth. The brain dump said "goofy, fun graphics" — the vector look is clean but not yet goofy.
