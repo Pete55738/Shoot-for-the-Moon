@@ -473,11 +473,14 @@ body {
   .overlay { position: absolute; inset: 0; pointer-events: none; display: flex; flex-direction: column; }
   /* The flash sits over whatever the camera is showing — Earth, the Moon, the pad — so it carries its own ground. */
   .flash { position: absolute; left: 50%; top: 16%; transform: translateX(-50%); text-align: center;
+           transition: opacity .3s, top .3s;
            font-family: var(--wa-font-family-heading); font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
            color: var(--h-text); opacity: 0; transition: opacity .3s; max-width: calc(100% - 1.6rem);
            background: var(--h-surface-glass); border: 1px solid var(--h-border); border-radius: var(--radius-lg);
            padding: .5rem .9rem; backdrop-filter: blur(8px); box-shadow: 0 8px 24px rgb(0 0 0 / .45); }
   .flash.show { opacity: 1; }
+  /* the readiness window owns the top-left while the crew works, so the flash drops below it */
+  .flash.low { top: auto; bottom: 12%; }
   .flash .big { font-size: 1.3rem; color: var(--h-accent-strong); text-wrap: balance; line-height: 1.15; }
   .flash .sub { font-size: var(--text-2xs); color: var(--h-text-muted); margin-top: .25rem; letter-spacing: .1em; text-wrap: balance; line-height: 1.3; }
   .flash .money { font-size: 1.1rem; color: var(--h-positive); margin-top: .35rem; }
@@ -756,6 +759,11 @@ body {
               <td><span class="reg-status on">live</span></td><td class="r">n/a</td></tr>
         </tbody></table></div>
       <p>No scheduled work runs for this project — nothing fires without you pressing it.</p>
+      <h3>The railgun</h3>
+      <p>Once 1,000 people live on the Moon a railgun is built beside the base. It fires one cargo
+         shipment back to Earth during every turnaround, worth about 90 cents per resident, so the
+         colony starts paying for itself. It never replaces launching — at 10,000 people a shipment
+         is roughly a fifth of what a cargo run earns.</p>
       <h3>Scoring</h3>
       <p>Distances are shown in miles and speeds in miles per hour; the sim underneath is metric and is
          converted only at display time.</p>
@@ -883,6 +891,10 @@ const FLIGHT_PLAN = {
   5: [['ascent', 1.5], ['pitch', 0.6], ['orbit', 1.0], ['transfer', 4.2], ['moonorbit', 1.8], ['cargo', 5.6], ['back', 3.6], ['descent', 1.5]],
 };
 const FADE_S = 0.45;                // cross-fade between camera views; reads as a zoom-out
+/* T17 · once the base passes RAILGUN_POP it fires one cargo shipment home per turnaround.
+   Worth a slice of what the base produces, so it grows with the colony but never replaces launching. */
+const RAILGUN_POP = 1000;
+const RAILGUN_PER_PERSON = 0.9;     // $ per resident per shipment — at 10,000 people a shipment is ~$9k, roughly a fifth of a cargo run
 const POP_PER_TONNE = 0.95;         // T14 · the last stretch is ~35 cargo runs, not 27         // tier 5: population added per tonne of cargo landed (10,000 people ≈ 40 tier-10 flights)
 function costOf(track, tier) { return Math.round(BASE_COST[track] * Math.pow(COST_GROWTH, tier - 1)); }
 function equipCost(id) { return Math.round(EQUIP_BASE_COST * Math.pow(COST_GROWTH, 2 * (EQUIPMENT[id].mission - 1))); }
@@ -953,6 +965,7 @@ function missionReached(t, eq, achieved) {
   return { m, f };
 }
 /* Cargo landed per tier-5 flight (t): payload and hull carry it; excess Δv above landing pays too. */
+function railgunPay(population) { return population >= RAILGUN_POP ? Math.round(population * RAILGUN_PER_PERSON) : 0; }
 function cargoOf(t, f) { return Math.round((2 * t.payload * t.hull + Math.max(0, (f.dv - 15300) / 1000) * 12) * 10) / 10; }
 function rewardOf(apogeeKm, t, mission) {
   const pm = statsOf(t).payMult;
@@ -986,6 +999,7 @@ function simulate(strategy, maxLaunches) {
     for (const ms of MILESTONES) if (f.apogeeKm >= ms.km && !seen.has(ms.km)) { seen.add(ms.km); r += ms.bonus; }
     if (flightMission > achieved) { achieved = flightMission; r += MISSIONS[achieved].bonus; at['m' + achieved] = launches; }
     if (achieved >= 5) { population += cargoOf(t, f) * POP_PER_TONNE; if (population >= MISSIONS[5].population) { at.done = launches; return { launches, maxDry: Math.max(maxDry, dry), buys, reached: true, at }; } }
+    r += railgunPay(Math.floor(population));   // the railgun fires during the turnaround that follows
     money += r;
     let bought = false;
     for (;;) {
@@ -1029,7 +1043,7 @@ const freshState = () => ({
   tiers: { engine: 1, tank: 1, aero: 1, hull: 1, payload: 1 },
   money: 0, launches: 0, earned: 0, bestKm: 0, bestV: 0,
   milestones: [], modules: 0, log: [], seed: 1,
-  equipment: {}, mission: 0, population: 0, cargoT: 0,     // the mission ladder (T13): equipment owned, missions achieved, tier-5 base
+  equipment: {}, mission: 0, population: 0, cargoT: 0, shipments: 0,     // the mission ladder (T13): equipment owned, missions achieved, tier-5 base
 });
 let S = freshState();
 /* phase: 'ready' | 'flight' | 'descent' | 'turnaround' — the scene reads it; act() moves it. */
@@ -1130,7 +1144,10 @@ function launch() {
     const before = S.population; S.population = Math.min(MISSIONS[5].population, Math.round(S.population + cargo * POP_PER_TONNE));
     S.modules = Math.min(BASE_MODULES.length, 1 + Math.floor(S.population / 2500));
     if (S.modules > 1 + Math.floor(before / 2500)) module = BASE_MODULES[S.modules - 1];
-    override = { big: S.population >= MISSIONS[5].population ? 'MOON BASE BUILT · 10,000 PEOPLE' : 'CARGO LANDED · ' + cargo + ' T', sub: 'Population ' + S.population.toLocaleString('en-US') + (module ? ' · new: ' + module : '') }; }
+    const shipPay = railgunPay(S.population);
+    override = { big: S.population >= MISSIONS[5].population ? 'MOON BASE BUILT · 10,000 PEOPLE' : 'CARGO LANDED · ' + cargo + ' T',
+                 sub: 'Population ' + S.population.toLocaleString('en-US') + (module ? ' · new: ' + module : '')
+                      + (shipPay ? ' · railgun sent ' + fmtMoney(shipPay) + ' home' : '') }; }
   const note = milestone ? 'Milestone ' + flightMission + ': ' + MISSIONS[flightMission].name : cargo ? 'Cargo ' + cargo + ' t · pop ' + S.population.toLocaleString('en-US') : module ? 'Delivered: ' + module : hit.length ? hit[hit.length - 1].name : record ? 'New record' : '';
   const entry = { n: S.launches, km: f.apogeeKm, v: f.maxV, earned: r, note };
   S.log.unshift(entry); if (S.log.length > 30) S.log.length = 30;
@@ -1146,12 +1163,14 @@ function launch() {
    FLIGHT — replays the sim's samples over a compressed clock, then coasts.
    view = what the scene reads each frame: altitude (km), speed, fuel, phase.
    ═══════════════════════════════════════════════════════════════════════ */
+const rail = { charge: 0, fire: -1, arc: -1, fired: false };   // T17 · railgun state, only alive during turnaround
 const view = { km: 0, v: 0, fuel: 1, t: 0, burning: false, para: 0, apogeeKm: 0, flame: 0, countdown: null, liftT: -1, heat: 0, forces: null,
   scene: 'pad', p: 0, ang: 0, drift: 0, zoom: 0, cargo: 0, fadeFrom: null, fadeK: 0, mission: 0 };
 let anim = null;
 const easeOut = x => 1 - Math.pow(1 - x, 3);
 function runFlight(f, onApogee, onLanded, mission) {
   phase = 'flight'; view.mission = mission || 0; paintLaunch(); hideChecklist(); paintWindows();
+  rail.fired = false; rail.charge = 0; rail.fire = -1; rail.arc = -1;   // one shipment per Moon visit
   const plan = FLIGHT_PLAN[view.mission] || FLIGHT_PLAN[0];
   if (REDUCED) {   /* no animation: land the result, keep every number true */
     view.km = f.apogeeKm; view.v = 0; view.fuel = 0; view.burning = false; view.countdown = null; view.liftT = -1;
@@ -1224,8 +1243,17 @@ function runFlight(f, onApogee, onLanded, mission) {
       view.forces = forcesAt(S.tiers, MOON_KM * 1000, view.v, 0);
       if (!paid && view.mission === 3 && p > 0.6) { paid = true; view.apogeeKm = MOON_KM; onApogee(); }
     } else if (ph.name === 'land' || ph.name === 'cargo') {
-      view.km = MOON_KM; view.v = lerp(400, 0, p); view.cargo = p; view.zoom = 1; view.heat = 0;
+      view.km = MOON_KM; view.v = lerp(400, 0, p); view.cargo = p; view.zoom = 1; view.heat = 0; view.ang = 0;
       view.forces = forcesAt(S.tiers, MOON_KM * 1000, view.v, 0);
+      /* T17 · the railgun fires while you are looking at the Moon, not while you are back at the pad.
+         Charges over the first half of the cargo drop, fires at 0.55, and the pod arcs home. */
+      if (railgunPay(S.population) > 0) {
+        rail.charge = clamp(p / 0.55, 0, 1);
+        rail.fire = p >= 0.55 && p < 0.75 ? (p - 0.55) / 0.2 : -1;
+        rail.arc = p >= 0.6 ? clamp((p - 0.6) / 0.35, 0, 1) : -1;
+        if (!rail.fired && p >= 0.55) { rail.fired = true; const pay = railgunPay(S.population);
+          S.money += pay; S.earned += pay; S.shipments++; save(); paintMoney(); paintShop(); paintBadge(); }
+      }
       if (!paid && p > 0.75) { paid = true; view.apogeeKm = MOON_KM; onApogee(); }
     } else if (ph.name === 'descent') {
       const fromKm = view.mission >= 1 ? 120 : f.apogeeKm;
@@ -1340,7 +1368,7 @@ function paintWindows() {
   const flying = phase === 'flight' || phase === 'descent';
   $('datawin').hidden = !flying;
   if (!flying && phase === 'ready') paintReady();
-  const clear = flying && view.km > 0.4;
+  const clear = flying && view.scene === 'pad' && view.km > 0.4 && view.km < 2000;   // an attitude ball only means something in the atmosphere
   const g = $('gimbal'); g.hidden = !clear; g.classList.toggle('fade', !clear);
   if (clear) drawGimbal();
 }
@@ -1413,7 +1441,12 @@ function drawView(name, c, now) {
   if (name === 'orbit' && typeof drawOrbitView === 'function') drawOrbitView(c, DW, DH, st, drawRocket, rocketDims);
   else if (name === 'transfer' && typeof drawTransferView === 'function') drawTransferView(c, DW, DH, st, drawRocket, rocketDims);
   else if (name === 'moonorbit' && typeof drawMoonApproach === 'function') drawMoonApproach(c, DW, DH, st, drawRocket, rocketDims);
-  else if (name === 'cargo' && typeof drawCargoDrop === 'function') drawCargoDrop(c, DW, DH, st, drawRocket, rocketDims, drawMoonBase);
+  else if (name === 'cargo' && typeof drawCargoDrop === 'function') {
+    drawCargoDrop(c, DW, DH, st, drawRocket, rocketDims, drawMoonBase);
+    if (typeof drawRailgun === 'function' && railgunPay(S.population) > 0)
+      drawRailgun(c, DW, DH, DH * 0.70, { pop: S.population, charge: rail.charge, fire: rail.fire, scale: 1 }, now);
+    if (typeof drawShipmentArc === 'function' && rail.arc >= 0) drawShipmentArc(c, DW, DH, rail.arc, now);
+  }
   else drawPadScene(c, now);
 }
 function drawScene() {
@@ -1469,6 +1502,9 @@ function drawPadScene(c, now) {
   if (phase === 'flight' && view.liftT >= 0 && view.liftT < 6 && groundY < DH + 40) drawLiftoffFX(c, groundY, DW, DH, view.liftT, DW / 2, rocketBase, now);
   if (view.countdown) drawCountdown(c, DW, DH, view.countdown.n, view.countdown.frac, now);
   if (moonScene && S.modules > 0) drawMoonBase(c, DW, DH, S.modules, now - (view.moonAt || 0));
+  if (moonScene && typeof drawRailgun === 'function' && railgunPay(S.population) > 0)
+    drawRailgun(c, DW, DH, DH * 0.66, { pop: S.population, charge: rail.charge, fire: rail.fire, scale: 1 }, now);
+  if (moonScene && typeof drawShipmentArc === 'function' && rail.arc >= 0) drawShipmentArc(c, DW, DH, rail.arc, now);
   if (isLight() && sp < 0.5) { c.save(); c.globalCompositeOperation = 'multiply'; c.globalAlpha = (1 - sp * 2) * 0.62;
     c.fillStyle = 'rgb(206,178,150)'; c.fillRect(0, 0, DW, DH); c.restore(); drawCount++; }
 }
@@ -3943,6 +3979,254 @@ function drawCrowd(c, gy, DW, now, excited) {
   c.restore();
 }
 
+/* ── W13 · the Moon railgun ── */
+// W13 · the Moon railgun ------------------------------------------------------
+function w13_shade(c, x, y, w, h, lit, dk) { const g = c.createLinearGradient(x, y, x + w, y + h); g.addColorStop(0, lit); g.addColorStop(1, dk); return g; }
+function w13_rnd(i) { return ((i * 9301 + 49297) % 233280) / 233280; }
+
+function drawRailgun(c, DW, DH, gy, st, now) {
+  const pop = st && st.pop || 0;
+  if (pop < 1000) return;
+  const g = clamp((pop - 1000) / 9000, 0, 1);           // 0 at 1k people, 1 at 10k
+  const ch = clamp(st.charge || 0, 0, 1);
+  const fire = (st.fire === undefined || st.fire === null) ? -1 : st.fire;
+  const firing = fire >= 0;
+  const bx = clamp(DW * 0.60, DW * 0.56, DW * 0.80);     // breech sits here on the surface
+  const ANG = -35 * Math.PI / 180;
+  const L = lerp(46, 96, g);                             // rail length
+  // shrink the whole rig if the frame is narrow, so the muzzle never crosses DW * 0.82
+  const gantryX = 26 + 14 * g + 16;
+  const need = Math.max(Math.cos(-ANG) * L + 6, gantryX + 4);
+  const s = clamp(st.scale || 1, 0.5, 1.2) * clamp((DW * 0.82 - bx) / need / clamp(st.scale || 1, 0.5, 1.2), 0.35, 1);
+  const th = lerp(7, 12, g);                             // truss depth
+  const twin = g > 0.35;
+  const sep = twin ? lerp(3, 7, clamp((g - 0.35) / 0.65, 0, 1)) : 0;
+  const drums = 1 + Math.round(g * 3);                   // 1..4 capacitor drums
+  const recoil = firing ? -Math.exp(-fire * 7) * Math.cos(fire * 26) * lerp(3, 6, g) : 0;
+
+  c.save();
+  c.translate(bx, gy);
+  c.scale(s, s);
+  c.lineWidth = 1; c.lineJoin = 'round'; c.lineCap = 'round';
+
+  // ---- blast berm + ground shadow -------------------------------------------
+  c.fillStyle = 'rgba(0,0,0,.18)';
+  c.beginPath(); c.ellipse(6, 2, lerp(34, 54, g), 5, 0, 0, 7); c.fill(); drawCount++;
+  c.fillStyle = w13_shade(c, -34, -12, 44, 12, ART.moon, ART.moonDk);
+  c.beginPath(); c.moveTo(-40, 0); c.quadraticCurveTo(-26, -lerp(9, 14, g), -8, 0); c.closePath(); c.fill(); drawCount++;
+  c.strokeStyle = 'rgba(0,0,0,.22)'; c.beginPath(); c.moveTo(-40, 0); c.lineTo(-8, 0); c.stroke(); drawCount++;
+
+  // ---- cable run into the ground -------------------------------------------
+  c.strokeStyle = '#3A424C'; c.lineWidth = 2.2;
+  c.beginPath(); c.moveTo(-6, -10); c.quadraticCurveTo(-16, -2, -24, -1); c.stroke(); drawCount++;
+  c.lineWidth = 1;
+  if (ch > 0.05) {                                       // current running up the cable
+    c.strokeStyle = 'rgba(95,209,222,' + (0.25 + 0.5 * ch) + ')'; c.lineWidth = 1.2;
+    c.beginPath(); c.moveTo(-6, -10); c.quadraticCurveTo(-16, -2, -24, -1); c.stroke(); drawCount++; c.lineWidth = 1;
+  }
+
+  // ---- capacitor bank: stacked drums with cooling fins ----------------------
+  const dw = lerp(9, 11, g), dh = lerp(7.5, 8.5, g);
+  for (let i = 0; i < drums; i++) {
+    const col = i % 2, row = (i / 2) | 0;
+    const dx = -20 + col * (dw + 3), dy = -4 - row * (dh + 3);
+    c.fillStyle = w13_shade(c, dx - dw / 2, dy - dh, dw, dh, '#E3E8EE', '#A9B4BF');
+    c.beginPath(); c.roundRect ? c.roundRect(dx - dw / 2, dy - dh, dw, dh, 2.5) : c.rect(dx - dw / 2, dy - dh, dw, dh); c.fill(); drawCount++;
+    // cooling fins
+    c.strokeStyle = 'rgba(0,0,0,.25)'; c.beginPath();
+    for (let k = 1; k < 4; k++) { c.moveTo(dx - dw / 2 + 1, dy - dh + k * dh / 4); c.lineTo(dx + dw / 2 - 1, dy - dh + k * dh / 4); }
+    c.stroke(); drawCount++;
+    // charge lamp — drums light in sequence
+    const lit = clamp(ch * drums - i, 0, 1);
+    c.fillStyle = lit > 0.02 ? 'rgba(95,209,222,' + (0.25 + 0.75 * lit) + ')' : '#4A5561';
+    c.beginPath(); c.arc(dx, dy - dh / 2, 2, 0, 7); c.fill(); drawCount++;
+    if (lit > 0.5) {
+      const gg = c.createRadialGradient(dx, dy - dh / 2, 0, dx, dy - dh / 2, 9);
+      gg.addColorStop(0, 'rgba(95,209,222,' + 0.35 * lit + ')'); gg.addColorStop(1, 'rgba(95,209,222,0)');
+      c.fillStyle = gg; c.beginPath(); c.arc(dx, dy - dh / 2, 9, 0, 7); c.fill(); drawCount++;
+    }
+  }
+  // breech block joining the bank to the rails
+  c.fillStyle = w13_shade(c, -8, -16, 14, 16, '#C6CFD8', '#7A8794');
+  c.beginPath(); c.moveTo(-8, 0); c.lineTo(-8, -12); c.lineTo(6, -18); c.lineTo(6, -4); c.closePath(); c.fill(); drawCount++;
+
+  // ---- warning light on a short mast ---------------------------------------
+  const rate = lerp(1400, 260, ch);
+  const blink = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(now / rate * 6.283));
+  c.strokeStyle = '#7A8794'; c.beginPath(); c.moveTo(-27, 0); c.lineTo(-27, -20); c.stroke(); drawCount++;
+  c.fillStyle = 'rgba(224,82,58,' + blink + ')';
+  c.beginPath(); c.arc(-27, -22, 2.6, 0, 7); c.fill(); drawCount++;
+  const wg = c.createRadialGradient(-27, -22, 0, -27, -22, 10);
+  wg.addColorStop(0, 'rgba(224,82,58,' + 0.4 * blink + ')'); wg.addColorStop(1, 'rgba(224,82,58,0)');
+  c.fillStyle = wg; c.beginPath(); c.arc(-27, -22, 10, 0, 7); c.fill(); drawCount++;
+
+  // ---- the inclined truss + rails ------------------------------------------
+  c.save();
+  c.translate(2, -10);
+  c.rotate(ANG);
+  c.translate(recoil, 0);                                 // recoil shove down the truss
+
+  // truss: two chords + zigzag web
+  c.strokeStyle = '#8A96A3'; c.lineWidth = 2;
+  c.beginPath(); c.moveTo(0, 0); c.lineTo(L, 0); c.moveTo(0, th); c.lineTo(L, th); c.stroke(); drawCount++;
+  c.strokeStyle = '#6E7B88'; c.lineWidth = 1.2; c.beginPath();
+  const bays = Math.max(3, Math.round(L / 11));
+  for (let i = 0; i < bays; i++) { const a = i * L / bays, b = (i + 1) * L / bays; c.moveTo(a, i % 2 ? 0 : th); c.lineTo(b, i % 2 ? th : 0); c.moveTo(b, 0); c.lineTo(b, th); }
+  c.stroke(); drawCount++;
+  // support leg down to the ground
+  c.save(); c.rotate(-ANG);
+  c.strokeStyle = '#7A8794'; c.lineWidth = 2.4;
+  c.beginPath(); c.moveTo(0, 0); c.lineTo(lerp(14, 22, g), 10); c.stroke(); drawCount++;
+  c.restore();
+  c.lineWidth = 1;
+
+  // rails along the top chord
+  const rails = twin ? [-sep / 2, sep / 2] : [0];
+  for (const r of rails) {
+    c.fillStyle = w13_shade(c, 0, -3 + r, L, 3, '#F3F4F6', '#B9C4CF');
+    c.fillRect(0, -3.4 + r, L, 2.6); drawCount++;
+  }
+  // arcs crackling between the rails as the charge tops out
+  if (twin && ch > 0.55) {
+    const k = (ch - 0.55) / 0.45;
+    const agl = c.createLinearGradient(0, -6, L, 2);
+    agl.addColorStop(0, 'rgba(150,230,255,0)'); agl.addColorStop(0.5, 'rgba(210,248,255,' + (0.35 + 0.45 * k) + ')'); agl.addColorStop(1, 'rgba(150,230,255,0)');
+    c.fillStyle = agl; c.fillRect(0, -4 - sep / 2, L, sep + 3); drawCount++;
+    c.strokeStyle = 'rgba(235,252,255,' + (0.6 + 0.4 * k) + ')'; c.lineWidth = 1.6;
+    c.beginPath();
+    for (let i = 0; i < 4; i++) {
+      const t = w13_rnd(i * 5 + Math.floor(now / 90) * 7);
+      const ax = L * (0.2 + 0.72 * t), yb = -3.4 - sep / 2, yt = -2.4 + sep / 2;
+      c.moveTo(ax, yb); c.lineTo(ax + 3.2, (yb + yt) / 2); c.lineTo(ax - 2.2, yt);
+    }
+    c.stroke(); drawCount++; c.lineWidth = 1;
+  }
+  // muzzle tips
+  c.fillStyle = ART.nose; c.fillRect(L - 3, -4.6 - sep / 2, 3, 3 + sep + 2); drawCount++;
+
+  // muzzle heat lingers the whole shot
+  if (firing) {
+    const hk = 1 - fire;
+    const hg = c.createRadialGradient(L, -2, 0, L, -2, 12 * hk + 4);
+    hg.addColorStop(0, 'rgba(255,220,150,' + 0.55 * hk + ')'); hg.addColorStop(1, 'rgba(255,150,60,0)');
+    c.fillStyle = hg; c.beginPath(); c.arc(L, -2, 12 * hk + 4, 0, 7); c.fill(); drawCount++;
+  }
+  // muzzle flash
+  if (firing && fire < 0.3) {
+    const k = 1 - fire / 0.3;
+    const fg = c.createRadialGradient(L + 3, -2, 0, L + 3, -2, 26 * k);
+    fg.addColorStop(0, 'rgba(255,255,255,' + 0.95 * k + ')');
+    fg.addColorStop(0.4, 'rgba(180,236,255,' + 0.55 * k + ')');
+    fg.addColorStop(1, 'rgba(120,200,255,0)');
+    c.fillStyle = fg; c.beginPath(); c.arc(L + 3, -2, 26 * k, 0, 7); c.fill(); drawCount++;
+    c.fillStyle = 'rgba(255,255,255,' + 0.9 * k + ')';
+    c.beginPath(); c.moveTo(L, -2); c.lineTo(L + 30 * k, -7 * k); c.lineTo(L + 30 * k, 3 * k); c.closePath(); c.fill(); drawCount++;
+  }
+  c.restore();  // end truss frame
+
+  // ---- service gantry beside the muzzle (high pop only) ---------------------
+  if (g > 0.55) {
+    const gxp = 26 + 14 * g, gh = 26 + 18 * g;
+    c.strokeStyle = '#6E7B88'; c.lineWidth = 1.6;
+    c.beginPath(); c.moveTo(gxp, 0); c.lineTo(gxp + 2, -gh); c.moveTo(gxp + 12, 0); c.lineTo(gxp + 10, -gh); c.stroke(); drawCount++;
+    c.strokeStyle = '#8A96A3'; c.lineWidth = 1; c.beginPath();
+    for (let k = 1; k <= 4; k++) { const yy = -gh * k / 4; c.moveTo(gxp + (1 - k / 4) * 0 + 0.5 * k, yy); c.lineTo(gxp + 12 - 0.5 * k, yy); }
+    c.stroke(); drawCount++;
+    c.fillStyle = '#A9B4BF'; c.fillRect(gxp - 2, -gh - 3, 18, 3); drawCount++;
+  }
+  c.restore();
+
+  // ---- the shot: pod streak + dust ring (world space, unscaled by truss) ----
+  if (firing) {
+    const ox = bx + Math.cos(ANG) * (2 + L) * s, oy = gy + Math.sin(ANG) * (2 + L) * s - 10 * s;
+    // dust ring at the base
+    if (fire < 0.9) {
+      const k = 1 - fire / 0.9, sp = lerp(10, 74, 1 - k);
+      c.save(); c.strokeStyle = 'rgba(232,236,241,' + 0.45 * k + ')'; c.lineWidth = 3 * k + 1;
+      c.beginPath(); c.ellipse(bx, gy - 2, sp, sp * 0.20, 0, Math.PI, 2 * Math.PI); c.stroke(); drawCount++;
+      c.restore();
+    }
+    // sparks kicked off the muzzle
+    if (fire < 0.35) {
+      const k = 1 - fire / 0.35;
+      c.fillStyle = 'rgba(255,210,122,' + 0.8 * k + ')';
+      c.beginPath();
+      for (let i = 0; i < 6; i++) {
+        const a = ANG + (w13_rnd(i * 11 + 3) - 0.5) * 1.5, d2 = (6 + w13_rnd(i * 17 + 9) * 26) * (1 - k + 0.4);
+        c.moveTo(ox + Math.cos(a) * d2 + 1.4, oy + Math.sin(a) * d2);
+        c.arc(ox + Math.cos(a) * d2, oy + Math.sin(a) * d2, 1.4, 0, 7);
+      }
+      c.fill(); drawCount++;
+    }
+    // pod streaking up-right with a fading trail
+    const d = fire * (DW * 1.1);
+    const px = ox + Math.cos(ANG) * d, py = oy + Math.sin(ANG) * d;
+    const tl = 70;
+    const tg = c.createLinearGradient(px, py, px - Math.cos(ANG) * tl, py - Math.sin(ANG) * tl);
+    tg.addColorStop(0, 'rgba(255,244,194,' + (0.85 * (1 - fire)) + ')');
+    tg.addColorStop(1, 'rgba(255,180,71,0)');
+    c.save(); c.strokeStyle = tg; c.lineWidth = 3.5; c.lineCap = 'round';
+    c.beginPath(); c.moveTo(px, py); c.lineTo(px - Math.cos(ANG) * tl, py - Math.sin(ANG) * tl); c.stroke(); drawCount++;
+    c.restore();
+    const pg = c.createRadialGradient(px, py, 0, px, py, 9);
+    pg.addColorStop(0, 'rgba(255,255,255,' + (1 - fire * 0.6) + ')'); pg.addColorStop(1, 'rgba(255,210,122,0)');
+    c.fillStyle = pg; c.beginPath(); c.arc(px, py, 9, 0, 7); c.fill(); drawCount++;
+    c.fillStyle = '#FFF4C2'; c.beginPath(); c.arc(px, py, 2.4, 0, 7); c.fill(); drawCount++;
+  }
+}
+
+// The pod's flight home, over the Moon scene: dotted arc to a distant Earth, top-right third.
+function drawShipmentArc(c, DW, DH, p, now) {
+  const t = clamp(p, 0, 1);
+  const x0 = DW * 0.70, y0 = DH * 0.42;                 // leaves frame near the gun's line of fire
+  const ex = DW * 0.90, ey = DH * 0.11;                 // distant Earth
+  const cx = DW * 0.72, cy = DH * 0.12;                 // control point — bows the arc up-left
+  const at = (u) => ({
+    x: (1 - u) * (1 - u) * x0 + 2 * (1 - u) * u * cx + u * u * ex,
+    y: (1 - u) * (1 - u) * y0 + 2 * (1 - u) * u * cy + u * u * ey
+  });
+
+  c.save();
+  // distant Earth
+  const er = 11;
+  const eg = c.createRadialGradient(ex - 3, ey - 3, 1, ex, ey, er);
+  eg.addColorStop(0, '#6FB4E8'); eg.addColorStop(1, '#1E4F8C');
+  c.fillStyle = eg; c.beginPath(); c.arc(ex, ey, er, 0, 7); c.fill(); drawCount++;
+  c.fillStyle = '#4E8B4A';
+  c.beginPath(); c.ellipse(ex - 3, ey - 2, 4.5, 3, 0.5, 0, 7); c.ellipse(ex + 3, ey + 4, 3, 2, -0.3, 0, 7); c.fill(); drawCount++;
+  c.fillStyle = 'rgba(255,255,255,.5)';
+  c.beginPath(); c.ellipse(ex + 1, ey - 5, 5, 1.6, 0.2, 0, 7); c.ellipse(ex - 4, ey + 4, 4, 1.4, -0.2, 0, 7); c.fill(); drawCount++;
+  const rim = c.createRadialGradient(ex, ey, er * 0.85, ex, ey, er * 1.5);
+  rim.addColorStop(0, 'rgba(159,211,245,.5)'); rim.addColorStop(1, 'rgba(159,211,245,0)');
+  c.fillStyle = rim; c.beginPath(); c.arc(ex, ey, er * 1.5, 0, 7); c.fill(); drawCount++;
+
+  // the whole arc, faint dots
+  c.strokeStyle = 'rgba(255,255,255,.22)'; c.lineWidth = 1.4; c.setLineDash([2, 6]);
+  c.beginPath(); c.moveTo(x0, y0);
+  for (let i = 1; i <= 24; i++) { const q = at(i / 24); c.lineTo(q.x, q.y); }
+  c.stroke(); drawCount++;
+  // travelled part, bright
+  c.strokeStyle = 'rgba(255,210,122,.85)';
+  c.beginPath(); c.moveTo(x0, y0);
+  for (let i = 1; i <= 24; i++) { const u = i / 24; if (u > t) break; const q = at(u); c.lineTo(q.x, q.y); }
+  c.stroke(); drawCount++;
+  c.setLineDash([]);
+
+  // the pod, shrinking as it goes
+  const q = at(t), r = lerp(4.2, 1.6, t);
+  const gg = c.createRadialGradient(q.x, q.y, 0, q.x, q.y, r * 4);
+  gg.addColorStop(0, 'rgba(255,244,194,.8)'); gg.addColorStop(1, 'rgba(255,180,71,0)');
+  c.fillStyle = gg; c.beginPath(); c.arc(q.x, q.y, r * 4, 0, 7); c.fill(); drawCount++;
+  const q2 = at(Math.max(0, t - 0.05));
+  const ang = Math.atan2(q.y - q2.y, q.x - q2.x);
+  c.save(); c.translate(q.x, q.y); c.rotate(ang);
+  c.fillStyle = w13_shade(c, -r * 1.6, -r, r * 3.2, r * 2, '#F3F4F6', '#B9C4CF');
+  c.beginPath(); c.roundRect ? c.roundRect(-r * 1.6, -r, r * 3.2, r * 2, r * 0.6) : c.rect(-r * 1.6, -r, r * 3.2, r * 2); c.fill(); drawCount++;
+  c.fillStyle = ART.nose; c.fillRect(r * 0.9, -r, r * 0.7, r * 2); drawCount++;
+  c.restore();
+  c.restore();
+}
+
 /* ── ground starfield — drawn once, behind everything ── */
 function drawGround() {
   const g = $('ground'); const d = Math.min(2, window.devicePixelRatio || 1);
@@ -3989,9 +4273,15 @@ function drawLadder() {
     if (Math.abs(r.ly - r.yy) > 1) { c.beginPath(); c.moveTo(20, r.yy); c.lineTo(23, r.ly); c.stroke(); }
     c.fillStyle = got ? col('--h-text') : col('--h-text-muted'); c.fillText(r.label.toUpperCase(), 24, r.ly); }
   if (sc.val > 0) { const yb = y(sc.val); c.fillStyle = col('--h-positive'); c.beginPath(); c.arc(14, yb, 4, 0, 7); c.fill();
-    const near = rows.some(r => Math.abs(r.ly - yb) < 10); c.font = '700 8px ' + col('--wa-font-family-heading');
+    c.font = '700 8px ' + col('--wa-font-family-heading');
     const tag = sc.kind === 'pop' ? sc.val.toLocaleString('en-US') + ' NOW' : 'BEST ' + (sc.val >= MOON_KM ? 'MOON' : fmtMi(sc.val) + ' MI');
-    c.fillText(tag, near ? W * 0.55 : 24, yb); }
+    /* Step down past any tick label within a line-height, and stay inside the strip. */
+    let ty = yb;
+    for (const r of rows) if (Math.abs(r.ly - ty) < 10) ty = r.ly + 11;
+    ty = clamp(ty, 10, H - 6);
+    c.fillText(tag, 24, ty);
+    if (Math.abs(ty - yb) > 2) { c.strokeStyle = col('--h-positive'); c.lineWidth = 1;
+      c.beginPath(); c.moveTo(19, yb); c.lineTo(22, ty - 3); c.stroke(); } }
   /* live position during a flight */
   if (sc.kind !== 'pop' && (phase === 'flight' || phase === 'descent')) { c.fillStyle = col('--h-warning'); c.beginPath(); c.arc(14, y(view.km), 3, 0, 7); c.fill(); }
 }
@@ -4106,7 +4396,8 @@ function paintLog() {
   const rows = [['Best altitude', S.bestKm >= MOON_KM ? 'THE MOON' : fmtMi(S.bestKm) + ' mi'], ['Top velocity', fmtV(S.bestV)],
                 ['Launches', S.launches.toLocaleString('en-US')], ['Earned, all time', fmtMoney(S.earned)],
                 ['Mission', S.mission ? S.mission + ' · ' + MISSIONS[S.mission].name : 'sub-orbital'],
-                ['Moon base', S.mission >= 4 ? S.population.toLocaleString('en-US') + ' people · ' + S.cargoT + ' t landed' : 'not yet']];
+                ['Moon base', S.mission >= 4 ? S.population.toLocaleString('en-US') + ' people · ' + S.cargoT + ' t landed' : 'not yet'],
+                ['Railgun', S.shipments ? S.shipments.toLocaleString('en-US') + (S.shipments === 1 ? ' shipment home' : ' shipments home') : railgunPay(S.population) ? 'ready' : 'needs 1,000 people']];
   for (const [k, v] of rows) { const d = document.createElement('div'); d.className = 'stat';
     d.innerHTML = '<div class="k"></div><div class="v"></div>'; d.children[0].textContent = k; d.children[1].textContent = v; st.appendChild(d); }
   const tb = $('log-body'); tb.textContent = '';
@@ -4123,10 +4414,12 @@ function showFlash(f, r, record, hit, module, override) {
   $('fl-sub').textContent = override && override.sub ? override.sub
     : hit.length ? hit.map(m => m.name).join(' · ') : record ? 'New record' : 'Top velocity ' + fmtV(f.maxV);
   $('fl-money').textContent = '+' + fmtMoney(r);
+  $('flash').classList.toggle('low', phase === 'turnaround');
   $('flash').classList.add('show');
   clearTimeout(flashTimer); flashTimer = setTimeout(hideFlash, 4200);
 }
 function hideFlash() { $('flash').classList.remove('show'); }
+
 
 /* tabs */
 document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => {
