@@ -90,3 +90,21 @@ The rocket **pitches over** after the vertical ascent. Reaching a tier needs ene
 | 5 | Moon base built | payload launches grow the base | Moon surface, base growing | population counter updates every launch until **10,000 people**; a railgun fires cargo back to Earth |
 
 Sub-steps inside tier 1 keep the early game readable: 1 mi, 6 mi, Kármán line, then orbit. Phase 2 (Mars colony, asteroid belt) is parked in the queue as T20 and is why the camera-scale mechanism is worth building properly.
+
+
+## Mission ladder as built (2026-09-05)
+
+| Mission | Δv required | Equipment | Reached at (cheapest strategy) |
+| --- | --- | --- | --- |
+| 1 Earth low orbit | 9.3 km/s | second stage + guidance computer | launch 9 |
+| 2 Lunar-injection orbit | 12.5 km/s | kick stage + deep-space comms | launch 18 |
+| 3 Lunar orbit | 13.4 km/s | capture engine + star tracker | launch 28 |
+| 4 Lunar base established | 15.3 km/s | landing legs + descent radar | launch 36 |
+| 5 Moon base built | 15.3 km/s | cargo bay + life support | launch 46, 10,000 people by 73 |
+
+Measured across five strategies: 62–116 launches to finish. At ~23 s a cycle that is 25–45 minutes;
+the one-hour target is T14, which retunes costs once the ladder is settled.
+
+The flight model is multi-stage: equipment adds real stages with their own fuel, dry mass, thrust and
+exhaust velocity, so delivered Δv comes out of the rocket equation rather than a lookup. A tier-2 rocket
+with a second stage clears low Earth orbit; the same rocket without it does not.

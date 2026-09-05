@@ -27,6 +27,7 @@ the repo directly — attach it if it isn't already in scope.
 - **Art direction:** goofy hi-res vector, drawn in code. No image assets. Scene art (W1–W4 sections) may use its own hex; the chrome never does.
 - **Mission control:** the data window top-left of the scene reads `view.forces` (per-sample thrust, drag, mass, g from `flyRocket`; `forcesAt` after burnout) and converts to lbf/lb/ft·s⁻² only in `paintDataWin`.
 - **Units:** display is miles and mph; the sim and balance table are SI and convert only in the format layer (`fmtMi`, `fmtV`).
+- **Missions:** five, in `MISSIONS` in the balance block. A flight reaches mission *n* when delivered Δv clears `dvReq` AND both `equip` items are owned AND mission *n−1* is achieved. `capOf(missions)` caps every track at 2×(missions+1). `plan`/`replan()` cache the flight; **anything that changes tiers or equipment must call `replan()`** or the hint and the gold LAUNCH go stale.
 - **Balance:** the numbers live in one block between `/*BAL-START*/` and `/*BAL-END*/` in the app.
   `node scripts/sim.mjs` evals that exact block — there is no second copy. Change a number, run the sim, paste the measurement into the comment beside it.
 - **Critic camera:** `node scripts/shot.mjs --all` → `docs/studies/round-<n>/` PNGs + JSON (console errors, fps, draw count, sim gate).
