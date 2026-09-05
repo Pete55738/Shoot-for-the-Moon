@@ -17,6 +17,18 @@ This project follows the house standards in `Pete55738/dev-standards`:
 `dev-standards` is private and cannot be fetched at runtime. In a session, read
 the repo directly — attach it if it isn't already in scope.
 
+## Queue — read first
+
+`docs/QUEUE.md` is the memory when ideas come faster than builds. Read it at
+the top of every session. An idea that arrives mid-task is logged there as
+one line, and the reply says "queued as Tn", before the task continues —
+tasks are **T-numbered**. Every message is read as queue, now, or stop.
+Each item is sized **quick** or **long** when decided: quick items push as
+soon as the queue goes quiet, long items ride with a worker and push when
+they land. A run sheet goes out as a file when asked
+(`python3 scripts/run-sheet.py`). Rules: dev-standards `skills/queue.md`,
+and `skills/orchestrate.md` for how workers are split, heartbeat and report.
+
 ## This project
 
 - **App file:** `app/shoot-for-the-moon.html` — never `index.html`
