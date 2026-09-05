@@ -1366,7 +1366,7 @@ function startTurnaround() {
   turn = { tasks, t0: performance.now(), total, mishap: mishap[3], crew: tasks.map(() => [0.2 + rng() * 0.6, rng()]) };
   /* Repaint the shop here: it was last painted at apogee, with buying locked mid-flight. */
   showChecklist(); paintLaunch(); paintWindows(); paintShop(); paintBadge();
-  if (REDUCED) { turn.t0 -= TURNAROUND_S * 1000; }
+  if (REDUCED) { turn.t0 -= turn.total * 1000; }   // fast-forward the mishap too, not just the base turnaround
   tickTurnaround();
 }
 function turnElapsed() { return turn ? (performance.now() - turn.t0) / 1000 : 0; }
