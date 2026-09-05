@@ -2097,9 +2097,13 @@ function drawLadder() {
   const y = km => H - 8 - clamp(Math.log10(km + 1) / Math.log10(MOON_KM + 1), 0, 1) * (H - 16);
   c.strokeStyle = col('--h-border'); c.lineWidth = 2; c.beginPath(); c.moveTo(14, 8); c.lineTo(14, H - 8); c.stroke();
   c.font = '600 9px ' + col('--wa-font-family-heading'); c.textBaseline = 'middle';
-  for (const m of MILESTONES) { const yy = y(m.km); const got = S.milestones.includes(m.km);
-    c.strokeStyle = got ? col('--h-accent') : col('--h-border'); c.beginPath(); c.moveTo(8, yy); c.lineTo(20, yy); c.stroke();
-    c.fillStyle = got ? col('--h-text') : col('--h-text-muted'); c.fillText((m.km >= MOON_KM ? 'MOON' : fmtMi(m.km) + ' mi').toUpperCase(), 24, yy); }
+  /* Ticks sit at their true height; labels are pushed apart (bottom-up) so none overlap on a short phone strip. */
+  const rows = MILESTONES.map(m => ({ m, yy: y(m.km), ly: y(m.km) })).sort((a, b) => b.yy - a.yy);
+  for (let i = 1; i < rows.length; i++) if (rows[i - 1].ly - rows[i].ly < 10) rows[i].ly = rows[i - 1].ly - 10;
+  for (const r of rows) { const got = S.milestones.includes(r.m.km);
+    c.strokeStyle = got ? col('--h-accent') : col('--h-border'); c.beginPath(); c.moveTo(8, r.yy); c.lineTo(20, r.yy); c.stroke();
+    if (Math.abs(r.ly - r.yy) > 1) { c.beginPath(); c.moveTo(20, r.yy); c.lineTo(23, r.ly); c.stroke(); }
+    c.fillStyle = got ? col('--h-text') : col('--h-text-muted'); c.fillText((r.m.km >= MOON_KM ? 'MOON' : fmtMi(r.m.km) + ' mi').toUpperCase(), 24, r.ly); }
   if (S.bestKm > 0) { const yb = y(S.bestKm); c.fillStyle = col('--h-positive'); c.beginPath(); c.arc(14, yb, 4, 0, 7); c.fill();
     /* the BEST tag sits right of the dot; nudged off a milestone label if one is within a line-height */
     const near = MILESTONES.some(m => Math.abs(y(m.km) - yb) < 10); c.font = '700 8px ' + col('--wa-font-family-heading');
