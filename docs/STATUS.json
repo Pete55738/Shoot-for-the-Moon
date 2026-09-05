@@ -1,7 +1,7 @@
 {
   "envelope": 1,
   "kind": "status",
-  "at": "2026-09-05T23:30:00Z",
+  "at": "2026-09-06T00:15:00Z",
   "payload": {
     "reference": "docs/studies/round-19/sheet.png + freereturn-*.png (provisional \u2014 built from the brain dumps, not user-picked)",
     "gates": {
@@ -9,11 +9,13 @@
       "consoleErrors": 0,
       "simClean": true
     },
-    "rounds": 25,
+    "rounds": 26,
     "subsystems": {
       "chrome": {
-        "score": 8.5,
-        "open": []
+        "score": 9.0,
+        "open": [
+          "the Info tab is one long card; Start over sits at the bottom of it"
+        ]
       },
       "pad": {
         "score": 9.5,
@@ -134,6 +136,6 @@
     },
     "weakest": "moonview",
     "note": "Pitch-over and the camera ladder (T13c/T15/T16/T30/T31). A flight is now a phase machine: ascent (physics replay) \u2192 gravity turn \u2192 Earth orbit \u2192 dotted transfer arc \u2192 lunar orbit \u2192 cargo drop \u2192 return \u2192 parachute, cross-fading between camera views so each mission zooms out one step and the Moon zooms back in. Budgets per mission: 10 s at mission 1, 21 s for the full Moon round trip, under the 30 s cap. The ladder re-scales: altitude, then distance to the Moon, then population toward 10,000. Zero console errors, 60\u201361 fps, sim PASS. T33/T34/T24: the readiness window owns the top-left on the ground and becomes a go/no-go board when idle; mission control and the gimbal take over the moment the flight starts. Task pool is 36 jokey items grouped into six assembly stages, read as live commentary. T35 optimization: static farm and pad layers cached to offscreen canvases, fills batched, off-screen ground culled. Pad 150 draws to 49, turnaround 232 to 140, desktop turnaround 55 fps to 61. Verified identical with the clock frozen: 0.06% of pixels differ, none by more than 64/255, all on cached-layer antialiasing seams. T14 retune: cost growth 2.55, equipment priced above the tier it unlocks, population 0.95 per tonne. A player who buys what they can afford reaches low Earth orbit on launch 14 and finishes in about an hour. T17 railgun: fires during the Moon cargo phase where the camera actually is, pays about 90 cents per resident, grows with the colony. T36\u2013T39 + A1/A2: ten mishaps, the upper-right checklist, a square LAUNCH with its own clock, the rocket lifting off the pad, and one canonical journey geometry \u2014 Earth lower-left, counter-clockwise orbit, figure eight at the Moon.",
-    "at": "2026-09-05T23:30:00Z"
+    "at": "2026-09-06T00:15:00Z"
   }
 }
