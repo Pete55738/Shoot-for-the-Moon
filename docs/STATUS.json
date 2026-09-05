@@ -1,7 +1,7 @@
 {
   "envelope": 1,
   "kind": "status",
-  "at": "2026-09-05T15:50:00Z",
+  "at": "2026-09-05T16:40:00Z",
   "payload": {
     "reference": "docs/studies/round-4/sheet.png + liftoff-sequence.png (provisional \u2014 built from the brain dumps, not user-picked)",
     "gates": {
@@ -9,7 +9,7 @@
       "consoleErrors": 0,
       "simClean": true
     },
-    "rounds": 9,
+    "rounds": 11,
     "subsystems": {
       "chrome": {
         "score": 8.5,
@@ -47,8 +47,10 @@
         ]
       },
       "shop": {
-        "score": 8.5,
-        "open": []
+        "score": 9.0,
+        "open": [
+          "ten equipment cards make a long scroll on a phone"
+        ]
       },
       "ladder": {
         "score": 8.5,
@@ -79,9 +81,16 @@
         "open": [
           "countdown numerals sit over the crane boom on desktop"
         ]
+      },
+      "missions": {
+        "score": 8.5,
+        "open": [
+          "milestone flights have no distinct animation yet (T13c) \u2014 they reuse the vertical flight",
+          "whole game runs 62\u2013116 launches, ~25\u201345 min; the hour target is T14"
+        ]
       }
     },
-    "weakest": "descent",
-    "note": "Graphics round 2 (2026-09-05): four more workers \u2014 farm extras + flatbed hand-off, liftoff sequence, rocket polish with re-entry heat and payload bay, atmosphere layers + twinkle + sun. Integrator wired countdown 3\u00b72\u00b71\u00b7IGNITION (1.55 s), camera shake, steam and smoke, crowd excitement, re-entry heat 120\u219240 km, chute under 12 km. Rounds 8\u20139 on the integrated build: zero console errors, 55\u201361 fps, sim PASS. Overall 9.0."
+    "weakest": "missions",
+    "note": "Mission ladder built (T13/T19/T27\u2013T29). Five missions gated on delivered \u0394v and two pieces of equipment each; the shop splits ROCKET / EQUIPMENT with a live next-step hint; every milestone unlocks two more tiers; after the base is established every flight lands cargo and grows the population toward 10,000. The flight model is now multi-stage \u2014 equipment adds real stages, so \u0394v comes from the rocket equation. Sim PASS: base built in 62\u2013116 launches on every strategy."
   }
 }

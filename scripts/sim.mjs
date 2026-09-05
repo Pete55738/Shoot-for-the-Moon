@@ -17,14 +17,14 @@ const html = readFileSync(resolve(ROOT, 'app/shoot-for-the-moon.html'), 'utf8');
 const a = html.indexOf('/*BAL-START*/'), b = html.indexOf('/*BAL-END*/');
 if (a < 0 || b < 0) { console.error('balance block markers missing'); process.exit(2); }
 const block = html.slice(a, b);
-const B = new Function(block + '\nreturn { flyRocket, rewardOf, costOf, runBalanceSim, MOON_KM, TIERS };')();
+const B = new Function(block + '\nreturn { flyRocket, rewardOf, costOf, runBalanceSim, MOON_KM, TIERS, missionReached };')();
 
 if (process.argv.includes('--curve')) {
   console.log('tier  apogee km   burnout km  top m/s  burn s  reward');
   for (let n = 1; n <= B.TIERS; n++) { const t = { engine: n, tank: n, aero: n, hull: n, payload: n }; const f = B.flyRocket(t);
-    console.log(String(n).padEnd(5), (f.moon ? 'MOON' : f.apogeeKm.toFixed(1)).padEnd(11), f.burnoutKm.toFixed(1).padEnd(11), Math.round(f.maxV).toString().padEnd(8), f.tBurn.toFixed(0).padEnd(7), B.rewardOf(f.apogeeKm, t)); }
+    console.log(String(n).padEnd(5), (f.moon ? 'MOON' : f.apogeeKm.toFixed(1)).padEnd(11), f.burnoutKm.toFixed(1).padEnd(11), Math.round(f.maxV).toString().padEnd(8), f.tBurn.toFixed(0).padEnd(7), B.rewardOf(f.apogeeKm, t), '· Δv', (f.dv / 1000).toFixed(2), 'km/s'); }
 }
 const r = B.runBalanceSim();
 console.log((r.ok ? 'PASS' : 'FAIL') + ' · ' + r.gate);
-for (const x of r.rows) console.log(' ', x.name.padEnd(13), x.reached ? 'Moon @ launch ' + x.launches : 'never reaches the Moon', '· max dry', x.maxDry, '· buys', x.buys);
+for (const x of r.rows) console.log(' ', x.name.padEnd(14), x.reached ? 'base built @ launch ' + x.launches : 'never builds the base', '· max dry', x.maxDry, '· buys', x.buys, '· milestones', JSON.stringify(x.at));
 process.exit(r.ok ? 0 : 1);
