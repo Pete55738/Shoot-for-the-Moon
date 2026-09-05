@@ -1,0 +1,22 @@
+{
+  "version": "v0.1",
+  "status": "doing",
+  "milestone": "one-shot built; design cycle next",
+  "nextAction": "render 2–3 pad-scene studies for the user to pick a reference from",
+  "category": "Games",
+  "daily": false,
+  "htmlPath": "app/shoot-for-the-moon.html",
+  "liveUrl": "https://shoot-for-the-moon-9834.netlify.app",
+  "priority": 30,
+
+  "authLabel": "none",
+  "auth": [
+    "No browser-held tokens needed to play; a GitHub PAT pasted in the header unlocks the DEV tab and is never sent anywhere by the page"
+  ],
+
+  "tasks": {
+    "open": null,
+    "blocked": null,
+    "at": null
+  }
+}

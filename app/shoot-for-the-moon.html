@@ -1,0 +1,1436 @@
+<!doctype html>
+<!--
+  SHOOT FOR THE MOON — a one-button rocket clicker.
+  One lever: press LAUNCH. Spend what the flight earns on a better rocket.
+  Get to the Moon; build the base.
+
+  House standards: Pete55738/dev-standards (CLAUDE.md, docs/GAMES.md).
+  Sections, in order — see docs/ARCHITECTURE.md:
+    tokens · chrome CSS · scene CSS · markup ·
+    balance table · state · flight sim · turnaround · scene render · UI · tutorial · DEV · boot
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Shoot for the Moon</title>
+
+<script>try{var t=localStorage.getItem('theme');
+  if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
+
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="shoot-for-the-moon.webmanifest">
+<meta name="apple-mobile-web-app-title" content="Moonshot">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" media="(prefers-color-scheme: dark)"  content="#1A2A40">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#5E7A9B">
+
+<style id="house-tokens">
+/* ============================================================
+   HOUSE DESIGN TOKENS — single source of truth
+   ------------------------------------------------------------
+   Load AFTER Web Awesome's theme so these overrides win:
+
+     <link rel="stylesheet" href=".../webawesome@3/styles/themes/default.css">
+     <link rel="stylesheet" href=".../webawesome@3/styles/utilities.css">
+     <script type="module" src=".../webawesome@3/webawesome.loader.js"></script>
+     <link rel="stylesheet" href="tokens.css">          <!-- LAST -->
+
+   HOW THIS FILE IS ORGANISED
+     1. KNOBS      — the handful of numbers you actually tweak
+     2. PALETTE    — house colors, dark + light
+     3. BINDING    — house palette mapped onto Web Awesome's tokens
+     4. HOUSE-ONLY — things Web Awesome doesn't ship (tables, charts)
+
+   RULES
+     - Style components only through tokens. No raw hex in page CSS.
+     - Semantic colors (success/danger/info) mean STATE. Never decoration.
+     - The brand accent is the only decorative hue.
+     - Change a knob in §1, not a value in §2.
+   ============================================================ */
+
+
+/* ============================================================
+   1. KNOBS — turn these
+   ============================================================ */
+:root {
+  /* Type. Raise --wa-font-size-scale to grow every size at once. */
+  --wa-font-size-scale: 1;
+  --wa-font-weight-heading: 700;
+  --wa-font-weight-data: 600;    /* digits and data: semibold, never regular — thin mono digits vanish on a mid ground */
+
+  /* Standard stacks — no downloads, no CDN, no 139KB of base64.
+     Mono for headings/labels/data, system sans for body copy — these
+     are dense dashboards, and sans stays legible at small sizes. */
+  --wa-font-family-heading: ui-monospace, "SF Mono", "Cascadia Mono", "Segoe UI Mono", "Roboto Mono", Menlo, Consolas, monospace;
+  --wa-font-family-body:    system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --wa-font-family-code:    var(--wa-font-family-heading);
+
+  /* Density and shape. 1 = Web Awesome's default rhythm. */
+  --wa-space-scale: 1;
+  --wa-border-radius-scale: 0.6;   /* house look is tight: 3–5px, not pills */
+
+  /* Uppercase mono label treatment — used by house components */
+  --label-tracking: 0.05em;
+  --label-size: 0.78rem;
+
+  /* Page measures */
+  --measure-shell: 1020px;
+  --measure-lede:  62ch;
+  --measure-body:  68ch;
+  --measure-card:  72ch;
+}
+
+
+/* ============================================================
+   2. PALETTE — house colors: steel blue
+   The house look is the steel-blue pack (ui/themes/steel-blue.css is
+   the record of where it came from — AI-Racer #19/#22, made house-wide
+   2026-09-05). A lit steel blue dark, one step lighter on a touch
+   screen, and a MEDIUM steel blue light: light mode is used at night
+   or indoors, and a white page is a glare there. Dark text on a mid
+   ground, near-black borders so controls keep their outline, and the
+   accent and semantic colours are the same in both themes because on
+   a mid ground the light versions carry and the dark ones sink.
+
+   Declared four times on purpose: :root is the dark default, the
+   media query handles system-light, and the two [data-theme]
+   blocks let an explicit toggle beat the system in both
+   directions. Never define a color in only one block.
+   ============================================================ */
+:root {
+  color-scheme: dark;   /* native controls and scrollbars follow too */
+  --h-bg:            #1A2A40;
+  --h-surface:       #233752;
+  --h-surface-2:     #2B4262;
+  --h-border:        #3F5A7C;
+  --h-text:          #EAF2FA;
+  --h-text-muted:    #A6B8CC;
+  --h-accent:        #4FD9E6;
+  --h-accent-strong: #9BEFF6;
+  --h-positive:      #5ED39A;
+  --h-negative:      #FF7A70;
+  --h-warning:       #FFC24D;
+  --h-info:          #6FC6D9;
+  --h-on-accent:     #0F1C2B;
+  --h-accent-soft:   rgba(79,217,230,.16);
+  --h-surface-glass: rgba(35,55,82,.88);
+}
+
+/* A phone in the hand, often outdoors: the same hues one step lighter so
+   the chrome reads at arm's length in sun. Dark only — light is already mid. */
+@media (pointer: coarse) {
+  :root, :root[data-theme="dark"] {
+    --h-bg:            #22364F;
+    --h-surface:       #2C4664;
+    --h-surface-2:     #35547A;
+    --h-border:        #4D6C92;
+    --h-text:          #F2F7FC;
+    --h-text-muted:    #B4C5D8;
+    --h-surface-glass: rgba(44,70,100,.9);
+  }
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    color-scheme: light;   /* native controls and scrollbars follow too */
+    --h-bg:            #5E7A9B;
+    --h-surface:       #6D8AAB;
+    --h-surface-2:     #7E9AB9;
+    --h-border:        #14202D;
+    --h-text:          #06111C;
+    --h-text-muted:    #172A3F;
+    --h-accent:        #4FD9E6;
+    --h-accent-strong: #9BEFF6;
+    --h-positive:      #5ED39A;
+    --h-negative:      #FF7A70;
+    --h-warning:       #FFC24D;
+    --h-info:          #6FC6D9;
+    --h-on-accent:     #0F1C2B;
+    --h-accent-soft:   rgba(79,217,230,.16);
+    --h-surface-glass: rgba(109,138,171,.9);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;   /* native controls and scrollbars follow too */
+  --h-bg:            #1A2A40;
+  --h-surface:       #233752;
+  --h-surface-2:     #2B4262;
+  --h-border:        #3F5A7C;
+  --h-text:          #EAF2FA;
+  --h-text-muted:    #A6B8CC;
+  --h-accent:        #4FD9E6;
+  --h-accent-strong: #9BEFF6;
+  --h-positive:      #5ED39A;
+  --h-negative:      #FF7A70;
+  --h-warning:       #FFC24D;
+  --h-info:          #6FC6D9;
+  --h-on-accent:     #0F1C2B;
+  --h-accent-soft:   rgba(79,217,230,.16);
+  --h-surface-glass: rgba(35,55,82,.88);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;   /* native controls and scrollbars follow too */
+  --h-bg:            #5E7A9B;
+  --h-surface:       #6D8AAB;
+  --h-surface-2:     #7E9AB9;
+  --h-border:        #14202D;
+  --h-text:          #06111C;
+  --h-text-muted:    #172A3F;
+  --h-accent:        #4FD9E6;
+  --h-accent-strong: #9BEFF6;
+  --h-positive:      #5ED39A;
+  --h-negative:      #FF7A70;
+  --h-warning:       #FFC24D;
+  --h-info:          #6FC6D9;
+  --h-on-accent:     #0F1C2B;
+  --h-accent-soft:   rgba(79,217,230,.16);
+  --h-surface-glass: rgba(109,138,171,.9);
+}
+
+
+/* ============================================================
+   3. BINDING — house palette → Web Awesome tokens
+   Every Web Awesome component reads these, so overriding them
+   here restyles the whole library at once.
+   ============================================================ */
+:root {
+  /* Surfaces and text */
+  --wa-color-surface-lowered:  var(--h-bg);
+  --wa-color-surface-default:  var(--h-surface);
+  --wa-color-surface-raised:   var(--h-surface-2);
+  --wa-color-surface-border:   var(--h-border);
+  --wa-color-text-normal:      var(--h-text);
+  --wa-color-text-quiet:       var(--h-text-muted);
+  --wa-color-text-link:        var(--h-accent);
+  --wa-color-focus:            var(--h-accent);
+  --wa-color-shadow:           rgb(0 0 0 / 0.35);
+
+  /* BRAND — the accent. quiet = wash, normal = tinted, loud = solid */
+  --wa-color-brand-fill-quiet:    color-mix(in srgb, var(--h-accent) 12%, transparent);
+  --wa-color-brand-fill-normal:   color-mix(in srgb, var(--h-accent) 28%, transparent);
+  --wa-color-brand-fill-loud:     var(--h-accent);
+  --wa-color-brand-border-quiet:  color-mix(in srgb, var(--h-accent) 40%, var(--h-border));
+  --wa-color-brand-border-normal: var(--h-accent);
+  --wa-color-brand-border-loud:   var(--h-accent-strong);
+  --wa-color-brand-on-quiet:      var(--h-accent);
+  --wa-color-brand-on-normal:     var(--h-accent-strong);
+  --wa-color-brand-on-loud:       var(--h-on-accent);
+
+  /* SUCCESS */
+  --wa-color-success-fill-quiet:    color-mix(in srgb, var(--h-positive) 12%, transparent);
+  --wa-color-success-fill-normal:   color-mix(in srgb, var(--h-positive) 28%, transparent);
+  --wa-color-success-fill-loud:     var(--h-positive);
+  --wa-color-success-border-quiet:  color-mix(in srgb, var(--h-positive) 40%, var(--h-border));
+  --wa-color-success-border-normal: var(--h-positive);
+  --wa-color-success-border-loud:   var(--h-positive);
+  --wa-color-success-on-quiet:      var(--h-positive);
+  --wa-color-success-on-normal:     var(--h-positive);
+  --wa-color-success-on-loud:       var(--h-bg);
+
+  /* DANGER */
+  --wa-color-danger-fill-quiet:    color-mix(in srgb, var(--h-negative) 12%, transparent);
+  --wa-color-danger-fill-normal:   color-mix(in srgb, var(--h-negative) 28%, transparent);
+  --wa-color-danger-fill-loud:     var(--h-negative);
+  --wa-color-danger-border-quiet:  color-mix(in srgb, var(--h-negative) 40%, var(--h-border));
+  --wa-color-danger-border-normal: var(--h-negative);
+  --wa-color-danger-border-loud:   var(--h-negative);
+  --wa-color-danger-on-quiet:      var(--h-negative);
+  --wa-color-danger-on-normal:     var(--h-negative);
+  --wa-color-danger-on-loud:       var(--h-bg);
+
+  /* WARNING */
+  --wa-color-warning-fill-quiet:    color-mix(in srgb, var(--h-warning) 12%, transparent);
+  --wa-color-warning-fill-normal:   color-mix(in srgb, var(--h-warning) 28%, transparent);
+  --wa-color-warning-fill-loud:     var(--h-warning);
+  --wa-color-warning-border-quiet:  color-mix(in srgb, var(--h-warning) 40%, var(--h-border));
+  --wa-color-warning-border-normal: var(--h-warning);
+  --wa-color-warning-border-loud:   var(--h-warning);
+  --wa-color-warning-on-quiet:      var(--h-warning);
+  --wa-color-warning-on-normal:     var(--h-warning);
+  --wa-color-warning-on-loud:       var(--h-bg);
+
+  /* NEUTRAL */
+  --wa-color-neutral-fill-quiet:    var(--h-surface-2);
+  --wa-color-neutral-fill-normal:   color-mix(in srgb, var(--h-text-muted) 25%, transparent);
+  --wa-color-neutral-fill-loud:     var(--h-text-muted);
+  --wa-color-neutral-border-quiet:  var(--h-border);
+  --wa-color-neutral-border-normal: var(--h-text-muted);
+  --wa-color-neutral-border-loud:   var(--h-text-muted);
+  --wa-color-neutral-on-quiet:      var(--h-text-muted);
+  --wa-color-neutral-on-normal:     var(--h-text);
+  --wa-color-neutral-on-loud:       var(--h-bg);
+}
+
+
+/* ============================================================
+   4. HOUSE-ONLY — what Web Awesome doesn't ship
+   ============================================================ */
+:root {
+  /* Data tables (wa-data-grid is Pro; ours stays hand-rolled) */
+  --table-header-bg:     var(--h-surface-2);
+  --table-row-border:    var(--h-border);
+  --table-row-hover:     color-mix(in srgb, var(--h-accent) 6%, transparent);
+  --table-numeric-font:  var(--wa-font-family-heading);
+
+  /* Charts — categorical ramp. Distinct in both themes, accent leads. */
+  --chart-1: var(--h-accent);      /* blue */
+  --chart-2: var(--h-warning);     /* gold — maximum separation from blue */
+  --chart-3: var(--h-positive);    /* green */
+  --chart-4: #9B87C4;              /* violet */
+  --chart-5: var(--h-negative);    /* red */
+  --chart-6: var(--h-text-muted);  /* grey */
+
+  /* Shape — components reference these rather than raw px */
+  --radius-sm:  3px;    /* chips, badges, small buttons */
+  --radius:     4px;    /* callouts, controls */
+  --radius-md:  6px;    /* cells, compact cards */
+  --radius-lg:  8px;    /* panels, popovers */
+
+  /* The project wordmark in the header. The one type size ABOVE the body,
+     and the only one — it is identity, not a heading, and there is nothing
+     else in the chrome it should be compared against. */
+  --text-proj: 1.2rem;   /* 19.2px */
+
+  /* Micro type scale — the uppercase mono label sizes used by chrome.
+     Below --label-size; these are the sizes at which a serif would fail
+     and the mono stack still reads. */
+  --text-3xs: 0.6rem;    /* tags, version badges, tiny buttons */
+  --text-2xs: 0.7rem;    /* icon buttons, dense controls */
+  --text-xs:  0.76rem;   /* popover body, secondary copy */
+  --text-sm:  0.82rem;   /* subheadings */
+
+  /* Elevation — used only by things that float above the page */
+  --shadow-pop: 0 8px 30px rgb(0 0 0 / 0.5);
+
+  /* Status dots, placeholder chrome */
+  --dot-live:        var(--h-positive);
+  --dot-idle:        var(--h-text-muted);
+  --dot-error:       var(--h-negative);
+  --placeholder-opacity: 0.55;
+  --placeholder-border: 1px dashed var(--h-border);
+  /* "This project does not use this" — dimmed like a placeholder, but SOLID.
+     The dashed border is what says "coming"; a control that is never coming
+     must not borrow it. Same dimming, different promise. */
+  --na-opacity: 0.45;
+}
+
+body {
+  background: var(--wa-color-surface-lowered);
+  color: var(--wa-color-text-normal);
+  font-family: var(--wa-font-family-body);
+}
+
+/* Uppercase mono label — the house signature, used on tabs,
+   card eyebrows, badges and section headers. */
+.label {
+  font-family: var(--wa-font-family-heading);
+  font-size: var(--label-size);
+  letter-spacing: var(--label-tracking);
+  text-transform: uppercase;
+}
+
+/* Digits in columns line up, and carry weight: data is semibold so it reads on any ground */
+.tabular { font-family: var(--wa-font-family-heading); font-variant-numeric: tabular-nums; font-weight: var(--wa-font-weight-data); }
+
+/* Wide content scrolls itself — the page never scrolls sideways */
+.scroll-x { overflow-x: auto; max-width: 100%; }
+</style>
+
+<style id="css-chrome">
+  /* ── chrome — house boilerplate, games variant (docs/GAMES.md) ── */
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--h-bg); color: var(--h-text);
+         font-family: var(--wa-font-family-body); overflow-x: hidden; }
+  .shell { max-width: var(--measure-shell, 1020px); margin: 0 auto;
+           padding: .75rem .75rem calc(4.4rem + env(safe-area-inset-bottom)); position: relative; }
+  .label { font-family: var(--wa-font-family-heading); letter-spacing: .06em; text-transform: uppercase; }
+
+  /* Ground — mechanism B of page identity: a starfield drawn once behind translucent surfaces. */
+  #ground { position: fixed; inset: 0; z-index: -1; width: 100%; height: 100%; display: block; }
+
+  .topbar { position: sticky; top: 0; z-index: 40; }
+  .hdr2 { display: flex; align-items: center; gap: 0;
+          background: var(--h-surface-glass); border: 1px solid var(--h-border);
+          border-radius: var(--radius-lg); padding: .4rem .75rem; margin-bottom: .6rem;
+          backdrop-filter: blur(6px); }
+  .hdr2 .proj { font-family: var(--wa-font-family-heading); font-weight: 700;
+                color: var(--h-accent); font-size: var(--text-proj); white-space: nowrap; line-height: 1.1; }
+  .hsep { border-left: 1px solid var(--h-border); height: 1.6rem; margin: 0 .75rem; flex: none; }
+  .hstamp { display: flex; flex-direction: column; line-height: 1.35; white-space: nowrap;
+            font-family: var(--wa-font-family-heading); font-size: var(--text-2xs); color: var(--h-text-muted); }
+  .hstamp b { color: var(--h-text); font-weight: 600; }
+  .hact { display: flex; align-items: center; gap: .35rem; flex: none; margin-left: auto; }
+  .hbtn { font-family: var(--wa-font-family-heading); letter-spacing: .06em; text-transform: uppercase;
+          background: none; color: var(--h-text-muted); border: 1px solid var(--h-border);
+          border-radius: var(--radius); cursor: pointer; white-space: nowrap;
+          font-size: var(--text-2xs); padding: .4rem .6rem; min-width: 2.6rem; text-align: center; line-height: 1.25; }
+  .hbtn:hover:not(:disabled) { color: var(--h-text); border-color: var(--h-accent); }
+  .hbtn.on { color: var(--h-accent); border-color: var(--h-accent); }
+  #theme-btn { display: flex; align-items: center; background: none; line-height: 0;
+               border: 1px solid var(--h-border); border-radius: var(--radius);
+               color: var(--h-text-muted); cursor: pointer; padding: .3rem .45rem; }
+  #theme-btn:hover { color: var(--h-text); border-color: var(--h-accent); }
+  @media (max-width: 560px) {
+    .hdr2 { flex-wrap: wrap; gap: .4rem .5rem; }
+    .hsep2 { display: none; }
+  }
+
+  /* GH dialog — anchored to the button, never centred (dashboard-header.html). */
+  #gh-dlg { position: fixed; z-index: 60; background: var(--h-surface); border: 1px solid var(--h-border);
+            border-radius: var(--radius-lg); padding: .9rem; width: min(22rem, calc(100vw - 1.5rem));
+            box-shadow: var(--shadow-pop, 0 12px 30px rgb(0 0 0 / .5)); }
+  #gh-dlg[hidden] { display: none; }
+  #gh-back { position: fixed; inset: 0; z-index: 55; background: transparent; }
+  #gh-back[hidden] { display: none; }
+  #gh-dlg h4 { margin: 0 0 .4rem; font-family: var(--wa-font-family-heading); font-size: var(--label-size);
+               letter-spacing: var(--label-tracking); text-transform: uppercase; color: var(--h-accent); }
+  #gh-dlg p { font-size: var(--text-2xs); color: var(--h-text-muted); margin: .3rem 0 .6rem; line-height: 1.5; }
+  #gh-dlg input { width: 100%; box-sizing: border-box; background: var(--h-bg); color: var(--h-text);
+                  border: 1px solid var(--h-border); border-radius: var(--radius); padding: .45rem .5rem;
+                  font-family: var(--wa-font-family-heading); font-size: var(--text-xs); }
+  #gh-dlg .row { display: flex; gap: .4rem; margin-top: .6rem; flex-wrap: wrap; }
+
+  /* Bottom tab bar — the games default: thumb-reach, border-top. */
+  .tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 45; display: flex; justify-content: center;
+          gap: .2rem; background: var(--h-surface-glass); border-top: 1px solid var(--h-border);
+          padding: .15rem .4rem calc(.15rem + env(safe-area-inset-bottom)); backdrop-filter: blur(6px); }
+  .tab { font-family: var(--wa-font-family-heading); font-size: var(--text-2xs); letter-spacing: .08em;
+         text-transform: uppercase; line-height: 1.25; padding: .75rem 1rem; color: var(--h-text-muted);
+         background: none; border: none; border-top: 2px solid transparent; cursor: pointer; position: relative; }
+  .tab:hover { color: var(--h-text); }
+  .tab.act { color: var(--h-text); border-top-color: var(--h-accent); }
+  .tab:focus-visible { outline: 2px solid var(--h-accent); outline-offset: -2px; }
+  .tab[hidden] { display: none; }
+  .tab .badge { display: inline-block; margin-left: .35rem; vertical-align: top; min-width: 1rem; height: 1rem; line-height: 1rem;
+                border-radius: 999px; background: var(--h-accent); color: var(--h-on-accent);
+                font-size: var(--text-3xs); font-weight: 700; text-align: center; padding: 0 .25rem; }
+  .tab .badge[hidden] { display: none; }
+  .panel { display: none; }
+  .panel.act { display: block; }
+  .panel h3 { font-family: var(--wa-font-family-heading); font-size: var(--label-size);
+              letter-spacing: var(--label-tracking); text-transform: uppercase; color: var(--h-accent);
+              margin: 1.4rem 0 .5rem; text-wrap: balance; }
+  .panel h3:first-child { margin-top: .3rem; }
+  .panel p { max-width: var(--measure-body); line-height: 1.55; font-size: var(--text-xs); }
+  .card { background: var(--h-surface-glass); border: 1px solid var(--h-border); border-radius: var(--radius-lg);
+          padding: .8rem .9rem; }
+
+  table.reg { border-collapse: collapse; width: 100%; font-size: var(--text-2xs); }
+  table.reg th { background: var(--table-header-bg); font-family: var(--wa-font-family-heading);
+                 font-size: var(--text-3xs); letter-spacing: .08em; text-transform: uppercase;
+                 color: var(--h-text-muted); text-align: left; padding: .4rem .5rem;
+                 border-bottom: 1px solid var(--table-row-border); }
+  table.reg td { padding: .4rem .5rem; border-bottom: 1px solid var(--table-row-border); vertical-align: top; }
+  table.reg td.r, table.reg th.r { text-align: right; }
+  table.reg tr:hover td { background: var(--table-row-hover); }
+  .tabular { font-family: var(--wa-font-family-heading); font-weight: var(--wa-font-weight-data);
+             font-variant-numeric: tabular-nums; }
+  .dir { font-family: var(--wa-font-family-heading); font-size: var(--text-3xs); letter-spacing: .08em;
+         border: 1px solid var(--h-border); border-radius: var(--radius-sm); padding: .05rem .3rem; white-space: nowrap; }
+  .dir.na { color: var(--h-text-muted); opacity: .6; }
+  .needs { font-family: var(--wa-font-family-heading); font-size: var(--text-3xs); }
+  .needs.none { color: var(--h-positive); }
+  .reg-status { font-family: var(--wa-font-family-heading); font-size: var(--text-3xs); color: var(--h-text-muted); }
+  .reg-status.on { color: var(--h-positive); }
+  .reg-status.warn { color: var(--h-warning); }
+  .scroll-x { overflow-x: auto; max-width: 100%; }
+  .na { opacity: var(--na-opacity, .45); }
+  code { font-family: var(--wa-font-family-code, var(--wa-font-family-heading)); font-size: .92em; }
+
+  :focus-visible { outline: 2px solid var(--h-accent); outline-offset: 2px; }
+</style>
+
+<style id="css-scene">
+  /* ── the pad: gauges | scene | shop ── */
+  .stage { display: grid; grid-template-columns: 9.5rem minmax(0, 1fr) 15rem; gap: .6rem; align-items: stretch; }
+
+  .hud { display: flex; flex-direction: column; gap: .5rem; }
+  .gauge { background: var(--h-surface-glass); border: 1px solid var(--h-border); border-radius: var(--radius-lg);
+           padding: .5rem .6rem; }
+  .gauge .k { font-family: var(--wa-font-family-heading); font-size: var(--text-3xs); letter-spacing: .12em;
+              text-transform: uppercase; color: var(--h-text-muted); }
+  .gauge .v { font-family: var(--wa-font-family-heading); font-weight: 700; font-size: 1.15rem; line-height: 1.2;
+              font-variant-numeric: tabular-nums; color: var(--h-text); }
+  .gauge .v small { font-size: .6em; color: var(--h-text-muted); font-weight: 600; margin-left: .15rem; }
+  .bar { height: 6px; background: var(--h-bg); border: 1px solid var(--h-border); border-radius: 999px;
+         overflow: hidden; margin-top: .35rem; }
+  .bar i { display: block; height: 100%; width: 0%; background: var(--h-accent); transition: width .15s linear; }
+  .bar.fuel i { background: var(--h-warning); }
+  .bar.spd i { background: var(--h-info); }
+
+  /* Signature element — mechanism D: the altitude ladder, log scale from the pad to the Moon. */
+  .ladder { flex: 1 1 auto; min-height: 12rem; position: relative; }
+  .ladder canvas { position: absolute; inset: .5rem .6rem; width: calc(100% - 1.2rem); height: calc(100% - 1rem); display: block; }
+
+  .scenebox { position: relative; min-height: 26rem; background: var(--h-surface-glass);
+              border: 1px solid var(--h-border); border-radius: var(--radius-lg); overflow: hidden; }
+  #scene { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: manipulation; }
+  .overlay { position: absolute; inset: 0; pointer-events: none; display: flex; flex-direction: column; }
+  .flash { position: absolute; left: 50%; top: 18%; transform: translateX(-50%); text-align: center;
+           font-family: var(--wa-font-family-heading); font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+           color: var(--h-text); text-shadow: 0 2px 12px rgb(0 0 0 / .8); opacity: 0; transition: opacity .3s;
+           white-space: nowrap; }
+  .flash.show { opacity: 1; }
+  .flash .big { font-size: 1.4rem; color: var(--h-accent-strong); }
+  .flash .sub { font-size: var(--text-2xs); color: var(--h-text-muted); margin-top: .25rem; letter-spacing: .12em; }
+  .flash .money { font-size: 1.1rem; color: var(--h-positive); margin-top: .35rem; }
+
+  .checklist { position: absolute; left: .6rem; top: .6rem; width: min(15rem, 60%);
+               background: var(--h-surface-glass); border: 1px solid var(--h-border); border-radius: var(--radius);
+               padding: .45rem .55rem; font-family: var(--wa-font-family-heading); font-size: var(--text-3xs);
+               letter-spacing: .06em; text-transform: uppercase; color: var(--h-text-muted);
+               transition: opacity .3s; pointer-events: auto; }
+  .checklist[hidden] { display: none; }
+  .checklist .t { color: var(--h-accent); font-weight: 700; margin-bottom: .3rem; display: flex; justify-content: space-between; }
+  .checklist ol { margin: 0; padding: 0; list-style: none; }
+  .checklist li { padding: .12rem 0; display: flex; gap: .4rem; align-items: center; white-space: nowrap; overflow: hidden; }
+  .checklist li::before { content: '○'; color: var(--h-border); width: .9em; }
+  .checklist li.doing::before { content: '◔'; color: var(--h-warning); }
+  .checklist li.done::before { content: '●'; color: var(--h-positive); }
+  .checklist li.done { color: var(--h-text); }
+  .checklist li.doing { color: var(--h-text); }
+  .checklist .bar { margin-top: .35rem; }
+
+  #launch { position: absolute; right: .8rem; bottom: .8rem; pointer-events: auto; cursor: pointer;
+            width: 8.2rem; height: 8.2rem; border-radius: 50%; border: 3px solid var(--h-accent);
+            background: radial-gradient(circle at 50% 35%, var(--h-accent-strong), var(--h-accent) 70%);
+            color: var(--h-on-accent); font-family: var(--wa-font-family-heading); font-weight: 800;
+            font-size: 1.15rem; letter-spacing: .12em; text-transform: uppercase; line-height: 1.2;
+            box-shadow: 0 0 0 6px var(--h-accent-soft), 0 12px 30px rgb(0 0 0 / .5);
+            transition: transform .08s ease, filter .2s; }
+  #launch:hover:not(:disabled) { transform: scale(1.03); }
+  #launch:active:not(:disabled) { transform: scale(.96); }
+  #launch:disabled { cursor: default; filter: grayscale(.9) brightness(.7); box-shadow: 0 8px 20px rgb(0 0 0 / .4); }
+  #launch small { display: block; font-size: var(--text-3xs); letter-spacing: .14em; font-weight: 600; margin-top: .2rem; }
+  #launch.ready { animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { box-shadow: 0 0 0 6px var(--h-accent-soft), 0 12px 30px rgb(0 0 0 / .5); }
+                     50% { box-shadow: 0 0 0 14px transparent, 0 12px 30px rgb(0 0 0 / .5); } }
+  @media (max-width: 860px) { #launch { width: 6.6rem; height: 6.6rem; font-size: 1rem; } }
+
+  /* Shop — one visible track per thing; tier bundles its stat gains. */
+  .shop { display: flex; flex-direction: column; gap: .5rem; }
+  .shop h3 { margin: 0 0 .1rem; }
+  .money { background: var(--h-surface-glass); border: 1px solid var(--h-border); border-radius: var(--radius-lg);
+           padding: .5rem .7rem; display: flex; justify-content: space-between; align-items: baseline; }
+  .money .k { font-family: var(--wa-font-family-heading); font-size: var(--text-3xs); letter-spacing: .12em;
+              text-transform: uppercase; color: var(--h-text-muted); }
+  .money .v { font-family: var(--wa-font-family-heading); font-weight: 800; font-size: 1.25rem;
+              color: var(--h-positive); font-variant-numeric: tabular-nums; }
+  .up { background: var(--h-surface-glass); border: 1px solid var(--h-border); border-radius: var(--radius-lg);
+        padding: .5rem .6rem; display: grid; grid-template-columns: 1fr auto; gap: .15rem .6rem; align-items: center; }
+  .up .n { font-family: var(--wa-font-family-heading); font-size: var(--text-2xs); letter-spacing: .08em;
+           text-transform: uppercase; color: var(--h-text); font-weight: 700; }
+  .up .d { font-size: var(--text-3xs); color: var(--h-text-muted); grid-column: 1 / -1; line-height: 1.4; }
+  .up .pips { display: flex; gap: 2px; grid-column: 1 / -1; margin: .15rem 0; }
+  .up .pips i { flex: 1; height: 4px; background: var(--h-bg); border: 1px solid var(--h-border); border-radius: 2px; }
+  .up .pips i.on { background: var(--h-accent); border-color: var(--h-accent); }
+  .buy { font-family: var(--wa-font-family-heading); font-size: var(--text-2xs); letter-spacing: .06em;
+         text-transform: uppercase; font-weight: 700; padding: .35rem .6rem; border-radius: var(--radius);
+         border: 1px solid var(--h-accent); background: var(--h-accent); color: var(--h-on-accent); cursor: pointer;
+         white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .buy:disabled { background: none; color: var(--h-text-muted); border-color: var(--h-border); cursor: default; }
+  .buy.max { border-style: solid; }
+  .buy.locked { border-style: dashed; }
+
+  /* LOG */
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: .5rem; margin-bottom: .8rem; }
+  .stat { background: var(--h-surface-glass); border: 1px solid var(--h-border); border-radius: var(--radius-lg); padding: .5rem .7rem; }
+  .stat .k { font-family: var(--wa-font-family-heading); font-size: var(--text-3xs); letter-spacing: .12em;
+             text-transform: uppercase; color: var(--h-text-muted); }
+  .stat .v { font-family: var(--wa-font-family-heading); font-weight: 700; font-size: 1.1rem; font-variant-numeric: tabular-nums; }
+
+  /* Tutorial */
+  .spot { outline: 3px solid var(--h-warning) !important; outline-offset: 4px; border-radius: var(--radius-lg);
+          animation: spotpulse 1.2s ease-in-out infinite; position: relative; z-index: 52; }
+  @keyframes spotpulse { 0%,100% { outline-offset: 4px; } 50% { outline-offset: 9px; } }
+  #tour { position: fixed; left: 50%; bottom: calc(4.2rem + env(safe-area-inset-bottom)); transform: translateX(-50%);
+          z-index: 53; width: min(24rem, calc(100vw - 1.5rem)); background: var(--h-surface); border: 1px solid var(--h-warning);
+          border-radius: var(--radius-lg); padding: .8rem .9rem; box-shadow: 0 12px 30px rgb(0 0 0 / .5); }
+  #tour[hidden] { display: none; }
+  #tour .step { font-family: var(--wa-font-family-heading); font-size: var(--text-3xs); letter-spacing: .12em;
+                text-transform: uppercase; color: var(--h-warning); }
+  #tour p { margin: .3rem 0 .6rem; font-size: var(--text-xs); line-height: 1.5; }
+  #tour .row { display: flex; gap: .4rem; justify-content: flex-end; }
+
+  /* DEV */
+  .devgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: .5rem; }
+  .devgrid .hbtn { width: 100%; padding: .6rem; }
+  pre.out { background: var(--h-bg); border: 1px solid var(--h-border); border-radius: var(--radius);
+            padding: .6rem; font-size: var(--text-3xs); overflow-x: auto; max-height: 20rem; }
+
+  @media (max-width: 860px) {
+    .stage { grid-template-columns: minmax(0, 1fr); }
+    .hud { order: 2; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .hud .ladder { grid-column: 1 / -1; min-height: 7.5rem; }
+    .gauge .v { font-size: 1rem; }
+    .shop { order: 3; }
+    .scenebox { order: 1; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #launch.ready, .spot { animation: none; }
+    .bar i, .flash { transition: none; }
+  }
+</style>
+</head>
+<body>
+<canvas id="ground" aria-hidden="true"></canvas>
+<div class="shell">
+
+  <div class="topbar">
+    <header class="hdr2">
+      <span class="proj">SHOOT FOR THE MOON</span>
+      <span class="hsep"></span>
+      <span class="hstamp">
+        <b id="hd-date">—</b>
+        <span id="hd-time">—</span>
+        <span id="hdr-when" hidden>COMMIT_TIME_ISO</span>
+      </span>
+      <span class="hsep hsep2"></span>
+      <span class="hstamp"><b id="hd-ver">v0.1 <!--REV--></b></span>
+      <!-- Games header: version + stamp, GH unlocks DEV, no DL/UL (docs/GAMES.md). -->
+      <span class="hact">
+        <button class="hbtn" id="help-btn" title="Replay the guided tour">?</button>
+        <button class="hbtn" id="gh-btn" title="GitHub token — unlocks the DEV tab. Stored in this browser only; never sent anywhere by this page.">GH</button>
+        <button id="theme-btn" type="button" title="Switch theme"></button>
+      </span>
+    </header>
+  </div>
+
+  <div id="gh-back" hidden></div>
+  <div id="gh-dlg" hidden role="dialog" aria-labelledby="gh-title">
+    <h4 id="gh-title">GitHub token</h4>
+    <p>Unlocks the <b>DEV</b> tab. Stored in this browser's local storage only, never committed,
+       never sent anywhere by this page. Use a fine-grained token scoped to this project's repository.
+       Last 4 shown: <b id="gh-last4">none</b>.</p>
+    <input type="password" id="gh-in" placeholder="github_pat_…" autocomplete="off" aria-label="GitHub token">
+    <div class="row">
+      <button class="hbtn" id="gh-save">Save</button>
+      <button class="hbtn" id="gh-cancel">Cancel</button>
+      <button class="hbtn" id="gh-forget">Disconnect</button>
+    </div>
+  </div>
+
+  <!-- ── PAD ── -->
+  <section class="panel act" id="p-pad">
+    <div class="stage">
+      <aside class="hud" id="hud">
+        <div class="gauge" title="How high the last (or current) flight got"><div class="k">Altitude</div>
+          <div class="v" id="g-alt">0<small>km</small></div><div class="bar"><i id="b-alt"></i></div></div>
+        <div class="gauge" title="Speed right now"><div class="k">Speed</div>
+          <div class="v" id="g-spd">0<small>m/s</small></div><div class="bar spd"><i id="b-spd"></i></div></div>
+        <div class="gauge" title="Fuel left in the tank"><div class="k">Fuel</div>
+          <div class="v" id="g-fuel">100<small>%</small></div><div class="bar fuel"><i id="b-fuel"></i></div></div>
+        <div class="gauge ladder" title="The altitude ladder — pad to Moon, log scale. Ticks are milestones; the dot is your best.">
+          <canvas id="ladder"></canvas></div>
+      </aside>
+
+      <div class="scenebox" id="scenebox">
+        <canvas id="scene" aria-label="Launch pad"></canvas>
+        <div class="overlay">
+          <div class="checklist" id="checklist" hidden>
+            <div class="t"><span>Turnaround</span><span id="cl-t">T−15s</span></div>
+            <ol id="cl-list"></ol>
+            <div class="bar"><i id="cl-bar"></i></div>
+          </div>
+          <div class="flash" id="flash"><div class="big" id="fl-big"></div><div class="sub" id="fl-sub"></div><div class="money" id="fl-money"></div></div>
+          <button id="launch" title="Launch the rocket. One button; that's the game.">Launch<small id="launch-sub">ready</small></button>
+        </div>
+      </div>
+
+      <aside class="shop" id="shop">
+        <div class="money" title="What your flights have earned and not yet spent"><span class="k">Funds</span><span class="v" id="money">$0</span></div>
+        <div id="ups"></div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ── LOG ── -->
+  <section class="panel" id="p-log">
+    <div class="stats" id="stats"></div>
+    <div class="card">
+      <h3>Flight log</h3>
+      <div class="scroll-x"><table class="reg"><thead>
+        <tr><th>#</th><th class="r">Apogee</th><th class="r">Top speed</th><th class="r">Earned</th><th>Note</th></tr></thead>
+        <tbody id="log-body"></tbody></table></div>
+    </div>
+  </section>
+
+  <!-- ── INFO ── -->
+  <section class="panel" id="p-info">
+    <div class="card">
+      <h3>What this is</h3>
+      <p>A one-button space programme. Press <b>LAUNCH</b>. The rocket flies as high as its parts allow,
+         earns money for the altitude, and comes back under a parachute. While the crew turns it around
+         you buy better parts. Ten tiers of engine, tank, aerodynamics and hull get a rocket to the Moon;
+         once you are there, every Moon flight delivers a module until the base is complete.</p>
+      <h3>The one lever</h3>
+      <p>When to press LAUNCH is never a choice — it is always right to fly. The decision is
+         <b>what to buy between launches</b>. Payload tiers pay more per flight but only ride a rocket
+         at least as good as they are, and no part may run more than two tiers ahead of the weakest one,
+         so a lopsided rocket is impossible.</p>
+      <h3>How the numbers work</h3>
+      <p>The flight is a real (small) rocket equation: thrust against mass, gravity that weakens with height,
+         drag that thins with the air. Whatever energy is left at engine cut-off decides the apogee, and
+         enough of it is escape — that is the Moon. Nothing is random; the same rocket flies the same every time.
+         Earnings are a gentle power of altitude times the payload multiplier, plus a one-time bonus at each milestone.
+         Balance was measured over five buying strategies in a headless sim (DEV → Run balance sim):
+         between 70 and 100 launches to the Moon for anyone who buys what is affordable,
+         and no strategy waits more than 17 launches for its next purchase.</p>
+      <h3>Feeds</h3>
+      <div class="scroll-x"><table class="reg"><thead>
+        <tr><th>Feed</th><th>Dir</th><th>What it is for</th><th>Needs</th><th>Limits</th><th>Status</th><th class="r">Action</th></tr></thead>
+        <tbody>
+          <tr><td>Save game</td><td><span class="dir na">—</span></td><td>Your rocket, funds and records, on this device</td>
+              <td><span class="needs none">nothing</span></td><td>this browser's local storage; cleared with site data</td>
+              <td><span class="reg-status" id="reg-save">—</span></td><td class="r">DEV → Reset</td></tr>
+          <tr><td>Hosting</td><td><span class="dir na">—</span></td><td>Serves this one file</td>
+              <td><span class="needs none">nothing</span></td><td>static; no functions, no data files</td>
+              <td><span class="reg-status on">live</span></td><td class="r">n/a</td></tr>
+        </tbody></table></div>
+      <p>No scheduled work runs for this project — nothing fires without you pressing it.</p>
+      <h3>Scoring</h3>
+      <p>Records are kept on this device only. There is no shared leaderboard yet; if one arrives it
+         follows the house rules in <code>docs/GAMES.md</code>.</p>
+    </div>
+  </section>
+
+  <!-- ── DEV — gated on the GitHub token (docs/GAMES.md). Hidden without one; every action re-checks. ── -->
+  <section class="panel" id="p-dev">
+    <div class="card">
+      <h3>Scenes — reach anything in one tap</h3>
+      <div class="devgrid">
+        <button class="hbtn" data-dev="scene:pad">Pad · fresh</button>
+        <button class="hbtn" data-dev="scene:turnaround">Turnaround</button>
+        <button class="hbtn" data-dev="scene:flight">Flight · mid-burn</button>
+        <button class="hbtn" data-dev="scene:space">Flight · in space</button>
+        <button class="hbtn" data-dev="scene:apogee">Apogee flash</button>
+        <button class="hbtn" data-dev="scene:descent">Parachute</button>
+        <button class="hbtn" data-dev="scene:moon">Moon · base</button>
+      </div>
+      <h3>State</h3>
+      <div class="devgrid">
+        <button class="hbtn" data-dev="money:10000">+$10k</button>
+        <button class="hbtn" data-dev="money:1000000">+$1M</button>
+        <button class="hbtn" data-dev="tiers:1">All tiers 1</button>
+        <button class="hbtn" data-dev="tiers:5">All tiers 5</button>
+        <button class="hbtn" data-dev="tiers:10">All tiers 10</button>
+        <button class="hbtn" data-dev="skip">Skip turnaround</button>
+        <button class="hbtn" data-dev="tour">Reset tutorial</button>
+        <button class="hbtn" data-dev="reset">Reset save</button>
+      </div>
+      <h3>Balance sim</h3>
+      <div class="devgrid"><button class="hbtn" data-dev="sim">Run balance sim</button></div>
+      <pre class="out" id="dev-out">—</pre>
+    </div>
+  </section>
+
+  <div id="tour" hidden role="dialog" aria-live="polite">
+    <div class="step" id="tour-step">Step 1 of 5</div>
+    <p id="tour-text"></p>
+    <div class="row"><button class="hbtn" id="tour-skip">Skip</button><button class="hbtn on" id="tour-next">Next</button></div>
+  </div>
+
+  <nav class="tabs" aria-label="Sections">
+    <button class="tab act" data-p="pad" title="The launch pad — fly and buy">Pad</button>
+    <button class="tab" data-p="log" title="Every flight, and your records">Log</button>
+    <button class="tab" data-p="info" title="What this is and how the numbers work">Info</button>
+    <button class="tab" data-p="dev" id="tab-dev" hidden title="Owner tools — jump to any scene, grant funds, run the sim">Dev</button>
+  </nav>
+</div>
+
+<script>
+'use strict';
+/* ═══════════════════════════════════════════════════════════════════════
+   BALANCE TABLE — the only numbers that decide how the game feels.
+   Every constant here was measured by the sim in the DEV section (and
+   scripts/sim.mjs, which evals this exact block): 70–100 launches to the
+   Moon on the natural strategies, no strategy dry for more than 17 launches.
+   Change a number → run the sim → paste the new measurement here.
+   ═══════════════════════════════════════════════════════════════════════ */
+/*BAL-START*/
+const TRACKS = ['engine', 'tank', 'aero', 'hull', 'payload'];
+const TIERS = 10;
+const R_EARTH_KM = 6371;
+const MOON_KM = 384400;
+const COST_GROWTH = 2.4;            // measured: 2.7 stretched the mid-game past 170 launches
+const SPREAD = 2;                   // no rocket part more than 2 tiers above the weakest — engine-only builds stalled 178 launches without it
+const BASE_COST = { engine: 40, tank: 30, aero: 25, hull: 35, payload: 60 };
+const REWARD_K = 6, REWARD_P = 0.7; // reward = (K·alt^P + 5) · payMult — 0.78 let income outrun costs (Moon in 16 launches)
+const PAY_MULT = 1.3;               // per payload tier; 1.45 made payload-first the only strategy
+const MILESTONES = [
+  { km: 1,       name: 'Cleared the tower',   bonus: 15 },
+  { km: 10,      name: 'Above the clouds',    bonus: 60 },
+  { km: 100,     name: 'Kármán line · space', bonus: 450 },
+  { km: 400,     name: 'ISS altitude',        bonus: 1800 },
+  { km: 2000,    name: 'Past the satellites', bonus: 6000 },
+  { km: 36000,   name: 'Geostationary',       bonus: 30000 },
+  { km: MOON_KM, name: 'The Moon',            bonus: 150000 },
+];
+const BASE_MODULES = ['Habitat', 'Solar array', 'Greenhouse', 'Comms dish', 'Observatory'];
+function costOf(track, tier) { return Math.round(BASE_COST[track] * Math.pow(COST_GROWTH, tier - 1)); }
+function statsOf(t) {
+  const thrust   = 520 * Math.pow(1.60, t.engine - 1);              // kN
+  const burnRate = 1.0 * Math.pow(1.27, t.engine - 1);              // t/s — a bigger engine drinks faster
+  const fuel     = 24 * Math.pow(1.46, t.tank - 1);                 // t
+  const dryMass  = 2.5 + fuel * 0.22 * Math.pow(0.80, t.hull - 1);  // t — hull tier is lighter structure
+  const cd       = 0.9 * Math.pow(0.76, t.aero - 1);
+  const area     = 3 + t.tank * 0.6;                                // m² frontal — a fatter tank is a fatter rocket
+  const payMult  = Math.pow(PAY_MULT, t.payload - 1);
+  return { thrust, burnRate, fuel, dryMass, cd, area, payMult };
+}
+/* Deterministic flight. Records a sample every 0.1 s so the scene can replay it.
+   SI throughout: metres, m/s, tonnes, kN. The coast is analytic (vis-viva). */
+function flyRocket(t) {
+  const s = statsOf(t);
+  const R = R_EARTH_KM * 1000, GM = 9.81 * R * R;
+  let h = 0, v = 0, fuel = s.fuel, time = 0, maxV = 0;
+  const dt = 0.1, samples = [];
+  while (fuel > 0 && time < 900) {
+    const m = s.dryMass + fuel;
+    const g = GM / ((R + h) * (R + h));
+    const rho = 1.225 * Math.exp(-h / 7500);
+    const drag = 0.5 * rho * s.cd * s.area * v * v / 1000;
+    const a = (s.thrust - drag) / m - g;
+    v += a * dt; if (v < 0) v = 0;
+    h += v * dt; fuel -= s.burnRate * dt; time += dt;
+    if (v > maxV) maxV = v;
+    samples.push([h, v, Math.max(0, fuel / s.fuel)]);
+  }
+  const e = v * v / 2 - GM / (R + h);
+  let apogeeKm, moon = false;
+  if (e >= 0) { apogeeKm = MOON_KM; moon = true; }
+  else { apogeeKm = Math.max(h, -GM / e - R) / 1000; if (apogeeKm >= MOON_KM) { apogeeKm = MOON_KM; moon = true; } }
+  return { apogeeKm, moon, burnoutKm: h / 1000, maxV, tBurn: time, samples, burnoutV: v };
+}
+function rewardOf(apogeeKm, t) { return Math.round((REWARD_K * Math.pow(apogeeKm, REWARD_P) + 5) * statsOf(t).payMult); }
+function rocketMin(t) { return Math.min(t.engine, t.tank, t.aero, t.hull); }
+/* Why a buy can be refused. null = allowed. */
+function lockReason(track, t) {
+  if (t[track] >= TIERS) return 'max';
+  if (track === 'payload') return t.payload <= rocketMin(t) ? null : 'needs a rocket at least tier ' + t.payload;
+  return t[track] < rocketMin(t) + SPREAD ? null : 'the weakest part must catch up first';
+}
+/* Headless play-through. strategy(opts) picks from affordable-or-not options. */
+function simulate(strategy, maxLaunches) {
+  const t = { engine: 1, tank: 1, aero: 1, hull: 1, payload: 1 };
+  let money = 0, launches = 0, dry = 0, maxDry = 0, buys = 0; const seen = new Set();
+  while (launches < (maxLaunches || 600)) {
+    const f = flyRocket(t); launches++;
+    let r = rewardOf(f.apogeeKm, t);
+    for (const m of MILESTONES) if (f.apogeeKm >= m.km && !seen.has(m.km)) { seen.add(m.km); r += m.bonus; }
+    money += r;
+    if (f.moon) return { launches, maxDry: Math.max(maxDry, dry), buys, reached: true };
+    let bought = false;
+    for (;;) {
+      const opts = TRACKS.filter(k => !lockReason(k, t)).map(k => ({ k, c: costOf(k, t[k] + 1) }));
+      if (!opts.length) break;
+      const pick = strategy(opts, t);
+      if (pick && pick.c <= money) { money -= pick.c; t[pick.k]++; bought = true; buys++; } else break;
+    }
+    if (bought) { maxDry = Math.max(maxDry, dry); dry = 0; } else dry++;
+  }
+  return { launches: null, maxDry: Math.max(maxDry, dry), buys, reached: false };
+}
+const STRATEGIES = {
+  cheapest:   o => o.reduce((a, b) => a.c < b.c ? a : b),
+  priciest:   o => o.reduce((a, b) => a.c > b.c ? a : b),
+  noPayload:  o => { const r = o.filter(x => x.k !== 'payload'); return (r.length ? r : o).reduce((a, b) => a.c < b.c ? a : b); },
+  payloadFirst: o => o.find(x => x.k === 'payload') || o.reduce((a, b) => a.c < b.c ? a : b),
+  engineOnly: o => o.find(x => x.k === 'engine') || o.reduce((a, b) => a.c < b.c ? a : b),
+};
+/* The gate. The named deadlock is "rich payload, weak rocket": payload tiers
+   that pay well on a rocket that cannot climb. payloadFirst is the strategy
+   that would fall into it; SPREAD and the payload lock are what stop it. */
+function runBalanceSim() {
+  const rows = Object.entries(STRATEGIES).map(([name, s]) => ({ name, ...simulate(s) }));
+  const ok = rows.every(r => r.reached && r.launches <= 300 && r.maxDry <= 20);
+  return { ok, rows, gate: 'every strategy reaches the Moon in ≤300 launches with ≤20 dry launches in a row' };
+}
+/*BAL-END*/
+
+/* ═══════════════════════════════════════════════════════════════════════
+   STATE — one object, one owner. Everything else reads it or calls act().
+   ═══════════════════════════════════════════════════════════════════════ */
+const SAVE_KEY = 'sftm-save', TOUR_KEY = 'sftm-tour', PAT_KEY = 'dash-token-shoot-for-the-moon';
+const ENVELOPE = 1, KIND = 'save';
+const $ = id => document.getElementById(id);
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const freshState = () => ({
+  tiers: { engine: 1, tank: 1, aero: 1, hull: 1, payload: 1 },
+  money: 0, launches: 0, earned: 0, bestKm: 0, bestV: 0,
+  milestones: [], modules: 0, log: [], seed: 1,
+});
+let S = freshState();
+/* phase: 'ready' | 'flight' | 'descent' | 'turnaround' — the scene reads it; act() moves it. */
+let phase = 'ready';
+let saveStatus = 'unsaved';
+
+function save() {
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify({ envelope: ENVELOPE, kind: KIND, at: new Date().toISOString(), payload: S }));
+    saveStatus = 'saved just now';
+  } catch (e) { saveStatus = 'could not save (' + (e && e.name || 'storage') + ')'; }
+  paintRegister();
+}
+function load() {
+  let raw = null; try { raw = localStorage.getItem(SAVE_KEY); } catch (e) {}
+  if (!raw) { saveStatus = 'no save yet'; return; }
+  let d; try { d = JSON.parse(raw); } catch (e) { saveStatus = 'save unreadable — starting fresh'; return; }
+  /* Refuse a future envelope, the wrong kind, or an absent payload — never migrate silently. */
+  if ((d.envelope || 0) > ENVELOPE) { saveStatus = 'save is from a newer build — ignored'; return; }
+  if (d.kind !== KIND || !d.payload) { saveStatus = 'save has the wrong shape — ignored'; return; }
+  S = Object.assign(freshState(), d.payload);
+  S.tiers = Object.assign(freshState().tiers, S.tiers || {});
+  saveStatus = 'saved ' + ago(d.at);
+}
+function ago(iso) {
+  const ms = Date.now() - new Date(iso).getTime(); if (isNaN(ms)) return 'at an unknown time';
+  const m = Math.round(ms / 60000); if (m < 1) return 'just now'; if (m < 60) return m + 'm ago';
+  const h = Math.round(m / 60); if (h < 48) return h + 'h ago'; return Math.round(h / 24) + 'd ago';
+}
+/* Seeded RNG — cosmetic only (crew positions, checklist picks). A bug reproduces. */
+function rng() { S.seed = (S.seed * 1664525 + 1013904223) >>> 0; return S.seed / 4294967296; }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   FORMAT
+   ═══════════════════════════════════════════════════════════════════════ */
+const fmtMoney = n => { const a = Math.abs(n);
+  return '$' + (a >= 1e9 ? (n / 1e9).toFixed(2) + 'B' : a >= 1e6 ? (n / 1e6).toFixed(2) + 'M' : a >= 1e4 ? (n / 1e3).toFixed(1) + 'k' : Math.round(n).toLocaleString('en-US')); };
+const fmtKm = km => km >= MOON_KM ? 'MOON' : km >= 10000 ? Math.round(km).toLocaleString('en-US') : km >= 100 ? km.toFixed(0) : km >= 10 ? km.toFixed(1) : km.toFixed(2);
+const fmtV = v => v >= 1000 ? (v / 1000).toFixed(2) + ' km/s' : Math.round(v) + ' m/s';
+
+/* ═══════════════════════════════════════════════════════════════════════
+   ACTIONS — the only way state changes.
+   ═══════════════════════════════════════════════════════════════════════ */
+const TRACK_INFO = {
+  engine:  { name: 'Engine',  what: 'More thrust. Drinks fuel faster, but the rocket gets moving before gravity has its say.' },
+  tank:    { name: 'Fuel tank', what: 'Longer burn. A bigger tank is heavier and wider, so hull and aero matter more.' },
+  aero:    { name: 'Aerodynamics', what: 'Sharper nose, cleaner fins. Less of the fuel is spent pushing air.' },
+  hull:    { name: 'Hull', what: 'Lighter structure for the same tank. Every tonne saved is altitude.' },
+  payload: { name: 'Payload', what: 'The experiment on top — pays more per flight. Rides only a rocket at least as good as it is.' },
+};
+const PAYLOADS = ['Weather balloon', 'A very brave dog', 'Camera in a coffee can', 'Ant farm', 'Pizza (for science)',
+                  'Cube satellite', 'Someone\'s houseplant', 'Telescope', 'Lunar rover', 'Moon base module'];
+
+function buy(track) {
+  if (phase === 'flight' || phase === 'descent') return false;          // nothing is bought mid-flight
+  if (lockReason(track, S.tiers)) return false;
+  const c = costOf(track, S.tiers[track] + 1);
+  if (S.money < c) return false;
+  S.money -= c; S.tiers[track]++;
+  save(); paintShop(); paintMoney(); paintBadge(); drawScene();
+  return true;
+}
+function launch() {
+  if (phase !== 'ready') return;
+  const f = flyRocket(S.tiers);
+  S.launches++;
+  let r = rewardOf(f.apogeeKm, S.tiers);
+  const hit = [];
+  for (const m of MILESTONES) if (f.apogeeKm >= m.km && !S.milestones.includes(m.km)) { S.milestones.push(m.km); r += m.bonus; hit.push(m); }
+  const record = f.apogeeKm > S.bestKm;
+  if (record) S.bestKm = f.apogeeKm;
+  if (f.maxV > S.bestV) S.bestV = f.maxV;
+  let module = null;
+  if (f.moon && S.modules < BASE_MODULES.length) { module = BASE_MODULES[S.modules]; S.modules++; }
+  const note = module ? 'Delivered: ' + module : hit.length ? hit[hit.length - 1].name : record ? 'New record' : '';
+  const entry = { n: S.launches, km: f.apogeeKm, v: f.maxV, earned: r, note };
+  S.log.unshift(entry); if (S.log.length > 30) S.log.length = 30;
+  /* Money lands at apogee, not at press — the flight is the point. */
+  runFlight(f, () => {
+    S.money += r; S.earned += r; save();
+    paintMoney(); paintShop(); paintBadge(); paintLog();
+    showFlash(f, r, record, hit, module);
+  }, () => startTurnaround());
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   FLIGHT — replays the sim's samples over a compressed clock, then coasts.
+   view = what the scene reads each frame: altitude (km), speed, fuel, phase.
+   ═══════════════════════════════════════════════════════════════════════ */
+const view = { km: 0, v: 0, fuel: 1, t: 0, burning: false, para: 0, apogeeKm: 0, flame: 0 };
+let anim = null;
+const easeOut = x => 1 - Math.pow(1 - x, 3);
+function runFlight(f, onApogee, onLanded) {
+  phase = 'flight'; paintLaunch(); hideChecklist();
+  if (REDUCED) { view.km = f.apogeeKm; view.v = 0; view.fuel = 0; view.burning = false; onApogee(); view.para = 0; onLanded(); return; }
+  const burnDur = 2.6 + Math.min(2.4, Math.log10(f.apogeeKm + 1) * 0.6);
+  const coastDur = 1.2 + Math.min(3, Math.log10(f.apogeeKm + 1) * 0.5);
+  const paraDur = 2.6;
+  const t0 = performance.now(); let stage = 0;
+  const N = f.samples.length;
+  cancelAnimationFrame(anim);
+  function frame(now) {
+    const t = (now - t0) / 1000;
+    if (stage === 0) {
+      const p = Math.min(1, t / burnDur);
+      const i = Math.min(N - 1, Math.floor(p * (N - 1)));
+      const s = f.samples[i] || [0, 0, 1];
+      view.km = s[0] / 1000; view.v = s[1]; view.fuel = s[2]; view.burning = p < 1; view.flame = 1;
+      if (p >= 1) { stage = 1; view.burning = false; }
+    } else if (stage === 1) {
+      const p = Math.min(1, (t - burnDur) / coastDur), e = easeOut(p);
+      view.km = f.burnoutKm + (f.apogeeKm - f.burnoutKm) * e;
+      view.v = f.burnoutV * (1 - e); view.flame = Math.max(0, 1 - p * 4);
+      if (p >= 1) { stage = 2; view.apogeeKm = f.apogeeKm; phase = 'descent'; onApogee(); }
+    } else if (stage === 2) {
+      const p = Math.min(1, (t - burnDur - coastDur) / paraDur);
+      view.para = Math.min(1, p * 3);
+      view.km = f.apogeeKm * (1 - easeOut(p)); view.v = 0;
+      if (p >= 1) { stage = 3; view.para = 0; view.km = 0; hideFlash(); onLanded(); return; }
+    }
+    paintGauges(); drawScene(); anim = requestAnimationFrame(frame);
+  }
+  anim = requestAnimationFrame(frame);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   TURNAROUND — ~15 s of crew work between flights. The shop is open.
+   ═══════════════════════════════════════════════════════════════════════ */
+const TASK_POOL = [
+  ['Recover the capsule', 3], ['Hose down the pad', 2], ['Roll the gantry back', 2.5], ['Refuel', 3],
+  ['Torque the bolts', 1.5], ['Replace the parachute', 2], ['Check the dog', 1], ['Tape the antenna back on', 1.5],
+  ['Argue about the weather', 2], ['Countdown rehearsal', 2], ['Find the other glove', 1], ['Polish the nose cone', 1.5],
+  ['Top up the coffee', 1], ['Range safety sign-off', 2], ['Wipe the camera lens', 1], ['Reset the flight computer', 2],
+];
+const TURNAROUND_S = 15;
+let turn = null; // { tasks:[{name,dur,start}], t0, total }
+function startTurnaround() {
+  phase = 'turnaround';
+  const picks = []; const pool = TASK_POOL.slice();
+  while (picks.length < 6 && pool.length) picks.push(pool.splice(Math.floor(rng() * pool.length), 1)[0]);
+  const sum = picks.reduce((a, p) => a + p[1], 0);
+  let acc = 0;
+  const tasks = picks.map(([name, d]) => { const dur = d / sum * TURNAROUND_S; const o = { name, dur, start: acc }; acc += dur; return o; });
+  turn = { tasks, t0: performance.now(), total: TURNAROUND_S, crew: tasks.map(() => [0.2 + rng() * 0.6, rng()]) };
+  /* Repaint the shop here: it was last painted at apogee, with buying locked mid-flight. */
+  showChecklist(); paintLaunch(); paintShop(); paintBadge();
+  if (REDUCED) { turn.t0 -= TURNAROUND_S * 1000; }
+  tickTurnaround();
+}
+function turnElapsed() { return turn ? (performance.now() - turn.t0) / 1000 : 0; }
+function tickTurnaround() {
+  if (phase !== 'turnaround' || !turn) return;
+  const el = turnElapsed();
+  const left = Math.max(0, turn.total - el);
+  $('cl-t').textContent = 'T−' + Math.ceil(left) + 's';
+  $('cl-bar').style.width = Math.min(100, el / turn.total * 100) + '%';
+  const items = $('cl-list').children;
+  turn.tasks.forEach((tk, i) => { const li = items[i]; if (!li) return;
+    li.className = el >= tk.start + tk.dur ? 'done' : el >= tk.start ? 'doing' : ''; });
+  $('launch-sub').textContent = 'ready in ' + Math.ceil(left) + 's';
+  drawScene();
+  if (left <= 0) { finishTurnaround(); return; }
+  anim = requestAnimationFrame(tickTurnaround);
+}
+function finishTurnaround() {
+  phase = 'ready'; turn = null; hideChecklist(); paintLaunch(); paintShop();
+  view.km = 0; view.v = 0; view.fuel = 1; view.flame = 0; view.para = 0; paintGauges(); drawScene();
+}
+function showChecklist() {
+  const ol = $('cl-list'); ol.textContent = '';
+  for (const tk of turn.tasks) { const li = document.createElement('li'); li.textContent = tk.name; ol.appendChild(li); }
+  $('checklist').hidden = false;
+}
+function hideChecklist() { $('checklist').hidden = true; }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   SCENE — device-res logical space. Design units: 360 wide, height follows.
+   The rocket stays put; the world moves. Static layers are cheap enough to
+   draw per frame here (one gradient, a few dozen shapes); nothing is fetched.
+   ═══════════════════════════════════════════════════════════════════════ */
+const scene = $('scene'), sctx = scene.getContext('2d');
+let DW = 360, DH = 560, dpr = 1, drawCount = 0;
+let stars = null;
+function sizeScene() {
+  const box = $('scenebox'); const r = box.getBoundingClientRect();
+  dpr = Math.min(3, window.devicePixelRatio || 1);
+  scene.width = Math.max(1, Math.round(r.width * dpr)); scene.height = Math.max(1, Math.round(r.height * dpr));
+  /* Portrait: 360 wide. Landscape: 500 tall — otherwise a wide box gets a 280-unit-high world and a tier-10 rocket leaves the frame. */
+  if (r.width >= r.height) { DH = 500; DW = Math.round(DH * r.width / Math.max(1, r.height)); }
+  else { DW = 360; DH = Math.round(DW * r.height / Math.max(1, r.width)); }
+  stars = null;
+}
+function starField(n, seed) { let s = seed; const out = [];
+  const rnd = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+  for (let i = 0; i < n; i++) out.push([rnd() * DW, rnd() * DH, 0.4 + rnd() * 1.3, 0.4 + rnd() * 0.6]); return out; }
+const lerp = (a, b, t) => a + (b - a) * t;
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const mixHex = (a, b, t) => { const p = h => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+  const A = p(a), B = p(b); return `rgb(${Math.round(lerp(A[0], B[0], t))},${Math.round(lerp(A[1], B[1], t))},${Math.round(lerp(A[2], B[2], t))})`; };
+const isLight = () => (document.documentElement.getAttribute('data-theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')) === 'light';
+
+/* Scene art palette — the game's own artwork (docs/GAMES.md); the chrome stays on tokens. */
+const ART = { skyLo: '#6FB4E8', skyHi: '#2F6FB7', space: '#050912', ground: '#3E5A3A', groundDk: '#2B4028', pad: '#4A5561',
+              rocket: '#E9EEF3', rocketDk: '#B9C4CF', nose: '#E0523A', fin: '#E0523A', window: '#4FD9E6', flame: '#FFB347',
+              flameCore: '#FFF4C2', crew: '#FFC24D', moon: '#C9CCD1', moonDk: '#8F949B', chute: '#E0523A', chute2: '#F3F4F6' };
+
+function drawScene() {
+  if (!scene.width) sizeScene();
+  const c = sctx; drawCount = 0;
+  c.setTransform(scene.width / DW, 0, 0, scene.height / DH, 0, 0);
+  const km = view.km, moonScene = phase !== 'ready' && phase !== 'turnaround' && km >= MOON_KM * 0.999;
+  /* Altitude → how far into space we are, on a log scale that spends most of the screen under 100 km. */
+  const sp = clamp(Math.log10(km + 1) / 2.3, 0, 1);      // 0 at pad, 1 at ~200 km
+  const far = clamp(Math.log10(km + 1) / Math.log10(MOON_KM + 1), 0, 1);
+  // sky
+  const g = c.createLinearGradient(0, 0, 0, DH);
+  g.addColorStop(0, mixHex(ART.skyHi, ART.space, clamp(sp * 1.4, 0, 1)));
+  g.addColorStop(1, mixHex(ART.skyLo, ART.space, sp));
+  c.fillStyle = g; c.fillRect(0, 0, DW, DH); drawCount++;
+  // stars
+  if (sp > 0.25) { if (!stars) stars = starField(140, 7); c.save(); c.globalAlpha = clamp((sp - 0.25) / 0.5, 0, 1);
+    c.fillStyle = '#FFFFFF'; for (const s of stars) { c.globalAlpha = clamp((sp - 0.25) / 0.5, 0, 1) * s[3]; c.beginPath(); c.arc(s[0], s[1], s[2], 0, 7); c.fill(); drawCount++; } c.restore(); }
+  // ground / pad slides down and away as we climb; at height the Earth shows as a curve, then a ball.
+  const groundY = DH * 0.78 + sp * DH * 1.1;
+  if (groundY < DH + 40) {
+    c.fillStyle = ART.groundDk; c.fillRect(0, groundY, DW, DH - groundY + 40); drawCount++;
+    c.fillStyle = ART.ground; c.beginPath(); c.ellipse(DW / 2, groundY + 30, DW * 0.9, 42, 0, 0, 7); c.fill(); drawCount++;
+    if (km < 1.5) drawPad(c, groundY);
+  } else if (far > 0.3 && !moonScene) {
+    const R = lerp(DW * 2.4, DW * 0.22, clamp((far - 0.3) / 0.6, 0, 1)), cy = DH + R - lerp(60, -DH * 0.05, clamp((far - 0.3) / 0.6, 0, 1));
+    c.save(); c.filter = 'blur(6px)'; c.fillStyle = 'rgba(111,180,232,.55)'; c.beginPath(); c.arc(DW / 2, cy, R + 8, 0, 7); c.fill(); c.restore(); drawCount++;
+    const eg = c.createRadialGradient(DW / 2 - R * 0.4, cy - R * 0.6, R * 0.1, DW / 2, cy, R);
+    eg.addColorStop(0, '#6FB4E8'); eg.addColorStop(0.6, '#2F6FB7'); eg.addColorStop(1, '#0E2A4D');
+    c.fillStyle = eg; c.beginPath(); c.arc(DW / 2, cy, R, 0, 7); c.fill(); drawCount++;
+  }
+  // clouds between 0.5 and 14 km
+  if (km > 0.2 && km < 14) { c.save(); c.globalAlpha = clamp(1 - Math.abs(Math.log10(km + 1) - 0.8) / 0.6, 0, 0.9);
+    c.fillStyle = '#FFFFFF'; for (let i = 0; i < 5; i++) { const y = ((i * 97 + (km * 60)) % (DH + 80)) - 40, x = (i * 131) % DW;
+      c.beginPath(); c.ellipse(x, y, 46, 16, 0, 0, 7); c.ellipse(x + 30, y - 8, 30, 14, 0, 0, 7); c.fill(); drawCount++; } c.restore(); }
+  if (moonScene) drawMoon(c);
+  // rocket
+  const rocketBase = moonScene ? DH * 0.62 : (phase === 'ready' || phase === 'turnaround') ? groundY - 4 : DH * 0.58;
+  if (view.para > 0) { const d = rocketDims(S.tiers); drawChute(c, DW / 2, rocketBase - d.bodyH - d.noseH - 118, view.para); }
+  drawRocket(c, DW / 2, rocketBase, S.tiers, view.flame, phase === 'flight' && view.burning);
+  if (phase === 'turnaround' && turn) drawCrew(c, groundY);
+  if (moonScene) drawBase(c);
+  if (isLight() && sp < 0.5) { c.save(); c.globalCompositeOperation = 'multiply'; c.globalAlpha = (1 - sp * 2) * 0.62;
+    c.fillStyle = 'rgb(206,178,150)'; c.fillRect(0, 0, DW, DH); c.restore(); drawCount++; }
+}
+function drawPad(c, gy) {
+  c.fillStyle = ART.pad; c.fillRect(DW / 2 - 46, gy - 6, 92, 10); drawCount++;
+  // gantry tower, left of the rocket
+  c.fillStyle = '#8A949E'; c.fillRect(DW / 2 - 54, gy - 130, 8, 126); c.fillRect(DW / 2 - 54, gy - 130, 30, 5); drawCount++;
+  for (let y = gy - 120; y < gy - 10; y += 22) { c.fillRect(DW / 2 - 54, y, 24, 2); }
+  // fuel truck & crates
+  const tx = DW / 2 - 150;
+  c.fillStyle = '#5F6B78'; c.fillRect(tx, gy - 22, 44, 18); c.fillStyle = '#3A434D'; c.fillRect(tx - 16, gy - 30, 16, 26);
+  c.fillStyle = '#222'; c.beginPath(); c.arc(tx + 10, gy - 3, 5, 0, 7); c.arc(tx + 36, gy - 3, 5, 0, 7); c.fill(); drawCount += 3;
+}
+function rocketDims(t) { return { bodyH: 50 + t.tank * 5.5, bodyW: 22 + t.tank * 1.2, noseH: 14 + t.aero * 2.5 }; }
+function drawRocket(c, x, baseY, t, flame, burning) {
+  const { bodyH, bodyW, noseH } = rocketDims(t);
+  const finW = 10 + t.aero * 1.4, finH = 22 + t.aero * 1.5;
+  const nozzles = t.engine <= 3 ? 1 : t.engine <= 6 ? 2 : t.engine <= 8 ? 3 : 5;
+  const top = baseY - bodyH;
+  // exhaust
+  if (flame > 0) { const L = (burning ? 70 : 30) * flame + Math.sin(performance.now() / 40) * 6;
+    for (let i = 0; i < nozzles; i++) { const nx = x - (nozzles - 1) * 5 + i * 10;
+      c.save(); c.filter = 'blur(4px)'; c.fillStyle = ART.flame; c.globalAlpha = 0.8 * flame;
+      c.beginPath(); c.moveTo(nx - 7, baseY); c.lineTo(nx + 7, baseY); c.lineTo(nx, baseY + L); c.fill(); c.restore();
+      c.fillStyle = ART.flameCore; c.globalAlpha = flame; c.beginPath(); c.moveTo(nx - 3, baseY); c.lineTo(nx + 3, baseY); c.lineTo(nx, baseY + L * 0.5); c.fill(); c.globalAlpha = 1; drawCount += 2; } }
+  // fins
+  c.fillStyle = ART.fin;
+  c.beginPath(); c.moveTo(x - bodyW / 2, baseY - finH); c.lineTo(x - bodyW / 2 - finW, baseY); c.lineTo(x - bodyW / 2, baseY); c.fill();
+  c.beginPath(); c.moveTo(x + bodyW / 2, baseY - finH); c.lineTo(x + bodyW / 2 + finW, baseY); c.lineTo(x + bodyW / 2, baseY); c.fill(); drawCount += 2;
+  // body with a lit side
+  const bg = c.createLinearGradient(x - bodyW / 2, 0, x + bodyW / 2, 0);
+  bg.addColorStop(0, ART.rocketDk); bg.addColorStop(0.35, ART.rocket); bg.addColorStop(1, ART.rocketDk);
+  c.fillStyle = bg; c.fillRect(x - bodyW / 2, top, bodyW, bodyH); drawCount++;
+  // hull bands — tier shows as riveted rings
+  c.fillStyle = 'rgba(0,0,0,.18)'; for (let i = 1; i < t.hull; i++) c.fillRect(x - bodyW / 2, top + i * (bodyH / t.hull), bodyW, 2);
+  // nose
+  c.fillStyle = ART.nose; c.beginPath(); c.moveTo(x - bodyW / 2, top);
+  c.quadraticCurveTo(x - bodyW / 2, top - noseH * 0.9, x, top - noseH); c.quadraticCurveTo(x + bodyW / 2, top - noseH * 0.9, x + bodyW / 2, top); c.fill(); drawCount++;
+  // payload window — shows the passenger
+  c.fillStyle = ART.window; c.beginPath(); c.arc(x, top + 14, 5 + Math.min(3, t.payload * 0.3), 0, 7); c.fill(); drawCount++;
+  if (t.payload >= 2) { c.fillStyle = '#5A3A1E'; c.beginPath(); c.arc(x, top + 15, 2.6, 0, 7); c.fill(); }
+  // engine bells
+  c.fillStyle = '#4A5561'; for (let i = 0; i < nozzles; i++) { const nx = x - (nozzles - 1) * 5 + i * 10;
+    c.beginPath(); c.moveTo(nx - 4, baseY - 2); c.lineTo(nx + 4, baseY - 2); c.lineTo(nx + 6, baseY + 6); c.lineTo(nx - 6, baseY + 6); c.fill(); drawCount++; }
+}
+function drawChute(c, x, y, k) {
+  c.save(); c.globalAlpha = k;
+  c.strokeStyle = 'rgba(255,255,255,.7)'; c.lineWidth = 1; c.beginPath();
+  for (const dx of [-40, -14, 14, 40]) { c.moveTo(x + dx, y); c.lineTo(x, y + 110); } c.stroke();
+  const stripes = 6; for (let i = 0; i < stripes; i++) { c.fillStyle = i % 2 ? ART.chute : ART.chute2; c.beginPath();
+    c.moveTo(x, y + 4); c.arc(x, y + 4, 50, Math.PI + i * Math.PI / stripes, Math.PI + (i + 1) * Math.PI / stripes); c.fill(); drawCount++; }
+  c.restore();
+}
+function drawCrew(c, gy) {
+  const el = turnElapsed();
+  turn.tasks.forEach((tk, i) => {
+    const active = el >= tk.start && el < tk.start + tk.dur;
+    const seat = turn.crew[i];
+    const tx = active ? DW / 2 + (seat[1] - 0.5) * 100 : DW / 2 - 96 - i * 9, ty = gy - 4;
+    const bob = active ? Math.abs(Math.sin(performance.now() / 120 + i)) * 3 : 0;
+    c.fillStyle = ART.crew; c.fillRect(tx - 2, ty - 9 - bob, 4, 7); c.beginPath(); c.arc(tx, ty - 11 - bob, 2.4, 0, 7); c.fill(); drawCount++;
+  });
+}
+function drawMoon(c) {
+  const g = c.createRadialGradient(DW * 0.3, DH * 0.55, 20, DW * 0.5, DH * 0.9, DW * 0.9);
+  g.addColorStop(0, ART.moon); g.addColorStop(1, ART.moonDk);
+  c.fillStyle = g; c.beginPath(); c.ellipse(DW / 2, DH * 0.95, DW * 0.85, DH * 0.32, 0, 0, 7); c.fill(); drawCount++;
+  c.fillStyle = 'rgba(0,0,0,.18)'; for (const [cx, cy, r] of [[60, DH * 0.78, 14], [280, DH * 0.74, 20], [200, DH * 0.9, 10], [110, DH * 0.92, 7]]) { c.beginPath(); c.ellipse(cx, cy, r, r * 0.5, 0, 0, 7); c.fill(); drawCount++; }
+  // Earth in the sky
+  const eg = c.createRadialGradient(DW * 0.78, DH * 0.16, 4, DW * 0.8, DH * 0.18, 26);
+  eg.addColorStop(0, '#9FD3F5'); eg.addColorStop(0.7, '#2F6FB7'); eg.addColorStop(1, '#0E2A4D');
+  c.fillStyle = eg; c.beginPath(); c.arc(DW * 0.8, DH * 0.18, 24, 0, 7); c.fill(); drawCount++;
+}
+function drawBase(c) {
+  const y = DH * 0.66; let x = 40;
+  for (let i = 0; i < S.modules; i++) {
+    c.fillStyle = '#DCE3EA'; c.strokeStyle = '#7A8794'; c.lineWidth = 1.5;
+    if (i === 0) { c.beginPath(); c.arc(x + 18, y, 18, Math.PI, 0); c.lineTo(x + 36, y); c.lineTo(x, y); c.fill(); c.stroke(); }
+    else if (i === 1) { c.fillStyle = '#1F3A6B'; c.fillRect(x, y - 24, 34, 14); c.strokeRect(x, y - 24, 34, 14); c.fillStyle = '#7A8794'; c.fillRect(x + 16, y - 10, 2, 10); }
+    else if (i === 2) { c.fillStyle = 'rgba(94,211,154,.55)'; c.beginPath(); c.arc(x + 16, y, 14, Math.PI, 0); c.fill(); c.stroke(); }
+    else if (i === 3) { c.beginPath(); c.arc(x + 16, y - 14, 12, Math.PI * 0.9, Math.PI * 2.1); c.fill(); c.stroke(); c.fillStyle = '#7A8794'; c.fillRect(x + 15, y - 14, 2, 14); }
+    else { c.fillRect(x, y - 30, 24, 30); c.strokeRect(x, y - 30, 24, 30); c.fillStyle = '#4FD9E6'; c.beginPath(); c.arc(x + 12, y - 30, 8, Math.PI, 0); c.fill(); }
+    drawCount += 2; x += 60;
+  }
+}
+
+/* ── ground starfield — drawn once, behind everything ── */
+function drawGround() {
+  const g = $('ground'); const d = Math.min(2, window.devicePixelRatio || 1);
+  g.width = innerWidth * d; g.height = innerHeight * d; const c = g.getContext('2d'); c.setTransform(d, 0, 0, d, 0, 0);
+  const light = isLight();
+  c.fillStyle = light ? '#5E7A9B' : '#1A2A40'; c.fillRect(0, 0, innerWidth, innerHeight);
+  let s = 42; const rnd = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+  for (let i = 0; i < 220; i++) { const x = rnd() * innerWidth, y = rnd() * innerHeight, r = 0.3 + rnd() * 1.1;
+    c.globalAlpha = (light ? 0.25 : 0.55) * (0.3 + rnd() * 0.7); c.fillStyle = '#FFFFFF'; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill(); }
+  c.globalAlpha = 1;
+  const grad = c.createRadialGradient(innerWidth * 0.8, innerHeight * 1.1, 10, innerWidth * 0.8, innerHeight * 1.1, innerHeight * 0.9);
+  grad.addColorStop(0, 'rgba(79,217,230,.14)'); grad.addColorStop(1, 'rgba(79,217,230,0)'); c.fillStyle = grad; c.fillRect(0, 0, innerWidth, innerHeight);
+}
+
+/* ── the altitude ladder — signature element ── */
+const ladder = $('ladder');
+function drawLadder() {
+  const box = ladder.getBoundingClientRect(); const d = Math.min(3, window.devicePixelRatio || 1);
+  const W = Math.max(40, box.width), H = Math.max(60, box.height);
+  ladder.width = W * d; ladder.height = H * d; const c = ladder.getContext('2d'); c.setTransform(d, 0, 0, d, 0, 0);
+  const cs = getComputedStyle(document.documentElement);
+  const col = k => cs.getPropertyValue(k).trim();
+  const y = km => H - 8 - clamp(Math.log10(km + 1) / Math.log10(MOON_KM + 1), 0, 1) * (H - 16);
+  c.strokeStyle = col('--h-border'); c.lineWidth = 2; c.beginPath(); c.moveTo(14, 8); c.lineTo(14, H - 8); c.stroke();
+  c.font = '600 9px ' + col('--wa-font-family-heading'); c.textBaseline = 'middle';
+  for (const m of MILESTONES) { const yy = y(m.km); const got = S.milestones.includes(m.km);
+    c.strokeStyle = got ? col('--h-accent') : col('--h-border'); c.beginPath(); c.moveTo(8, yy); c.lineTo(20, yy); c.stroke();
+    c.fillStyle = got ? col('--h-text') : col('--h-text-muted'); c.fillText((m.km >= MOON_KM ? 'MOON' : fmtKm(m.km) + ' km').toUpperCase(), 24, yy); }
+  if (S.bestKm > 0) { c.fillStyle = col('--h-positive'); c.beginPath(); c.arc(14, y(S.bestKm), 4, 0, 7); c.fill(); }
+  if (phase === 'flight' || phase === 'descent') { c.fillStyle = col('--h-warning'); c.beginPath(); c.arc(14, y(view.km), 3, 0, 7); c.fill(); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   UI — paints read S and view; they never change either.
+   ═══════════════════════════════════════════════════════════════════════ */
+function paintGauges() {
+  const s = statsOf(S.tiers);
+  $('g-alt').innerHTML = fmtKm(view.km) + '<small>' + (view.km >= MOON_KM ? '' : 'km') + '</small>';
+  $('b-alt').style.width = (clamp(Math.log10(view.km + 1) / Math.log10(MOON_KM + 1), 0, 1) * 100) + '%';
+  $('g-spd').innerHTML = (view.v >= 1000 ? (view.v / 1000).toFixed(2) + '<small>km/s</small>' : Math.round(view.v) + '<small>m/s</small>');
+  $('b-spd').style.width = clamp(view.v / 12000, 0, 1) * 100 + '%';
+  $('g-fuel').innerHTML = Math.round(view.fuel * 100) + '<small>% · ' + s.fuel.toFixed(0) + 't</small>';
+  $('b-fuel').style.width = view.fuel * 100 + '%';
+  drawLadder();
+}
+function paintMoney() { $('money').textContent = fmtMoney(S.money); }
+function paintLaunch() {
+  const b = $('launch');
+  b.disabled = phase !== 'ready'; b.classList.toggle('ready', phase === 'ready');
+  $('launch-sub').textContent = phase === 'ready' ? (S.launches ? 'flight ' + (S.launches + 1) : 'first flight')
+    : phase === 'flight' ? 'in flight' : phase === 'descent' ? 'recovering' : 'prepping';
+}
+function paintShop() {
+  const box = $('ups'); box.textContent = '';
+  for (const k of TRACKS) {
+    const tier = S.tiers[k], lock = lockReason(k, S.tiers), c = tier < TIERS ? costOf(k, tier + 1) : 0;
+    const d = document.createElement('div'); d.className = 'up'; d.dataset.track = k;
+    d.title = TRACK_INFO[k].what;
+    const n = document.createElement('div'); n.className = 'n'; n.textContent = TRACK_INFO[k].name + ' · T' + tier; d.appendChild(n);
+    const b = document.createElement('button'); b.className = 'buy';
+    if (lock === 'max') { b.textContent = 'MAX'; b.disabled = true; b.classList.add('max'); }
+    else if (lock) { b.textContent = fmtMoney(c); b.disabled = true; b.classList.add('locked'); b.title = 'Locked: ' + lock; }
+    else { b.textContent = fmtMoney(c); b.disabled = S.money < c || phase === 'flight' || phase === 'descent';
+           b.title = (S.money < c ? 'Need ' + fmtMoney(c - S.money) + ' more' : 'Buy tier ' + (tier + 1)) + ' — ' + TRACK_INFO[k].what; }
+    b.addEventListener('click', () => { if (buy(k)) flashText(b, 'BOUGHT ✓'); });
+    d.appendChild(b);
+    const pips = document.createElement('div'); pips.className = 'pips';
+    for (let i = 1; i <= TIERS; i++) { const p = document.createElement('i'); if (i <= tier) p.className = 'on'; pips.appendChild(p); }
+    d.appendChild(pips);
+    const desc = document.createElement('div'); desc.className = 'd';
+    desc.textContent = k === 'payload' ? PAYLOADS[tier - 1] + ' · ×' + statsOf(S.tiers).payMult.toFixed(2) + ' pay' + (lock && lock !== 'max' ? ' · ' + lock : '')
+                     : lock && lock !== 'max' ? lock : TRACK_INFO[k].what;
+    d.appendChild(desc);
+    box.appendChild(d);
+  }
+}
+function flashText(el, msg) { const idle = el.textContent; el.textContent = msg; setTimeout(() => { if (el.isConnected) paintShop(); }, 700); }
+function paintBadge() {
+  const n = TRACKS.filter(k => !lockReason(k, S.tiers) && S.money >= costOf(k, S.tiers[k] + 1)).length;
+  let bd = document.querySelector('.tab[data-p="pad"] .badge');
+  if (!bd) { bd = document.createElement('span'); bd.className = 'badge'; document.querySelector('.tab[data-p="pad"]').appendChild(bd); }
+  bd.hidden = n === 0; bd.textContent = n;
+}
+function paintLog() {
+  const st = $('stats'); st.textContent = '';
+  const rows = [['Best altitude', S.bestKm >= MOON_KM ? 'THE MOON' : fmtKm(S.bestKm) + ' km'], ['Top speed', fmtV(S.bestV)],
+                ['Launches', S.launches.toLocaleString('en-US')], ['Earned, all time', fmtMoney(S.earned)],
+                ['Moon base', S.modules + ' / ' + BASE_MODULES.length + ' modules']];
+  for (const [k, v] of rows) { const d = document.createElement('div'); d.className = 'stat';
+    d.innerHTML = '<div class="k"></div><div class="v"></div>'; d.children[0].textContent = k; d.children[1].textContent = v; st.appendChild(d); }
+  const tb = $('log-body'); tb.textContent = '';
+  if (!S.log.length) { const tr = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = 5; td.textContent = 'No flights yet. Press LAUNCH.'; tr.appendChild(td); tb.appendChild(tr); }
+  for (const e of S.log) { const tr = document.createElement('tr');
+    for (const [txt, cls] of [[e.n, 'tabular'], [e.km >= MOON_KM ? 'MOON' : fmtKm(e.km) + ' km', 'tabular r'], [fmtV(e.v), 'tabular r'], [fmtMoney(e.earned), 'tabular r'], [e.note || '', '']]) {
+      const td = document.createElement('td'); td.className = cls; td.textContent = txt; tr.appendChild(td); } tb.appendChild(tr); }
+}
+function paintRegister() { const r = $('reg-save'); r.textContent = saveStatus; r.className = 'reg-status ' + (/saved/.test(saveStatus) && !/could not|ignored|unreadable/.test(saveStatus) ? 'on' : 'warn'); }
+let flashTimer = null;
+function showFlash(f, r, record, hit, module) {
+  const big = f.moon ? (module ? 'MOON · ' + module.toUpperCase() : 'THE MOON') : 'APOGEE ' + fmtKm(f.apogeeKm) + ' KM';
+  $('fl-big').textContent = big;
+  $('fl-sub').textContent = module && S.modules >= BASE_MODULES.length ? 'MOON BASE COMPLETE — you did it'
+    : hit.length ? hit.map(m => m.name).join(' · ') : record ? 'New record' : 'Top speed ' + fmtV(f.maxV);
+  $('fl-money').textContent = '+' + fmtMoney(r);
+  $('flash').classList.add('show');
+  clearTimeout(flashTimer); flashTimer = setTimeout(hideFlash, 4200);
+}
+function hideFlash() { $('flash').classList.remove('show'); }
+
+/* tabs */
+document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => {
+  document.querySelectorAll('.tab').forEach(x => x.classList.remove('act'));
+  document.querySelectorAll('.panel').forEach(x => x.classList.remove('act'));
+  t.classList.add('act'); $('p-' + t.dataset.p)?.classList.add('act');
+  try { history.replaceState(null, '', '#' + t.dataset.p); } catch (e) {}
+  if (t.dataset.p === 'pad') { sizeScene(); drawScene(); paintGauges(); }
+  if (t.dataset.p === 'log') paintLog();
+}));
+
+/* theme toggle — ui/components/theme-toggle.html */
+{
+  const root = document.documentElement, b = $('theme-btn'), dark = matchMedia('(prefers-color-scheme: dark)'),
+    SUN = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.6v2.2M12 19.2v2.2M4.3 4.3l1.6 1.6M18.1 18.1l1.6 1.6M2.6 12h2.2M19.2 12h2.2M4.3 19.7l1.6-1.6M18.1 5.9l1.6-1.6"/></svg>',
+    MOON = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 14.6A8.6 8.6 0 0 1 9.4 3.5a8.6 8.6 0 1 0 11.1 11.1z"/></svg>';
+  const cur = () => root.getAttribute('data-theme') || (dark.matches ? 'dark' : 'light');
+  const paint = () => { const isDark = cur() === 'dark'; b.innerHTML = isDark ? SUN : MOON;
+    b.title = 'Switch to ' + (isDark ? 'light' : 'dark') + ' theme'; b.setAttribute('aria-label', b.title);
+    const bg = getComputedStyle(root).getPropertyValue('--h-bg').trim();
+    document.querySelectorAll('meta[name="theme-color"]').forEach(m => { m.removeAttribute('media'); m.setAttribute('content', bg); });
+    drawGround(); drawScene(); drawLadder(); };
+  b.addEventListener('click', () => { const t = cur() === 'dark' ? 'light' : 'dark'; root.setAttribute('data-theme', t);
+    try { localStorage.setItem('theme', t); } catch (e) {} paint(); });
+  dark.addEventListener('change', () => { if (!root.getAttribute('data-theme')) paint(); });
+  paint();
+}
+
+/* deploy stamp — converted, not relabelled (CLAUDE.md §12) */
+{
+  const raw = ($('hdr-when').textContent || '').trim(), d = new Date(raw);
+  if (raw === 'COMMIT' + '_TIME_ISO' || isNaN(d)) { $('hd-date').textContent = 'dev build'; $('hd-time').textContent = 'unstamped'; }
+  else { const Z = { timeZone: 'America/Chicago' };
+    $('hd-date').textContent = d.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric', ...Z });
+    $('hd-time').textContent = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZoneName: 'short', ...Z }); }
+}
+
+/* GH dialog — anchored to its button; the PAT unlocks DEV and goes nowhere else. */
+{
+  const dlg = $('gh-dlg'), back = $('gh-back'), btn = $('gh-btn'), inp = $('gh-in');
+  const pat = () => { try { return localStorage.getItem(PAT_KEY) || ''; } catch (e) { return ''; } };
+  const paint = () => { const p = pat(); $('gh-last4').textContent = p ? '…' + p.slice(-4) : 'none'; btn.classList.toggle('on', !!p);
+    $('gh-forget').hidden = !p; $('tab-dev').hidden = !p; if (!p && $('p-dev').classList.contains('act')) document.querySelector('.tab[data-p="pad"]').click(); };
+  const open = () => { dlg.hidden = false; back.hidden = false; inp.value = '';
+    const r = btn.getBoundingClientRect(), w = dlg.offsetWidth, h = dlg.offsetHeight;
+    let left = clamp(r.right - w, 8, innerWidth - w - 8), top = r.bottom + 8; if (top + h > innerHeight - 8) top = Math.max(8, r.top - h - 8);
+    dlg.style.left = left + 'px'; dlg.style.top = top + 'px'; inp.focus(); };
+  const close = () => { dlg.hidden = true; back.hidden = true; };
+  btn.addEventListener('click', () => dlg.hidden ? open() : close());
+  back.addEventListener('click', close); $('gh-cancel').addEventListener('click', close);
+  $('gh-save').addEventListener('click', () => { const v = inp.value.trim(); if (v) { try { localStorage.setItem(PAT_KEY, v); } catch (e) {} } paint(); close(); });
+  $('gh-forget').addEventListener('click', () => { try { localStorage.removeItem(PAT_KEY); } catch (e) {} paint(); close(); });
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') $('gh-save').click(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !dlg.hidden) close(); });
+  paint();
+}
+
+$('launch').addEventListener('click', launch);
+document.addEventListener('keydown', e => { if (e.code === 'Space' && e.target === document.body) { e.preventDefault(); launch(); } });
+
+/* ═══════════════════════════════════════════════════════════════════════
+   TUTORIAL — points at the real UI, skippable at every step, runs once.
+   ═══════════════════════════════════════════════════════════════════════ */
+const TOUR = [
+  ['launch', 'This is the whole game. Press LAUNCH and the rocket flies as high as its parts allow. Space bar works too.'],
+  ['hud', 'Altitude, speed and fuel read live during the flight. The ladder on the left is the pad-to-Moon scale; the dot is your best.'],
+  ['shop', 'Every flight earns funds. Spend them here — ten tiers each of engine, tank, aero and hull. Payload pays more per flight but rides only a rocket as good as it is.'],
+  ['scenebox', 'Between flights the crew turns the rocket around. That is 15 seconds to shop; you cannot launch until the checklist clears.'],
+  ['help-btn', 'Every control has a hover tip, and this ? replays the tour any time. That is everything — go to the Moon.'],
+];
+let tourI = -1;
+function tourStart() { tourI = 0; tourPaint(); }
+function tourPaint() {
+  document.querySelectorAll('.spot').forEach(e => e.classList.remove('spot'));
+  if (tourI < 0 || tourI >= TOUR.length) { $('tour').hidden = true; try { localStorage.setItem(TOUR_KEY, 'done'); } catch (e) {} return; }
+  const [id, text] = TOUR[tourI]; const el = $(id);
+  if (el) { el.classList.add('spot'); el.scrollIntoView({ block: 'nearest', behavior: REDUCED ? 'auto' : 'smooth' }); }
+  $('tour-step').textContent = 'Step ' + (tourI + 1) + ' of ' + TOUR.length; $('tour-text').textContent = text;
+  $('tour-next').textContent = tourI === TOUR.length - 1 ? 'Done' : 'Next'; $('tour').hidden = false;
+}
+$('tour-next').addEventListener('click', () => { tourI++; tourPaint(); });
+$('tour-skip').addEventListener('click', () => { tourI = TOUR.length; tourPaint(); });
+$('help-btn').addEventListener('click', () => { document.querySelector('.tab[data-p="pad"]').click(); tourStart(); });
+
+/* ═══════════════════════════════════════════════════════════════════════
+   DEV — every action re-checks the PAT. Hidden is not the gate; this is.
+   ═══════════════════════════════════════════════════════════════════════ */
+function requirePat() { let p = ''; try { p = localStorage.getItem(PAT_KEY) || ''; } catch (e) {} if (!p) { $('dev-out').textContent = 'No GitHub token stored — DEV is locked.'; } return !!p; }
+function devJump(sc) {
+  cancelAnimationFrame(anim); hideFlash(); hideChecklist();
+  const out = $('dev-out');
+  if (sc === 'pad') { phase = 'ready'; view.km = 0; view.v = 0; view.fuel = 1; view.flame = 0; view.para = 0; }
+  else if (sc === 'turnaround') { startTurnaround(); if (turn) turn.t0 -= 6000; }
+  else if (sc === 'flight') { const f = flyRocket(S.tiers); const s = f.samples[Math.floor(f.samples.length * 0.6)]; phase = 'flight';
+    view.km = s[0] / 1000; view.v = s[1]; view.fuel = s[2]; view.flame = 1; view.burning = true; view.para = 0; }
+  else if (sc === 'space') { const f = flyRocket(S.tiers); phase = 'flight'; view.km = Math.max(f.apogeeKm * 0.8, 150); view.v = f.burnoutV * 0.3; view.fuel = 0; view.flame = 0.2; view.burning = false; view.para = 0; }
+  else if (sc === 'apogee') { const f = flyRocket(S.tiers); phase = 'descent'; view.km = f.apogeeKm; view.v = 0; view.fuel = 0; view.flame = 0; view.para = 0;
+    showFlash(f, rewardOf(f.apogeeKm, S.tiers), true, MILESTONES.filter(m => f.apogeeKm >= m.km).slice(-1), null); }
+  else if (sc === 'descent') { phase = 'descent'; view.km = 6; view.v = 0; view.fuel = 0; view.flame = 0; view.para = 1; }
+  else if (sc === 'moon') { phase = 'descent'; view.km = MOON_KM; view.v = 0; view.fuel = 0; view.flame = 0; view.para = 0; if (!S.modules) S.modules = 3; }
+  paintLaunch(); paintGauges(); drawScene(); out.textContent = 'scene → ' + sc + ' · phase ' + phase;
+}
+document.querySelectorAll('[data-dev]').forEach(b => b.addEventListener('click', () => {
+  if (!requirePat()) return;
+  const [op, arg] = b.dataset.dev.split(':'); const out = $('dev-out');
+  if (op === 'scene') { document.querySelector('.tab[data-p="pad"]').click(); devJump(arg); }
+  else if (op === 'money') { S.money += +arg; save(); paintMoney(); paintShop(); paintBadge(); out.textContent = 'funds ' + fmtMoney(S.money); }
+  else if (op === 'tiers') { for (const k of TRACKS) S.tiers[k] = +arg; save(); paintShop(); drawScene(); out.textContent = 'all tiers ' + arg; }
+  else if (op === 'skip') { if (turn) turn.t0 -= 60000; out.textContent = 'turnaround skipped'; }
+  else if (op === 'tour') { try { localStorage.removeItem(TOUR_KEY); } catch (e) {} out.textContent = 'tutorial will run on next load'; }
+  else if (op === 'reset') { S = freshState(); try { localStorage.removeItem(SAVE_KEY); } catch (e) {} saveStatus = 'reset — no save'; paintAll(); out.textContent = 'save reset'; }
+  else if (op === 'sim') { const t0 = performance.now(); const r = runBalanceSim();
+    out.textContent = (r.ok ? 'PASS' : 'FAIL') + ' · ' + r.gate + '\n' + r.rows.map(x => x.name.padEnd(13) + (x.reached ? 'Moon @ ' + x.launches : 'never') + ' · max dry ' + x.maxDry + ' · buys ' + x.buys).join('\n') + '\n' + (performance.now() - t0).toFixed(0) + ' ms'; }
+}));
+/* window.DEV is the screenshot tool's handle (scripts/shot.mjs). Same gate. */
+window.DEV = { jump: sc => requirePat() && devJump(sc), sim: () => requirePat() ? runBalanceSim() : null,
+               state: () => S, view, get phase() { return phase; }, drawCount: () => drawCount };
+
+/* ═══════════════════════════════════════════════════════════════════════
+   BOOT
+   ═══════════════════════════════════════════════════════════════════════ */
+function paintAll() { paintMoney(); paintShop(); paintBadge(); paintLaunch(); paintGauges(); paintLog(); paintRegister(); drawScene(); }
+load();
+drawGround(); sizeScene(); paintAll();
+addEventListener('resize', () => { drawGround(); sizeScene(); drawScene(); drawLadder(); });
+{ const want = (location.hash || '').replace('#', ''); const b = document.querySelector('.tab[data-p="' + want + '"]'); if (b && !b.hidden) b.click(); }
+{ let done = null; try { done = localStorage.getItem(TOUR_KEY); } catch (e) {} if (!done && !location.hash) setTimeout(tourStart, 400); }
+</script>
+</body>
+</html>

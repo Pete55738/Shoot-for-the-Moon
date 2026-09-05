@@ -1,0 +1,24 @@
+{
+  "envelope": 1,
+  "kind": "status",
+  "at": "2026-09-05T15:30:00Z",
+  "payload": {
+    "reference": "docs/studies/round-1/sheet.png (provisional — not user-picked)",
+    "gates": { "score": 8.5, "consoleErrors": 0, "simClean": true },
+    "rounds": 3,
+    "subsystems": {
+      "chrome":      { "score": 8.5, "open": [] },
+      "pad":         { "score": 7.5, "open": ["pad is a gantry, a truck and a slab — sparse for a scene the player stares at most", "crew are 4px figures; the brain dump wanted visible rebuilding"] },
+      "flight":      { "score": 7.5, "open": ["clouds are flat white ellipses", "no camera shake or smoke at liftoff", "coast phase has nothing to look at above the clouds until the Earth curve"] },
+      "space":       { "score": 8.0, "open": ["Earth halo is a single blur; no atmosphere rim light"] },
+      "descent":     { "score": 8.0, "open": ["parachute deploys instantly; no unfurl"] },
+      "moon":        { "score": 7.5, "open": ["base modules are icons on a line; no landing dust, no flag, no astronaut"] },
+      "shop":        { "score": 8.5, "open": [] },
+      "ladder":      { "score": 8.0, "open": ["labels crowd between 100 and 2000 km on a 7.5rem phone strip"] },
+      "tutorial":    { "score": 8.5, "open": [] },
+      "balance":     { "score": 9.0, "open": ["noPayload strategy takes 259 launches — payload needs to read as the money track in the shop"] }
+    },
+    "weakest": "pad",
+    "note": "Overall 7.8 against the brain dump's intent. Below the 8.5 gate on art, as expected for a one-shot with the prototyping phase deliberately skipped. Zero console errors and a clean sim on every scene. The design cycle starts at the pad."
+  }
+}
