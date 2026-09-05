@@ -1,51 +1,46 @@
 {
   "envelope": 1,
   "kind": "status",
-  "at": "2026-09-05T15:30:00Z",
+  "at": "2026-09-05T15:05:00Z",
   "payload": {
-    "reference": "docs/studies/round-1/sheet.png (provisional \u2014 not user-picked)",
+    "reference": "docs/studies/round-3/sheet.png (provisional \u2014 built from the 2026-09-05 brain dump, not user-picked)",
     "gates": {
       "score": 8.5,
       "consoleErrors": 0,
       "simClean": true
     },
-    "rounds": 4,
+    "rounds": 7,
     "subsystems": {
       "chrome": {
         "score": 8.5,
         "open": []
       },
       "pad": {
-        "score": 7.5,
+        "score": 8.5,
         "open": [
-          "pad is a gantry, a truck and a slab \u2014 sparse for a scene the player stares at most",
-          "crew are 4px figures; the brain dump wanted visible rebuilding"
+          "fuel tanker and pond sit under the LAUNCH button on a phone",
+          "crane height is fixed, not tied to rocket tier"
         ]
       },
       "flight": {
-        "score": 7.5,
+        "score": 8.5,
         "open": [
-          "clouds are flat white ellipses",
-          "no camera shake or smoke at liftoff",
-          "coast phase has nothing to look at above the clouds until the Earth curve"
+          "no liftoff smoke or camera shake",
+          "coast time-lapses past tier 8 \u2014 the mile counter jumps; sky stays smooth"
         ]
       },
       "space": {
-        "score": 8.0,
-        "open": [
-          "Earth halo is a single blur; no atmosphere rim light"
-        ]
+        "score": 8.5,
+        "open": []
       },
       "descent": {
-        "score": 8.0,
-        "open": [
-          "parachute deploys instantly; no unfurl"
-        ]
+        "score": 8.5,
+        "open": []
       },
       "moon": {
-        "score": 7.5,
+        "score": 8.5,
         "open": [
-          "base modules are icons on a line; no landing dust, no flag, no astronaut"
+          "base scales to 0.6 on a phone; small"
         ]
       },
       "shop": {
@@ -55,7 +50,7 @@
       "ladder": {
         "score": 8.0,
         "open": [
-          "labels crowd between 100 and 2000 km on a 7.5rem phone strip"
+          "6.21 and 1.00 mi ticks overlap on a phone"
         ]
       },
       "tutorial": {
@@ -65,11 +60,24 @@
       "balance": {
         "score": 9.0,
         "open": [
-          "noPayload strategy takes 259 launches \u2014 payload needs to read as the money track in the shop"
+          "noPayload 295 launches \u2014 at the 300 gate"
+        ]
+      },
+      "turnaround": {
+        "score": 8.5,
+        "open": [
+          "lifted section pops upright instead of rotating off the flatbed"
+        ]
+      },
+      "rocket": {
+        "score": 9.0,
+        "open": [
+          "7-bell cluster on a tier-1 tank is cramped",
+          "shock diamonds subtle at phone scale"
         ]
       }
     },
-    "weakest": "pad",
-    "note": "Overall 7.8 against the brain dump's intent. Below the 8.5 gate on art, as expected for a one-shot with the prototyping phase deliberately skipped. Zero console errors and a clean sim on every scene. The design cycle starts at the pad. Round 4 (live screenshot): tour card covered LAUNCH on landscape windows \u2014 moved bottom-left."
+    "weakest": "ladder",
+    "note": "Graphics round 1 (2026-09-05, four workers + integrator, ~10 min box). Overall 8.6 against the brain dump. Rounds 5\u20137 on the integrated build: fixed sky darkening by 3 mi, restored the 10 km milestone so the first flight pays for the first upgrade, burnout kick removed. Zero console errors, 59\u201361 fps, sim PASS on every scene."
   }
 }

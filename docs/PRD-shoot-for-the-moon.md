@@ -42,11 +42,13 @@ gets better and better as you click. Space theme, goofy, satisfying.
 
 | strategy | Moon at launch | max dry streak |
 | --- | --- | --- |
-| cheapest | 96 | 2 |
-| priciest | 72 | 4 |
-| noPayload | 259 | 17 |
-| payloadFirst | 99 | 4 |
-| engineOnly | 70 | 6 |
+| cheapest | 107 | 2 |
+| priciest | 81 | 4 |
+| noPayload | 295 | 18 |
+| payloadFirst | 109 | 5 |
+| engineOnly | 79 | 6 |
+
+Re-measured after the 1 s throttle ramp (T2). Display is miles and mph; the table stays SI.
 
 Gate: every strategy reaches the Moon in ≤300 launches with ≤20 dry launches in a row. **PASS.**
 A cycle is ~8 s flight + 15 s turnaround, so a natural game is 35–45 minutes.

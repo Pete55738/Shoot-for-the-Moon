@@ -23,6 +23,15 @@ What the three rounds fixed, all found by looking and not by reading code:
 3. Round three: clean on phone, desktop, light. Then the end-to-end drive found the shop locked during turnaround.
 4. Round four, from Netlify's screenshot of the live deploy: the tutorial card sat over the LAUNCH button it points at on a landscape window. Moved bottom-left (`tour-960.png`, `tour-390.png`).
 
+## round-2 / round-3 — graphics round 1 (four workers, one integrator)
+
+Contract-driven: each worker drew one part against a written contract and a preview harness, never the HTML. Fragments spliced by the integrator, then three looks:
+5. Round five (`round-2/`): everything landed — farm, crane, turnaround theatre, tiered rocket, sky whimsy, Moon base. Faults: sky black with stars by 3 mi; tanker under the LAUNCH button on a phone.
+6. Round six: sky curve slowed (blue holds to ~10 km). The unit switch had moved the 10 km milestone to 10 mi, so the first flight could no longer afford the first upgrade — restored.
+7. Round seven (`round-3/`): clean. `flight-desktop.png` at 1.9 mi: airliner, contrail, kite, blue sky.
+
+Identity unchanged: steel-blue, starfield, altitude ladder. Art direction is now firmly *goofy hi-res vector*: Superman at 150 km, a cow over the Moon, a dog in the window.
+
 ## What to decide in the design cycle
 
 - **Art direction**, shown as pictures: keep hi-res vector, or move to rendered 2D (blur halos, glow, multiply shadows) for warmth. The brain dump said "goofy, fun graphics" — the vector look is clean but not yet goofy.
