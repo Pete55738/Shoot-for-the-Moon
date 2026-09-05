@@ -76,3 +76,17 @@ A cycle is ~8 s flight + 15 s turnaround, so a natural game is 35–45 minutes.
 | 17 | Live URL | after merge | `/` serves the game; `/CLAUDE.md` 404s; icons show | **not run — not deployed yet** |
 | 18 | Save/resume mid-flight | kill tab during flight | resumes at pad with reward not yet credited | **not tested — known gap**, reward is credited at apogee so a kill mid-flight loses that flight |
 | 19 | Moon base complete | 5 Moon flights | "MOON BASE COMPLETE" | not driven end to end; scene verified via DEV |
+
+## Mission tiers (decided 2026-09-05, second brain dump — replaces "straight up to the Moon")
+
+The rocket **pitches over** after the vertical ascent. Reaching a tier needs energy (velocity and altitude) *and* the tier's two pieces of equipment. **The camera scale is the level indicator**: each tier zooms out one step; the Moon tiers zoom back in.
+
+| Tier | Name | What the flight must do | Camera | Ending |
+| --- | --- | --- | --- | --- |
+| 1 | Earth low orbit | 100 km and orbital velocity | zoom out: Earth in frame, ship circling | one orbit, re-entry glow, parachute |
+| 2 | Lunar-injection orbit | trans-lunar injection energy | zoom out: Earth + Moon, transfer arc | ship leaves toward a growing Moon |
+| 3 | Lunar orbit | capture burn at the Moon | Moon in frame, ship circling | orbit established |
+| 4 | Lunar base established | landing | zoom in: Moon surface, first module lands | cargo pods drop from the ship |
+| 5 | Moon base built | payload launches grow the base | Moon surface, base growing | population counter updates every launch until **10,000 people**; a railgun fires cargo back to Earth |
+
+Sub-steps inside tier 1 keep the early game readable: 1 mi, 6 mi, Kármán line, then orbit. Phase 2 (Mars colony, asteroid belt) is parked in the queue as T20 and is why the camera-scale mechanism is worth building properly.
