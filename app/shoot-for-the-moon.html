@@ -523,14 +523,16 @@ body {
   @media (max-width: 860px) { .goalwin { width: min(10rem, 46%); font-size: var(--text-3xs); }
     #ups { height: 18rem; } }
   /* T24 · the gimbal, bottom-left, only once the pad is clear */
-  .gimbal { position: absolute; left: .6rem; bottom: .6rem; width: 7.2rem;
+  .gimbal { position: absolute; left: .6rem; bottom: .6rem; width: 13.4rem;
             background: var(--h-surface-glass); border: 1px solid var(--h-border); border-radius: var(--radius);
             padding: .35rem .45rem; backdrop-filter: blur(6px); font-family: var(--wa-font-family-heading);
             font-size: var(--text-3xs); letter-spacing: .06em; text-transform: uppercase; color: var(--h-text-muted);
             transition: opacity .35s; }
   .gimbal[hidden] { display: none; }
   .gimbal.fade { opacity: 0; }
-  .gimbal canvas { width: 100%; height: 4.4rem; display: block; }
+  .gimbal .insts { display: grid; grid-template-columns: 1fr 1fr; gap: .3rem; }
+  .gimbal canvas { width: 100%; height: 5.4rem; display: block; }
+  @media (max-width: 860px) { .gimbal { width: 10.6rem; } .gimbal canvas { height: 4.4rem; } }
   .gimbal .row { display: flex; justify-content: space-between; margin-top: .15rem; }
   .gimbal .row b { color: var(--h-text); font-weight: var(--wa-font-weight-data); font-variant-numeric: tabular-nums; }
   @media (max-width: 860px) { .datawin { width: min(11rem, 50%); } .datawin tr:nth-child(n+6) { display: none; } }   /* phone: Vel · Alt · Cd · Drag · Thrust */
@@ -732,10 +734,10 @@ body {
             <div class="bar"><i id="gw-bar"></i></div>
             <div class="dv" id="gw-dv"></div>
           </div>
-          <div class="gimbal" id="gimbal" hidden aria-label="Attitude and gimbal">
-            <canvas id="gimbal-c"></canvas>
-            <div class="row"><span>Pitch</span><b id="gm-pitch">0°</b></div>
+          <div class="gimbal" id="gimbal" hidden aria-label="Ship attitude and engines">
             <div class="row"><span>Gimbal</span><b id="gm-gim">0.0°</b></div>
+            <div class="insts"><canvas id="hud-side"></canvas><canvas id="hud-eng"></canvas></div>
+            <div class="row"><span>Pitch</span><b id="gm-pitch">0°</b></div>
           </div>
           <div class="flash" id="flash"><div class="big" id="fl-big"></div><div class="sub" id="fl-sub"></div><div class="money" id="fl-money"></div></div>
           <button id="launch" title="Launch the rocket. One button; that's the game.">Launch<small id="launch-sub">ready</small></button>
@@ -1481,34 +1483,19 @@ function paintWindows() {
   const g = $('gimbal'); g.hidden = !clear; g.classList.toggle('fade', !clear);
   if (clear) drawGimbal();
 }
-/* T24 · attitude ball and gimbal needle. Pitch is real — it comes from the gravity turn. */
-function drawGimbal() {
-  const cv = $('gimbal-c'), box = cv.getBoundingClientRect(), d = Math.min(3, window.devicePixelRatio || 1);
+/* A3 · the ship in profile at its real pitch, and the engine plate from below (W18). */
+function sizeHudCanvas(cv) {
+  const box = cv.getBoundingClientRect(), d = Math.min(3, window.devicePixelRatio || 1);
   const W = Math.max(30, box.width), H = Math.max(30, box.height);
   cv.width = W * d; cv.height = H * d; const c = cv.getContext('2d'); c.setTransform(d, 0, 0, d, 0, 0);
-  const cs = getComputedStyle(document.documentElement), col = k => cs.getPropertyValue(k).trim();
-  const cx = W / 2, cy = H / 2, R = Math.min(W, H) / 2 - 2;
-  const pitch = view.ang;                                   // radians from vertical
-  const gim = Math.sin(performance.now() / 260) * (view.burning ? 0.035 : 0.008) * (1 + view.ang);
-  c.save(); c.beginPath(); c.arc(cx, cy, R, 0, 7); c.clip();
-  /* the horizon rolls with pitch: sky above, ground below */
-  c.translate(cx, cy); c.rotate(-pitch);
-  const hz = -R * 0.1;
-  c.fillStyle = col('--h-info'); c.globalAlpha = .35; c.fillRect(-R * 2, -R * 2, R * 4, R * 2 + hz);
-  c.fillStyle = col('--h-warning'); c.fillRect(-R * 2, hz, R * 4, R * 2); c.globalAlpha = 1;
-  c.strokeStyle = col('--h-text'); c.lineWidth = 1; c.beginPath(); c.moveTo(-R, hz); c.lineTo(R, hz); c.stroke();
-  for (let i = 1; i <= 2; i++) { const y = hz - i * R * 0.42, w = R * (i === 1 ? 0.34 : 0.2);
-    c.beginPath(); c.moveTo(-w, y); c.lineTo(w, y); c.stroke(); }
-  c.restore();
-  c.strokeStyle = col('--h-border'); c.lineWidth = 1.5; c.beginPath(); c.arc(cx, cy, R, 0, 7); c.stroke();
-  /* fixed aircraft mark */
-  c.strokeStyle = col('--h-accent'); c.lineWidth = 2; c.beginPath();
-  c.moveTo(cx - R * 0.45, cy); c.lineTo(cx - R * 0.12, cy); c.moveTo(cx + R * 0.12, cy); c.lineTo(cx + R * 0.45, cy);
-  c.moveTo(cx, cy - R * 0.12); c.lineTo(cx, cy + R * 0.04); c.stroke();
-  /* gimbal needle at the base */
-  c.strokeStyle = col('--h-positive'); c.lineWidth = 2; c.beginPath();
-  c.moveTo(cx, cy + R * 0.62); c.lineTo(cx + Math.sin(gim) * R * 3.2, cy + R * 0.95); c.stroke();
-  $('gm-pitch').textContent = Math.round(pitch * 180 / Math.PI) + '°';
+  return { c, W, H };
+}
+function drawGimbal() {
+  const now = performance.now();
+  const gim = Math.sin(now / 260) * (view.burning ? 0.035 : 0.008) * (1 + view.ang);
+  { const { c, W, H } = sizeHudCanvas($('hud-side')); drawShipSide(c, W, H, S.tiers, view.ang, !!view.burning, now); }
+  { const { c, W, H } = sizeHudCanvas($('hud-eng')); drawEngineBottom(c, W, H, S.tiers, view.burning ? (view.flame || 1) : 0, now); }
+  $('gm-pitch').textContent = Math.round(view.ang * 180 / Math.PI) + '°';
   $('gm-gim').textContent = (gim * 180 / Math.PI).toFixed(1) + '°';
 }
 
@@ -4474,6 +4461,319 @@ function drawCargoDrop(c, DW, DH, st, drawRocketFn, rocketDimsFn, drawBaseFn) {
   c.restore();
 }
 
+
+/* ── W18 · the ship HUD: side elevation and engine plate ── */
+/* ── W18 · the ship HUD ──
+   Two tiny instruments for the bottom-left corner:
+     drawShipSide(c, W, H, t, pitch, burning, now)  — side elevation of THIS rocket over a horizon
+     drawEngineBottom(c, W, H, t, thr, now)         — the engine plate seen from below
+   Both paint their own W×H panel (context already scaled to CSS px). No gproj. */
+
+/* the same numbers drawRocket uses, so the HUD ship is the vehicle you are flying */
+function w18_dims(t) {
+  const bodyH = 48 + t.tank * 6.5;
+  const bodyW = 20 + t.tank * 1.6;
+  const noseH = 12 + t.aero * 3 + (t.aero >= 9 ? 6 : 0);
+  return { bodyH, bodyW, noseH, totalH: bodyH + noseH + 8 };
+}
+/* the same bell count / row split drawRocket uses: 1, 2, 3, 5, 7 by engine tier */
+function w18_engine(e) {
+  const n = e <= 2 ? 1 : e <= 4 ? 2 : e <= 6 ? 3 : e <= 8 ? 5 : 7;
+  const front = n <= 3 ? n : n === 5 ? 3 : 4;
+  return { n, front, back: n - front };
+}
+function w18_scheme(h) {
+  if (h <= 3) return { lo: '#7F8891', hi: '#CBD2D8', accent: '#4A5561', noseLo: '#6E777F', noseHi: '#AEB6BD', kind: 'steel' };
+  if (h <= 6) return { lo: ART.rocketDk, hi: ART.rocket, accent: ART.nose, noseLo: '#B23E2B', noseHi: '#F07A62', kind: 'paint' };
+  if (h <= 8) return { lo: '#B27F26', hi: '#F6D97F', accent: '#2B2F36', noseLo: ART.rocketDk, noseHi: ART.rocket, kind: 'foil' };
+  return { lo: '#111417', hi: '#3E464F', accent: ART.nose, noseLo: '#111417', noseHi: '#3E464F', kind: 'carbon' };
+}
+function w18_grad(c, x0, x1, lo, hi) {
+  const g = c.createLinearGradient(x0, 0, x1, 0);
+  g.addColorStop(0, lo); g.addColorStop(0.38, hi); g.addColorStop(1, lo); return g;
+}
+/* panel: dark instrument well with a rounded bezel. Returns the inset rect. */
+function w18_panel(c, W, H, label) {
+  const r = Math.min(8, W * 0.12);
+  c.beginPath();
+  c.moveTo(r, 0); c.lineTo(W - r, 0); c.quadraticCurveTo(W, 0, W, r); c.lineTo(W, H - r);
+  c.quadraticCurveTo(W, H, W - r, H); c.lineTo(r, H); c.quadraticCurveTo(0, H, 0, H - r);
+  c.lineTo(0, r); c.quadraticCurveTo(0, 0, r, 0); c.closePath();
+  const g = c.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#0D1620'); g.addColorStop(1, '#060A10');
+  c.fillStyle = g; c.fill(); drawCount++;
+  c.clip();
+  return r;
+}
+function w18_bezel(c, W, H, label) {
+  c.strokeStyle = 'rgba(150,190,220,.28)'; c.lineWidth = 1;
+  c.strokeRect(0.5, 0.5, W - 1, H - 1); drawCount++;
+  if (label) {
+    c.fillStyle = 'rgba(160,205,235,.55)';
+    c.font = '600 ' + Math.max(7, Math.round(H * 0.09)) + 'px ui-monospace, Menlo, monospace';
+    c.textAlign = 'left'; c.textBaseline = 'top';
+    c.fillText(label, 4, 3); drawCount++;
+  }
+}
+
+/* ── side elevation, tilted to `pitch` (0 = straight up, +ve = pitching over to the right) ── */
+function drawShipSide(c, W, H, t, pitch, burning, now) {
+  now = now || 0; pitch = pitch || 0;
+  c.save();
+  w18_panel(c, W, H);
+
+  /* horizon reference: a fixed line low in the well, with sky above and ground below */
+  const hy = H * 0.84;
+  const sky = c.createLinearGradient(0, 0, 0, hy);
+  sky.addColorStop(0, '#0A1826'); sky.addColorStop(1, '#17364F');
+  c.fillStyle = sky; c.fillRect(0, 0, W, hy); drawCount++;
+  c.fillStyle = '#20301F'; c.fillRect(0, hy, W, H - hy); drawCount++;
+  c.strokeStyle = 'rgba(140,200,235,.75)'; c.lineWidth = 1;
+  c.beginPath(); c.moveTo(0, hy + .5); c.lineTo(W, hy + .5); c.stroke(); drawCount++;
+  // horizon ticks + a vertical reference at centre
+  c.strokeStyle = 'rgba(140,200,235,.30)'; c.beginPath();
+  for (let i = 1; i < 6; i++) { const x = W * i / 6; c.moveTo(x, hy - 3); c.lineTo(x, hy + 3); }
+  c.moveTo(W / 2, 4); c.lineTo(W / 2, hy); c.stroke(); drawCount++;
+
+  /* the ship, pivoting on its own centre of mass just above the horizon */
+  const D = w18_dims(t);
+  const S = w18_scheme(t.hull);
+  const E = w18_engine(t.engine);
+  // fit the whole vehicle in the well at ANY pitch: the long axis must fit both ways
+  const s = Math.min(H * 0.58, W * 0.80) / D.totalH;
+  const px = W / 2, py = hy - H * 0.38;
+
+  c.save();
+  c.translate(px, py); c.rotate(pitch); c.scale(s, s);
+  // local frame: baseY at +totalH/2 (bells), nose up
+  const baseY = D.totalH / 2, top = baseY - D.bodyH, hw = D.bodyW / 2;
+
+  /* exhaust */
+  if (burning) {
+    const k = (t.engine - 1) / 9;
+    const fl = 1 + Math.sin(now / 37) * .10 + Math.sin(now / 21) * .06;
+    const L = (46 + t.engine * 5) * fl;
+    const bw = Math.max(4, D.bodyW * (E.front > 2 ? .46 : .30));
+    const g = c.createLinearGradient(0, baseY, 0, baseY + L);
+    g.addColorStop(0, mixHex('#FFF4C2', '#FFFFFF', k));
+    g.addColorStop(.45, mixHex('#FFB347', '#BFE3FF', k));
+    g.addColorStop(1, 'rgba(255,120,26,0)');
+    c.fillStyle = g; c.beginPath();
+    c.moveTo(-bw, baseY + 2); c.quadraticCurveTo(-bw * 1.3, baseY + L * .45, 0, baseY + L);
+    c.quadraticCurveTo(bw * 1.3, baseY + L * .45, bw, baseY + 2); c.fill(); drawCount++;
+    c.fillStyle = mixHex('#FFF4C2', '#FFFFFF', k); c.globalAlpha = .9; c.beginPath();
+    c.moveTo(-bw * .38, baseY + 2); c.quadraticCurveTo(-bw * .5, baseY + L * .3, 0, baseY + L * .55);
+    c.quadraticCurveTo(bw * .5, baseY + L * .3, bw * .38, baseY + 2); c.fill(); c.globalAlpha = 1; drawCount++;
+  }
+
+  /* fins */
+  const finCol = S.kind === 'steel' ? '#6E777F' : S.kind === 'carbon' ? '#2A3038' : ART.fin;
+  if (t.aero >= 2 && t.aero <= 3) {
+    const fw = 7 + t.aero * 1.5, fh = 12 + t.aero * 2;
+    c.fillStyle = finCol; c.beginPath();
+    c.moveTo(-hw, baseY - fh); c.lineTo(-hw - fw, baseY - fh * .35); c.lineTo(-hw - fw, baseY + 1); c.lineTo(-hw, baseY + 1);
+    c.moveTo(hw, baseY - fh); c.lineTo(hw + fw, baseY - fh * .35); c.lineTo(hw + fw, baseY + 1); c.lineTo(hw, baseY + 1);
+    c.fill(); drawCount++;
+  } else if (t.aero >= 4) {
+    const a = Math.min(t.aero, 7), fw = 8 + a * 1.9, fh = 18 + a * 3.2;
+    c.fillStyle = finCol; c.beginPath();
+    c.moveTo(-hw, baseY - fh); c.quadraticCurveTo(-hw - fw * .45, baseY - fh * .35, -hw - fw, baseY + 3); c.lineTo(-hw - fw * .55, baseY + 3); c.lineTo(-hw, baseY - 1);
+    c.moveTo(hw, baseY - fh); c.quadraticCurveTo(hw + fw * .45, baseY - fh * .35, hw + fw, baseY + 3); c.lineTo(hw + fw * .55, baseY + 3); c.lineTo(hw, baseY - 1);
+    c.fill(); drawCount++;
+    c.fillStyle = 'rgba(0,0,0,.22)'; c.beginPath();
+    c.moveTo(hw, baseY - fh); c.quadraticCurveTo(hw + fw * .45, baseY - fh * .35, hw + fw, baseY + 3); c.lineTo(hw + fw * .55, baseY + 3); c.lineTo(hw, baseY - 1);
+    c.fill(); drawCount++;
+  }
+  if (t.aero >= 8) {   // grid fins
+    const gw = 9 + (t.aero - 8) * 1.5, gh = 6, gy0 = top + D.bodyH * .36;
+    c.fillStyle = '#5B646D'; c.fillRect(-hw - gw, gy0, gw, gh); c.fillRect(hw, gy0, gw, gh); drawCount++;
+    c.strokeStyle = 'rgba(255,255,255,.5)'; c.lineWidth = .8; c.beginPath();
+    for (let i = 1; i < 3; i++) { const yy = gy0 + gh * i / 3; c.moveTo(-hw - gw, yy); c.lineTo(-hw, yy); c.moveTo(hw, yy); c.lineTo(hw + gw, yy); }
+    c.stroke(); drawCount++;
+  }
+  if (t.aero >= 10) {  // canards
+    c.fillStyle = S.kind === 'carbon' ? ART.nose : finCol; c.beginPath();
+    c.moveTo(-hw + 1, top - 3); c.lineTo(-hw - 9, top + 7); c.lineTo(-hw + 1, top + 9);
+    c.moveTo(hw - 1, top - 3); c.lineTo(hw + 9, top + 7); c.lineTo(hw - 1, top + 9); c.fill(); drawCount++;
+  }
+
+  /* engine skirt + bells (front row only, as in the side view on the pad) */
+  c.fillStyle = '#3A434D'; c.fillRect(-hw - 1, baseY - 7, D.bodyW + 2, 5); drawCount++;
+  const pitchX = D.bodyW / (E.front + 0.15);
+  const bw = clamp(pitchX * .42, 2.2, 8);
+  for (let i = 0; i < E.back; i++) {
+    const nx = (i - (E.back - 1) / 2) * pitchX, b2 = bw * .8;
+    c.fillStyle = '#2E353D'; c.beginPath();
+    c.moveTo(nx - b2 * .55, baseY - 4); c.lineTo(nx + b2 * .55, baseY - 4); c.lineTo(nx + b2, baseY + 3); c.lineTo(nx - b2, baseY + 3); c.fill(); drawCount++;
+  }
+  for (let i = 0; i < E.front; i++) {
+    const nx = (i - (E.front - 1) / 2) * pitchX;
+    c.fillStyle = w18_grad(c, nx - bw, nx + bw, '#3A434D', '#8A949E'); c.beginPath();
+    c.moveTo(nx - bw * .55, baseY - 3); c.lineTo(nx + bw * .55, baseY - 3); c.lineTo(nx + bw, baseY + 6); c.lineTo(nx - bw, baseY + 6); c.fill(); drawCount++;
+  }
+
+  /* body */
+  c.fillStyle = w18_grad(c, -hw, hw, S.lo, S.hi); c.fillRect(-hw, top, D.bodyW, D.bodyH); drawCount++;
+  if (S.kind === 'paint') { c.fillStyle = ART.nose; c.fillRect(-hw, baseY - 7 - D.bodyH * .12, D.bodyW, D.bodyH * .12); drawCount++; }
+  else if (S.kind === 'foil') {
+    c.fillStyle = w18_grad(c, -hw, hw, ART.rocketDk, ART.rocket); c.fillRect(-hw, top, D.bodyW, D.bodyH * .36); drawCount++;
+    if (t.hull >= 8) { c.fillStyle = '#23272C'; c.fillRect(-hw, baseY - 7 - D.bodyH * .14, D.bodyW, D.bodyH * .14); drawCount++; }
+  } else if (S.kind === 'carbon') {
+    const sw = Math.max(2.5, D.bodyW * .12);
+    c.fillStyle = ART.nose; c.fillRect(-sw * .2, top + 4, sw, D.bodyH - 12);
+    c.fillStyle = '#E9EEF3'; c.fillRect(sw * 1.1, top + 4, sw * .5, D.bodyH - 12); drawCount += 2;
+  }
+  // seams + interstage
+  const seams = Math.ceil(t.tank / 2);
+  c.fillStyle = 'rgba(0,0,0,.18)';
+  for (let i = 1; i <= seams; i++) c.fillRect(-hw, top + (D.bodyH - 8) * i / (seams + 1), D.bodyW, 1.5);
+  drawCount++;
+  if (t.tank >= 6) { c.fillStyle = '#2E353D'; c.fillRect(-hw, top + D.bodyH * .62, D.bodyW, 5); drawCount++; }
+  c.fillStyle = 'rgba(0,0,0,.20)'; c.fillRect(hw - 2, top, 2, D.bodyH); drawCount++;
+
+  /* nose */
+  const nH = D.noseH;
+  c.fillStyle = w18_grad(c, -hw, hw, S.noseLo, S.noseHi); c.beginPath(); c.moveTo(-hw, top);
+  if (t.aero <= 2) { c.quadraticCurveTo(-hw, top - nH * 1.25, 0, top - nH); c.quadraticCurveTo(hw, top - nH * 1.25, hw, top); }
+  else if (t.aero <= 5) { c.lineTo(0, top - nH); c.lineTo(hw, top); }
+  else if (t.aero <= 8) { c.quadraticCurveTo(-hw * .8, top - nH * .7, 0, top - nH); c.quadraticCurveTo(hw * .8, top - nH * .7, hw, top); }
+  else { const nh = nH - 8; c.quadraticCurveTo(-hw * .8, top - nh * .75, -1.2, top - nh); c.lineTo(0, top - nH); c.lineTo(1.2, top - nh); c.quadraticCurveTo(hw * .8, top - nh * .75, hw, top); }
+  c.closePath(); c.fill(); drawCount++;
+
+  /* window */
+  const wr = clamp(D.bodyW * .3, 5.5, 9), wy = top + Math.max(12, D.bodyW * .5);
+  c.fillStyle = S.accent; c.beginPath(); c.arc(0, wy, wr + 1.6, 0, 7); c.fill();
+  c.fillStyle = '#5FD4E2'; c.beginPath(); c.arc(0, wy, wr, 0, 7); c.fill();
+  c.fillStyle = 'rgba(255,255,255,.55)'; c.beginPath(); c.arc(-wr * .3, wy - wr * .3, wr * .35, 0, 7); c.fill(); drawCount += 3;
+  c.restore();
+
+  /* pitch readout: an arc from vertical to the ship's heading, plus degrees */
+  const deg = Math.round(pitch * 180 / Math.PI);
+  c.strokeStyle = 'rgba(255,212,106,.85)'; c.lineWidth = 1.4;
+  c.beginPath(); c.arc(px, py, Math.min(W, H) * 0.30, -Math.PI / 2, -Math.PI / 2 + pitch, pitch < 0); c.stroke(); drawCount++;
+  c.fillStyle = 'rgba(255,212,106,.95)';
+  c.font = '600 ' + Math.max(8, Math.round(H * 0.10)) + 'px ui-monospace, Menlo, monospace';
+  c.textAlign = 'right'; c.textBaseline = 'bottom';
+  c.fillText(deg + '°', W - 4, H - 3); drawCount++;
+  c.restore();
+
+  w18_bezel(c, W, H, 'PITCH');
+}
+
+/* one bell seen from below: lip ring, cooling channels, throat. `hot` 0..1 */
+function w18_bell(c, x, y, r, hot, i, now) {
+  // lip: a metal ring
+  const lip = c.createRadialGradient(x - r * .35, y - r * .35, r * .1, x, y, r);
+  lip.addColorStop(0, '#9AA5B0'); lip.addColorStop(.72, '#5C666F'); lip.addColorStop(1, '#20262C');
+  c.fillStyle = lip; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill(); drawCount++;
+  // inner cone
+  const ir = r * 0.80;
+  if (hot > 0) {
+    const f = 0.86 + 0.14 * Math.sin(now / 60 + i * 1.9) + 0.06 * Math.sin(now / 23 + i);
+    const a = clamp(hot * f, 0, 1);
+    const g = c.createRadialGradient(x, y, ir * .06, x, y, ir);
+    g.addColorStop(0, 'rgba(255,250,235,' + a + ')');
+    g.addColorStop(.35, 'rgba(255,196,90,' + (0.95 * a) + ')');
+    g.addColorStop(.72, 'rgba(226,86,26,' + (0.9 * a) + ')');
+    g.addColorStop(1, 'rgba(90,18,8,' + (0.95 * a) + ')');
+    c.fillStyle = g; c.beginPath(); c.arc(x, y, ir, 0, 7); c.fill(); drawCount++;
+  } else {
+    const g = c.createRadialGradient(x - ir * .25, y - ir * .25, ir * .1, x, y, ir);
+    g.addColorStop(0, '#2A3037'); g.addColorStop(.6, '#161B21'); g.addColorStop(1, '#0A0D11');
+    c.fillStyle = g; c.beginPath(); c.arc(x, y, ir, 0, 7); c.fill(); drawCount++;
+  }
+  // cooling channels: spokes from throat to lip
+  c.save(); c.beginPath(); c.arc(x, y, ir, 0, 7); c.clip();
+  c.strokeStyle = hot > 0 ? 'rgba(255,225,170,.30)' : 'rgba(150,165,180,.26)';
+  c.lineWidth = Math.max(.5, r * .055); c.beginPath();
+  const spokes = r > 9 ? 16 : 10;
+  for (let k = 0; k < spokes; k++) {
+    const a = k * Math.PI * 2 / spokes + i * 0.2;
+    c.moveTo(x + Math.cos(a) * ir * .26, y + Math.sin(a) * ir * .26);
+    c.lineTo(x + Math.cos(a) * ir, y + Math.sin(a) * ir);
+  }
+  c.stroke(); drawCount++;
+  c.restore();
+  // throat
+  c.fillStyle = hot > 0 ? 'rgba(255,255,245,' + clamp(hot, 0, 1) + ')' : '#05070A';
+  c.beginPath(); c.arc(x, y, ir * .24, 0, 7); c.fill(); drawCount++;
+  // lip highlight
+  c.strokeStyle = 'rgba(220,232,244,.45)'; c.lineWidth = Math.max(.6, r * .07);
+  c.beginPath(); c.arc(x, y, r - c.lineWidth * .5, Math.PI * 1.05, Math.PI * 1.75); c.stroke(); drawCount++;
+}
+
+/* ── the engine plate seen from below ── */
+function drawEngineBottom(c, W, H, t, thr, now) {
+  now = now || 0; thr = clamp(thr || 0, 0, 1);
+  c.save();
+  w18_panel(c, W, H);
+
+  const cx = W / 2, cy = H * 0.52, R = Math.min(W, H) * 0.42;
+  const E = w18_engine(t.engine);
+
+  // glow behind the plate when lit
+  if (thr > 0) {
+    const gg = c.createRadialGradient(cx, cy, R * .2, cx, cy, R * 1.7);
+    gg.addColorStop(0, 'rgba(255,140,40,' + (0.38 * thr) + ')');
+    gg.addColorStop(1, 'rgba(255,60,10,0)');
+    c.fillStyle = gg; c.beginPath(); c.arc(cx, cy, R * 1.7, 0, 7); c.fill(); drawCount++;
+  }
+
+  // the skirt: outer ring
+  const sk = c.createRadialGradient(cx - R * .4, cy - R * .5, R * .2, cx, cy, R * 1.08);
+  sk.addColorStop(0, '#6D7883'); sk.addColorStop(.7, '#39424B'); sk.addColorStop(1, '#1A1F25');
+  c.fillStyle = sk; c.beginPath(); c.arc(cx, cy, R * 1.08, 0, 7); c.fill(); drawCount++;
+  // the plate itself, recessed
+  const pl = c.createRadialGradient(cx - R * .3, cy - R * .4, R * .1, cx, cy, R);
+  pl.addColorStop(0, '#333B44'); pl.addColorStop(1, '#12171C');
+  c.fillStyle = pl; c.beginPath(); c.arc(cx, cy, R, 0, 7); c.fill(); drawCount++;
+  // bolts around the skirt
+  c.fillStyle = 'rgba(190,205,220,.55)'; c.beginPath();
+  for (let k = 0; k < 20; k++) {
+    const a = k * Math.PI / 10, br = R * 1.04;
+    c.moveTo(cx + Math.cos(a) * br, cy + Math.sin(a) * br);
+    c.arc(cx + Math.cos(a) * br, cy + Math.sin(a) * br, Math.max(.6, R * .028), 0, 7);
+  }
+  c.fill(); drawCount++;
+
+  // engine positions — the same counts drawRocket uses: 1, 2, 3, 5, 7
+  const n = E.n;
+  const pos = [];
+  let bellR;
+  if (n === 1) { bellR = R * .56; pos.push([0, 0]); }
+  else if (n === 2) { bellR = R * .40; pos.push([-R * .46, 0], [R * .46, 0]); }
+  else if (n === 3) { bellR = R * .37; for (let k = 0; k < 3; k++) { const a = -Math.PI / 2 + k * Math.PI * 2 / 3; pos.push([Math.cos(a) * R * .48, Math.sin(a) * R * .48]); } }
+  else if (n === 5) { bellR = R * .30; pos.push([0, 0]); for (let k = 0; k < 4; k++) { const a = Math.PI / 4 + k * Math.PI / 2; pos.push([Math.cos(a) * R * .56, Math.sin(a) * R * .56]); } }
+  else { bellR = R * .26; pos.push([0, 0]); for (let k = 0; k < 6; k++) { const a = -Math.PI / 2 + k * Math.PI / 3; pos.push([Math.cos(a) * R * .60, Math.sin(a) * R * .60]); } }
+
+  // plumbing: struts from the hub out to each outer bell, drawn under them
+  if (n > 1) {
+    c.strokeStyle = 'rgba(120,134,148,.5)'; c.lineWidth = Math.max(1, R * .07); c.beginPath();
+    for (const [dx, dy] of pos) { if (dx === 0 && dy === 0) continue; c.moveTo(cx, cy); c.lineTo(cx + dx, cy + dy); }
+    c.stroke(); drawCount++;
+  }
+
+  // shadow pockets under each bell
+  c.fillStyle = 'rgba(0,0,0,.45)'; c.beginPath();
+  for (const [dx, dy] of pos) { c.moveTo(cx + dx, cy + dy + bellR * .12); c.arc(cx + dx, cy + dy + bellR * .12, bellR * 1.04, 0, 7); }
+  c.fill(); drawCount++;
+
+  for (let i = 0; i < pos.length; i++) w18_bell(c, cx + pos[i][0], cy + pos[i][1], bellR, thr, i, now);
+
+  c.restore();
+  w18_bezel(c, W, H, 'ENGINES');
+  // count + throttle readout
+  c.save();
+  c.fillStyle = thr > 0 ? 'rgba(255,196,90,.95)' : 'rgba(160,180,200,.7)';
+  c.font = '600 ' + Math.max(8, Math.round(H * 0.095)) + 'px ui-monospace, Menlo, monospace';
+  c.textAlign = 'left'; c.textBaseline = 'bottom';
+  c.fillText('x' + E.n, 4, H - 3); drawCount++;
+  c.textAlign = 'right';
+  c.fillText(Math.round(thr * 100) + '%', W - 4, H - 3); drawCount++;
+  c.restore();
+}
+
+/* ── preview ── */
 
 /* ── ground starfield — drawn once, behind everything ── */
 function drawGround() {
