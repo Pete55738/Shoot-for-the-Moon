@@ -1384,7 +1384,9 @@ const TASK_POOL = [
   ['Countdown rehearsal', 2, 'paper'], ['Top up the coffee', 1, 'paper'],
   ['Polish the nose cone', 1.5, 'clean'], ['Straighten the flag', 1, 'clean'],
 ];
-const TURNAROUND_S = 15;
+const TURNAROUND_S = 10;   /* the whole rebuild between flights, mishap included. Task durations are
+                              scaled to fit it, so this shortens the crew rather than the list.
+                              Typical run 64 -> 51 min (node scripts/sim.mjs --targets). */
 const STAGE_LABEL = { recover: 'Recovery', clean: 'Cleaning', stack: 'Stacking', fuel: 'Fuelling', check: 'Checks', paper: 'Paperwork', mishap: 'Problem' };
 /* T36 · every rebuild something goes wrong. One of these per turnaround, picked by the seeded RNG,
    so the same launch always hits the same one. [what happened, what they do about it, extra seconds, what shows on the pad] */
@@ -1413,7 +1415,11 @@ function startTurnaround() {
   const at = Math.min(picks.length, 3 + Math.floor(rng() * 2));
   picks.splice(at, 0, [mishap[0], mishap[2] * 0.45, 'mishap'], [mishap[1], mishap[2] * 0.55, 'mishap']);
   const sum = picks.reduce((a, p) => a + p[1], 0);
-  const total = TURNAROUND_S + mishap[2];        // a mishap costs you the seconds it costs you
+  /* The rebuild is TURNAROUND_S flat. A mishap used to be added on top, so with one firing every
+     turnaround the wait was never actually the number in the constant — 15 meant 16.5-18. It now
+     takes its share out of the rebuild instead of extending it: the durations below are weighted,
+     so a costlier mishap still eats more of the crew's time, it just does not make you wait longer. */
+  const total = TURNAROUND_S;
   let acc = 0;
   const tasks = picks.map(([name, d, stage]) => { const dur = d / sum * total; const o = { name, dur, start: acc, stage }; acc += dur; return o; });
   turn = { tasks, t0: performance.now(), total, mishap: mishap[3], crew: tasks.map(() => [0.2 + rng() * 0.6, rng()]) };

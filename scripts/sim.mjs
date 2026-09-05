@@ -33,7 +33,9 @@ if (process.argv.includes('--curve')) {
 }
 if (process.argv.includes('--targets')) {
   /* Wall-clock: countdown 1.55 s + the mission's flight budget + 15 s turnaround. */
-  const cycle = m => 1.55 + (B.FLIGHT_PLAN[m] || B.FLIGHT_PLAN[0]).reduce((a, x) => a + x[1], 0) + 15;
+  /* 10 = TURNAROUND_S in the app — the whole rebuild, mishap included. It lives outside the
+     balance block, so this is the one place that has to be kept in step with it by hand. */
+  const cycle = m => 1.55 + (B.FLIGHT_PLAN[m] || B.FLIGHT_PLAN[0]).reduce((a, x) => a + x[1], 0) + 10;
   const rows = Object.entries(B.STRATEGIES).map(([name, s]) => ({ name, ...B.simulate(s) }));
   console.log('strategy       m1   m2   m3   m4   m5  done   dry   minutes');
   for (const r of rows) {
