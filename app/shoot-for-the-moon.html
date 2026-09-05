@@ -622,7 +622,7 @@ body {
       <aside class="hud" id="hud">
         <div class="gauge" title="How high the last (or current) flight got, in miles"><div class="k">Altitude</div>
           <div class="v" id="g-alt">0<small>mi</small></div><div class="bar"><i id="b-alt"></i></div></div>
-        <div class="gauge" title="Speed right now, in miles per hour"><div class="k">Speed</div>
+        <div class="gauge" title="Velocity right now, in miles per hour"><div class="k">Velocity</div>
           <div class="v" id="g-spd">0<small>mph</small></div><div class="bar spd"><i id="b-spd"></i></div></div>
         <div class="gauge" title="Fuel left in the tank"><div class="k">Fuel</div>
           <div class="v" id="g-fuel">100<small>%</small></div><div class="bar fuel"><i id="b-fuel"></i></div></div>
@@ -656,7 +656,7 @@ body {
     <div class="card">
       <h3>Flight log</h3>
       <div class="scroll-x"><table class="reg"><thead>
-        <tr><th>#</th><th class="r">Apogee</th><th class="r">Top speed</th><th class="r">Earned</th><th>Note</th></tr></thead>
+        <tr><th>#</th><th class="r">Apogee</th><th class="r">Top velocity</th><th class="r">Earned</th><th>Note</th></tr></thead>
         <tbody id="log-body"></tbody></table></div>
     </div>
   </section>
@@ -2099,7 +2099,10 @@ function drawLadder() {
   for (const m of MILESTONES) { const yy = y(m.km); const got = S.milestones.includes(m.km);
     c.strokeStyle = got ? col('--h-accent') : col('--h-border'); c.beginPath(); c.moveTo(8, yy); c.lineTo(20, yy); c.stroke();
     c.fillStyle = got ? col('--h-text') : col('--h-text-muted'); c.fillText((m.km >= MOON_KM ? 'MOON' : fmtMi(m.km) + ' mi').toUpperCase(), 24, yy); }
-  if (S.bestKm > 0) { c.fillStyle = col('--h-positive'); c.beginPath(); c.arc(14, y(S.bestKm), 4, 0, 7); c.fill(); }
+  if (S.bestKm > 0) { const yb = y(S.bestKm); c.fillStyle = col('--h-positive'); c.beginPath(); c.arc(14, yb, 4, 0, 7); c.fill();
+    /* the BEST tag sits right of the dot; nudged off a milestone label if one is within a line-height */
+    const near = MILESTONES.some(m => Math.abs(y(m.km) - yb) < 10); c.font = '700 8px ' + col('--wa-font-family-heading');
+    c.fillText('BEST ' + (S.bestKm >= MOON_KM ? 'MOON' : fmtMi(S.bestKm) + ' MI'), near ? W * 0.55 : 24, near ? yb : yb); }
   if (phase === 'flight' || phase === 'descent') { c.fillStyle = col('--h-warning'); c.beginPath(); c.arc(14, y(view.km), 3, 0, 7); c.fill(); }
 }
 
@@ -2156,7 +2159,7 @@ function paintBadge() {
 }
 function paintLog() {
   const st = $('stats'); st.textContent = '';
-  const rows = [['Best altitude', S.bestKm >= MOON_KM ? 'THE MOON' : fmtMi(S.bestKm) + ' mi'], ['Top speed', fmtV(S.bestV)],
+  const rows = [['Best altitude', S.bestKm >= MOON_KM ? 'THE MOON' : fmtMi(S.bestKm) + ' mi'], ['Top velocity', fmtV(S.bestV)],
                 ['Launches', S.launches.toLocaleString('en-US')], ['Earned, all time', fmtMoney(S.earned)],
                 ['Moon base', S.modules + ' / ' + BASE_MODULES.length + ' modules']];
   for (const [k, v] of rows) { const d = document.createElement('div'); d.className = 'stat';
@@ -2173,7 +2176,7 @@ function showFlash(f, r, record, hit, module) {
   const big = f.moon ? (module ? 'MOON · ' + module.toUpperCase() : 'THE MOON') : 'APOGEE ' + fmtMi(f.apogeeKm) + ' MI';
   $('fl-big').textContent = big;
   $('fl-sub').textContent = module && S.modules >= BASE_MODULES.length ? 'MOON BASE COMPLETE — you did it'
-    : hit.length ? hit.map(m => m.name).join(' · ') : record ? 'New record' : 'Top speed ' + fmtV(f.maxV);
+    : hit.length ? hit.map(m => m.name).join(' · ') : record ? 'New record' : 'Top velocity ' + fmtV(f.maxV);
   $('fl-money').textContent = '+' + fmtMoney(r);
   $('flash').classList.add('show');
   clearTimeout(flashTimer); flashTimer = setTimeout(hideFlash, 4200);
@@ -2244,7 +2247,7 @@ document.addEventListener('keydown', e => { if (e.code === 'Space' && e.target =
    ═══════════════════════════════════════════════════════════════════════ */
 const TOUR = [
   ['launch', 'This is the whole game. Press LAUNCH and the rocket flies as high as its parts allow. Space bar works too.'],
-  ['hud', 'Altitude, speed and fuel read live during the flight. The ladder on the left is the pad-to-Moon scale; the dot is your best.'],
+  ['hud', 'Altitude, velocity and fuel read live during the flight. The ladder on the left is the pad-to-Moon scale; the dot is your best.'],
   ['shop', 'Every flight earns funds. Spend them here — ten tiers each of engine, tank, aero and hull. Payload pays more per flight but rides only a rocket as good as it is.'],
   ['scenebox', 'Between flights the crew turns the rocket around. That is 15 seconds to shop; you cannot launch until the checklist clears.'],
   ['help-btn', 'Every control has a hover tip, and this ? replays the tour any time. That is everything — go to the Moon.'],
