@@ -3937,15 +3937,20 @@ function jrnyFree(DW, DH, z) {
    the figure eight belongs to the Earth–Moon journey above, and this belongs at the Moon. */
 function jrnyLunar(DW, DH, zoom) {
   const M = jrnyMoon(DW, DH, zoom);
+  /* T67 · a circular orbit, drawn as a circle. It used to be a squashed, tipped oval — rx 1.46 R
+     against ry 0.50 R, tilted −0.30 — which is what a circular orbit looks like edge-on, but on
+     screen it just read as an ellipse. The camera looks straight down on the plane now, so the
+     ring is a true circle concentric with the Moon: same radius every way round, no tilt.
+     That costs the hard occlusion — a circle of radius 1.42 R never crosses a disc of radius R —
+     so the far half keeps its own cue instead: dimmer, and the ship fades as it crosses it.
+     Same convention as the Earth ring: `a` runs counter-clockwise and the TOP half is the far one. */
   const R = Math.min(Math.max(M.r, Math.min(DW, DH) * (0.20 + 0.11 * zoom)), DW * 0.22, DH * 0.28);
-  const rx = R * 1.46, ry = R * 0.50, tilt = -0.30;
-  const cx = clamp(lerp(M.x, DW * 0.50, zoom), rx + 8, DW - rx - 8);
-  const cy = clamp(lerp(M.y, DH * 0.50, zoom), R + rx * 0.34 + 8, DH - R - rx * 0.34 - 8);
-  const ct = Math.cos(tilt), stl = Math.sin(tilt);
-  const at = (a) => { const X = rx * Math.cos(a), Y = ry * Math.sin(a);
-    return [cx + X * ct - Y * stl, cy + X * stl + Y * ct]; };
-  const behind = (a) => Math.sin(a) < 0;      // the far half of the orbit passes behind the Moon
-  return { cx, cy, R, rx, ry, tilt, at, behind };
+  const rr = R * 1.42, rx = rr, ry = rr, tilt = 0;
+  const cx = clamp(lerp(M.x, DW * 0.50, zoom), rr + 8, DW - rr - 8);
+  const cy = clamp(lerp(M.y, DH * 0.50, zoom), rr + 8, DH - rr - 8);
+  const at = (a) => [cx + rr * Math.cos(a), cy + rr * Math.sin(a)];
+  const behind = (a) => Math.sin(a) < 0;      // the far half of the orbit — the top of the ring
+  return { cx, cy, R, rx, ry, rr, tilt, at, behind };
 }
 function jrnyMoon(DW, DH, zoom)  { return { x: DW * 0.80, y: DH * 0.18, r: Math.min(DW, DH) * (0.10 + 0.34 * (zoom || 0)) }; }
 
@@ -4319,10 +4324,8 @@ function drawMoonApproach(c, DW, DH, st, drawRocketFn, rocketDimsFn) {
   /* ── the Moon itself ── */
   w15_moonBody(c, L.cx, L.cy, L.R, now);
 
-  /* on the far side the Moon has just eaten the ship — keep a dim ghost so it is not lost */
-  if (behind && posB && Math.hypot(posB[0] - L.cx, posB[1] - L.cy) < L.R + 14) {
-    c.save(); c.globalAlpha = 0.34; shipAt(ang, 0); c.restore();
-  }
+  /* T67 · the ring is a circle now, so it never runs under the Moon and there is nothing to eat
+     the ship. The far half is told by the fade alone — the ship is already drawn dim above. */
 
   /* ── the near half of the ring, over the Moon ── */
   arc(0, Math.PI, 0.62, 1.4, true);
@@ -6571,8 +6574,15 @@ function ladderCaption() {
   const m = S.mission, pop = (S.population || 0).toLocaleString('en-US');
   if (m >= 5) return [[pop + ' of 10,000 people', pop + ' / 10,000', pop], true];
   if (m >= 4) return [['base landed · ' + pop + ' people', 'landed · ' + pop, pop], true];
-  if (m >= 1) return [[fmtMi(S.bestKm) + ' mi of ' + fmtMi(MOON_KM) + ' to the Moon',
-                       fmtMi(S.bestKm) + ' / ' + fmtMi(MOON_KM) + ' mi', fmtMi(S.bestKm) + ' mi'], false];
+  /* T67b · `fmtMi` prints the word MOON at and past lunar distance, which is right for the altitude
+     readout and nonsense in a sentence — this line read "MOON MI OF MOON TO THE MOON". So the
+     distance to the Moon is written out plainly here, and reaching it gets its own caption. */
+  if (m >= 1) {
+    const moonMi = Math.round(MOON_KM * KM_TO_MI / 1000) + 'K';
+    if (S.bestKm >= MOON_KM) return [['reached the Moon · ' + moonMi + ' mi', 'reached the Moon', 'the Moon'], true];
+    return [[fmtMi(S.bestKm) + ' mi of ' + moonMi + ' to the Moon',
+             fmtMi(S.bestKm) + ' / ' + moonMi + ' mi', fmtMi(S.bestKm) + ' mi'], false];
+  }
   return [['best ' + fmtMi(S.bestKm) + ' mi · orbit at ' + fmtMi(200) + ' mi',
            'best ' + fmtMi(S.bestKm) + ' of ' + fmtMi(200) + ' mi', 'best ' + fmtMi(S.bestKm) + ' mi'], false];
 }
