@@ -1809,7 +1809,7 @@ function drawPadScene(c, now) {
   if (groundY < DH + 40) {
     c.save(); c.translate(0, siteSlide);
     drawSite(c, DW, DH, SITE_GY, now, km);
-    if (km < 1.5) drawLife(c, DW, DH, SITE_GY, now, (S.launches || 0) * 7, phase);
+    if (km < 1.5) drawLife(c, DW, DH, SITE_GY, now, (S.launches || 0) * 7, phase, S.mission);
     c.restore();
   } else if (far > 0.3 && !moonScene) {
     drawEarth(c, DW, DH, far);
@@ -6798,12 +6798,74 @@ function w17_smoke(c, sx, sy, k, now, off, tint) {
 }
 
 /* ══════════ the live frame ══════════ */
-function drawLife(c, DW, DH, gy, now, seed, phase) {
+/* T79 · a neighbouring launch site out on the horizon, only once the Moon base is being supplied.
+   Drawn in raw screen space against the ground line, like the hills and the shore town it stands
+   among, because it is beyond the ground plane by definition — nothing here goes through gproj.
+   Everything is hazed by distance: low alpha, colours pulled toward the sky, and a rocket that is
+   three pixels wide with a bright spark under it. `p` runs 0..1 through one pad's cycle; only the
+   last 45% of it is a flight, so mostly they just stand there and one of them goes now and then. */
+function w17_farpad(c, x, gy, k, p, now, maxRise) {
+  c.save();
+  c.globalAlpha = 0.92;      /* hazed, but it has to read at 360 wide — 0.62 vanished */
+  /* the pad: a slab, a gantry mast and a stub tower */
+  c.fillStyle = 'rgba(96,116,138,.85)';
+  c.fillRect(x - 5 * k, gy - 2 * k, 10 * k, 2.6 * k);                                  drawCount++;
+  c.fillStyle = 'rgba(120,140,162,.9)';
+  c.fillRect(x - 4.2 * k, gy - 13 * k, 1.5 * k, 11 * k);                               // mast
+  c.fillRect(x + 2.6 * k, gy - 9 * k, 1.3 * k, 7 * k);                                 drawCount++;
+  c.strokeStyle = 'rgba(120,140,162,.55)'; c.lineWidth = Math.max(0.6, 0.7 * k);
+  c.beginPath();
+  for (var i = 1; i < 4; i++) { var yy = gy - 3 * k - i * 2.6 * k; c.moveTo(x - 4.2 * k, yy); c.lineTo(x - 1.4 * k, yy); }
+  c.stroke();                                                                          drawCount++;
+
+  if (p >= 0.55) {
+    var f = (p - 0.55) / 0.45;                       // 0 at ignition, 1 when it is gone
+    var rise = f * f * maxRise;                      // accelerating, like the real one
+    var ry = gy - 3 * k - rise;
+    var fade = Math.min(1, (1 - f) * 3.2);           // hazes out near the top of its run
+    /* the smoke column it leaves on the pad, thickening then drifting */
+    c.fillStyle = 'rgba(238,244,250,' + (0.62 * Math.min(1, f * 4) * (1 - f * 0.55)) + ')';
+    c.beginPath();
+    c.ellipse(x + 3 * k * f, gy - 3 * k - rise * 0.12, (3 + 9 * f) * k, (3 + 5 * f) * k, 0, 0, 7);
+    c.ellipse(x + 7 * k * f, gy - 2 * k, (2.5 + 7 * f) * k, (2 + 3.5 * f) * k, 0, 0, 7);
+    c.fill();                                                                          drawCount++;
+    if (fade > 0.02) {
+      /* the trail, and the ship: a sliver with a hot spark under it */
+      c.strokeStyle = 'rgba(240,246,252,' + (0.52 * fade) + ')';
+      c.lineWidth = Math.max(0.8, 1.6 * k);
+      c.beginPath(); c.moveTo(x, gy - 3 * k); c.lineTo(x, ry + 4 * k); c.stroke();      drawCount++;
+      c.fillStyle = 'rgba(226,236,246,' + fade + ')';
+      c.fillRect(x - 1.5 * k, ry, 3.0 * k, 8 * k);                                     drawCount++;
+      var fl = 1 + Math.sin(now / 41 + x) * 0.22;
+      c.fillStyle = 'rgba(255,196,110,' + (0.9 * fade) + ')';
+      c.beginPath(); c.ellipse(x, ry + 10 * k, 2.1 * k, 5.5 * k * fl, 0, 0, 7); c.fill();  drawCount++;
+      c.fillStyle = 'rgba(255,244,210,' + (0.85 * fade) + ')';
+      c.beginPath(); c.ellipse(x, ry + 9 * k, 1.1 * k, 3.0 * k * fl, 0, 0, 7); c.fill(); drawCount++;
+    }
+  }
+  c.restore();
+}
+/* `mission` is passed in rather than read off the state, because `S` is the seed here — the
+   parameter shadows the game state object of the same name. */
+function drawLife(c, DW, DH, gy, now, seed, phase, mission) {
   var S = seed || 0, flight = phase === 'flight', turn = phase === 'turnaround';
   var P = function (x, z) { return gproj(DW, DH, gy, x, z); };
   var i, p, q, u, v, g, x, z;
   c.save();
   c.lineJoin = 'round';
+
+  /* ── horizon · THE OTHER LAUNCH SITE · only while the Moon base is being supplied ──
+     Three pads out past the farm and over the sea, on their own clocks, so roughly every few
+     seconds one of them goes. Drawn first, because they are the farthest thing on the field.
+     The climb is capped short of the glass windows across the top: the horizon sits at DH*0.34 and
+     the windows reach down to about DH*0.25, so that gap is the whole stage a far launch gets. */
+  if ((mission || 0) >= 5) {
+    var fk = Math.max(0.85, DW / 430);
+    var fRise = Math.max(30, gy - DH * 0.255);
+    var pads = [[0.615, 19], [0.775, 27], [0.930, 34]];
+    for (i = 0; i < pads.length; i++)
+      w17_farpad(c, DW * pads[i][0], gy, fk, w17_cyc(now, pads[i][1], w17_rnd(S + 90 + i * 7)), now, fRise);
+  }
 
   /* ── sky · JET · 22 s (5 s visible) ──────────────────────────────── */
   (function () {
@@ -7218,7 +7280,7 @@ function drawSite(c, DW, DH, gy, now, km) {
 /* ── W17 · pad life (A5): nine small events on their own clocks ── */
 /* ─────────────────────────────────────────────────────────────────────────
    W17 · the little city — small events on their own clocks, all on gproj.
-   drawLife(c, DW, DH, gy, now, seed, phase)   phase: 'ready'|'turnaround'|'flight'
+   drawLife(c, DW, DH, gy, now, seed, phase, mission)   phase: 'ready'|'turnaround'|'flight'
    ───────────────────────────────────────────────────────────────────────── */
 
 /* gproj is defined once, in the W16 section above. */
