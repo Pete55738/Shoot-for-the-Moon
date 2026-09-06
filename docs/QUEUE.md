@@ -107,6 +107,8 @@ below with its run number.
 
 - [x] T78 · "let's say it takes 10 launches for the population to get to 10,000 and win. We need a cargo goal that matches with population growth so the player feels compelled to finish. 10 shouldn't be explicitly stated" · said 09-07 · **built:** the endgame is a tonnage goal — `BASE_CARGO_T = 250`, ten runs of a maxed ship — and population is now a *reading* of the tonnage (`POP_PER_TONNE` derived as 10,000/250 = 40) rather than a second running total, so the goal on screen and the people in the base cannot disagree. The goal window leads with `74.7 of 250 t landed`, the shop hint says how many tonnes are left, and nothing anywhere counts launches. Every strategy now finishes the base in 10–11 launches, measured · quick · built #37
 
+- [x] T79 · "when you're on tier five launching rockets for the moon base, there should be small launch pads in the background periodically launching rockets as well" · said 09-07 · **built:** `w17_farpad` — three pads out past the farm and over the sea, on 19/27/34 s clocks, gated on `S.mission >= 5`. Drawn in raw screen space against the ground line like the hills and the shore town, because they are beyond the ground plane by definition. The climb is capped short of the glass windows across the top — the horizon sits at DH*0.34 and the windows reach to about DH*0.25, so that gap is the whole stage a far launch gets. Measured: 0 draws at mission 4, and at mission 5 a pad is mid-launch about a third of the time · quick · built #38
+
 ## Shipped
 
 <!-- ~~T0 · … · built #N~~ · run 1 · YYYY-MM-DD -->
