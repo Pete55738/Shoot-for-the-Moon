@@ -47,6 +47,15 @@ and `skills/orchestrate.md` for how workers are split, heartbeat and report.
 - **Static layers are cached.** The farm, the pad, the tilted site and the lunar ground render
   once into offscreen canvases keyed by size, ground line and theme. **Call `w12_invalidate()`
   and `siteInvalidate()` on resize, DPR change and theme change** or the scene keeps a stale layer. Anything that animates (crew, cows, windsock, beacons, pond, glows) still draws live.
+- **The journey is one arc (T50).** The gravity turn starts at the tower — `ascent` eases `view.ang`
+  to `-ASCENT_ANG` and `pitch` carries it on to −1.52 (horizontal), leaning **left**; it used to hold
+  vertical and snap over at the phase boundary. `maxQHeat(km)` warms the nose low down, peaking near
+  12 km. In the orbit view the Earth is **centred** (`orbitEarth`, not `jrnyEarth` — the transfer view
+  still needs Earth low-left to fit the Moon in) and the ring is concentric: the lap runs
+  `ORBIT_FROM` (π, the left limb, behind the globe) to `ORBIT_TO` (−0.68, lower right), which is the
+  corner the burn for the Moon is aimed from. The Moon gets two full laps. Coming home, `reentry` is
+  the same ring the other way — in at the top of the Earth, round to the near side — and every Moon
+  mission has one before `descent`.
 - **Camera:** `FLIGHT_PLAN` in the balance block gives each mission its phase list and seconds. `runFlight` is a phase machine; `view.scene` picks the camera view (`pad` / `orbit` / `transfer` / `moonorbit` / `cargo`) and `view.fadeFrom` cross-fades between them. The views are whole frames — they paint their own background; the pad scene is `drawPadScene`.
 - **Missions:** five, in `MISSIONS` in the balance block. A flight reaches mission *n* when delivered Δv clears `dvReq` AND both `equip` items are owned AND mission *n−1* is achieved. `capOf(missions)` caps every track at 2×(missions+1). `plan`/`replan()` cache the flight; **anything that changes tiers or equipment must call `replan()`** or the hint and the gold LAUNCH go stale.
 - **Payload is the economy (T45).** Below a mission's Δv requirement the ship carries the bare
