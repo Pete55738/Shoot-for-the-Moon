@@ -72,6 +72,12 @@ below with its run number.
 - [x] T35 · "optimize the crap out of the graphics" · said 09-05 · **decided:** cache static layers to offscreen canvases, batch fills, cut per-frame gradient churn; target ≥60 fps everywhere and the turnaround off the 232-draw budget · next · built #12
 - [x] T7 · Netlify app made public · said 09-05 · done by the user in Netlify
 
+- [x] T53 · "don't have the parachute — have it come down, rotate, pop some fins out like a spaceship does, rotate, and then land back, get caught with the chopsticks" · said 09-06 · **built:** every parachute is gone. Flaps swing out in thick air, the ship belly-flops flat, flips to vertical at 9 km and lights the engine at 7 km into the chopsticks · quick · built #27
+- [x] T54 · "the pop-up that shows how much you made is right in the way of the ship getting caught — show it on the right side underneath the task box, and put another line of detail in there, like dollars per tonne" · said 09-06 · **built:** the payoff panel is a right-column card under the to-do box, positioned from the measured goal window, with a tonnes-and-$/tonne line under the money · quick · built #27
+- [x] T55 · "still remove the green aurora borealis gridded thing, it's a distraction" · said 09-06 · **built:** `w3_aurora` deleted; the meteor runs more often so the 60–150 km band is not bare · quick · built #27
+
+- [x] T56 · found while building T53: the W1 rocket block was in the file twice and the later copy won, so drawRocket's `opts` (heat, cargo bay, flaps) had never run · **built:** the duplicate worker fragment deleted, one definition left · quick · built #27
+
 ## Shipped
 
 <!-- ~~T0 · … · built #N~~ · run 1 · YYYY-MM-DD -->

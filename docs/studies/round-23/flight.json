@@ -1,0 +1,94 @@
+{
+  "scene": "flight",
+  "out": "/home/user/Click-Me/docs/studies/round-23/flight.png",
+  "viewport": [
+    390,
+    844
+  ],
+  "light": false,
+  "tiers": 4,
+  "errors": [],
+  "fps": 61,
+  "drawCount": 34,
+  "phase": "flight",
+  "sim": {
+    "ok": true,
+    "rows": [
+      {
+        "name": "cheapest",
+        "launches": 113,
+        "maxDry": 3,
+        "buys": 55,
+        "reached": true,
+        "at": {
+          "m1": 14,
+          "m2": 21,
+          "m3": 27,
+          "m4": 30,
+          "m5": 33,
+          "done": 113
+        }
+      },
+      {
+        "name": "priciest",
+        "launches": 176,
+        "maxDry": 18,
+        "buys": 55,
+        "reached": true,
+        "at": {
+          "m1": 12,
+          "m2": 25,
+          "m3": 41,
+          "m4": 59,
+          "m5": 95,
+          "done": 176
+        }
+      },
+      {
+        "name": "noPayload",
+        "launches": 141,
+        "maxDry": 7,
+        "buys": 55,
+        "reached": true,
+        "at": {
+          "m1": 14,
+          "m2": 32,
+          "m3": 50,
+          "m4": 55,
+          "m5": 61,
+          "done": 141
+        }
+      },
+      {
+        "name": "payloadFirst",
+        "launches": 114,
+        "maxDry": 3,
+        "buys": 55,
+        "reached": true,
+        "at": {
+          "m1": 14,
+          "m2": 21,
+          "m3": 28,
+          "m4": 31,
+          "m5": 34,
+          "done": 114
+        }
+      },
+      {
+        "name": "equipmentLast",
+        "launches": 113,
+        "maxDry": 3,
+        "buys": 55,
+        "reached": true,
+        "at": {
+          "m1": 14,
+          "m2": 21,
+          "m3": 27,
+          "m4": 30,
+          "m5": 33,
+          "done": 113
+        }
+      }
+    ]
+  }
+}

@@ -1,15 +1,15 @@
 {
   "envelope": 1,
   "kind": "status",
-  "at": "2026-09-06T04:30:00Z",
+  "at": "2026-09-06T14:30:00Z",
   "payload": {
-    "reference": "docs/studies/round-20/sheet.png (provisional — built from the brain dumps, not user-picked)",
+    "reference": "docs/studies/round-23/sheet.png (provisional — built from the brain dumps, not user-picked)",
     "gates": {
       "score": 9.0,
       "consoleErrors": 0,
       "simClean": true
     },
-    "rounds": 28,
+    "rounds": 31,
     "subsystems": {
       "chrome": {
         "score": 9.0,
@@ -40,7 +40,7 @@
         "score": 9.0,
         "open": [
           "the gimbal HUD covers the grandstand during the catch on a phone",
-          "the recovery still ends in the chopstick catch under 3 km; the canopy stretch above it is where the hang reads"
+          "the flaps are flat slabs — they read at a glance but have no thickness or hinge travel"
         ]
       },
       "moon": {
@@ -79,7 +79,9 @@
       },
       "rocket": {
         "score": 9.5,
-        "open": []
+        "open": [
+          "the recovery flaps are drawn side-on only; edge-on there is nothing to see"
+        ]
       },
       "liftoff": {
         "score": 9.0,
@@ -141,7 +143,7 @@
       }
     },
     "weakest": "moonview",
-    "note": "Pitch-over and the camera ladder (T13c/T15/T16/T30/T31). A flight is now a phase machine: ascent (physics replay) → gravity turn → Earth orbit → dotted transfer arc → lunar orbit → cargo drop → return → parachute, cross-fading between camera views so each mission zooms out one step and the Moon zooms back in. Budgets per mission: 10 s at mission 1, 21 s for the full Moon round trip, under the 30 s cap. The ladder re-scales: altitude, then distance to the Moon, then population toward 10,000. Zero console errors, 60–61 fps, sim PASS. T33/T34/T24: the readiness window owns the top-left on the ground and becomes a go/no-go board when idle; mission control and the gimbal take over the moment the flight starts. Task pool is 36 jokey items grouped into six assembly stages, read as live commentary. T35 optimization: static farm and pad layers cached to offscreen canvases, fills batched, off-screen ground culled. Pad 150 draws to 49, turnaround 232 to 140, desktop turnaround 55 fps to 61. Verified identical with the clock frozen: 0.06% of pixels differ, none by more than 64/255, all on cached-layer antialiasing seams. T14 retune: cost growth 2.55, equipment priced above the tier it unlocks, population 0.95 per tonne. A player who buys what they can afford reaches low Earth orbit on launch 14 and finishes in about an hour. T17 railgun: fires during the Moon cargo phase where the camera actually is, pays about 90 cents per resident, grows with the colony. T36–T39 + A1/A2: ten mishaps, the upper-right checklist, a square LAUNCH with its own clock, the rocket lifting off the pad, and one canonical journey geometry — Earth lower-left, counter-clockwise orbit, a lunar orbit at the Moon. T40 then moved the figure eight to where Apollo puts it: it spans the whole Earth-Moon path — a long lobe past the Earth, a tight hook round the far side of the Moon, crossing between them — while the Moon itself gets a circular orbit, and the return leg runs forward round the second half instead of rewinding the first. T52 fixed the one thing a ballistic object cannot do: the ship used to snap upright the instant the engine quit. It now carries its burnout lean on round the arc — horizontal at the top, nose-down on the way back — and the descent splits into two rates so the canopy has time to read. Under the chute the ship turns about the riser above it rather than its own base, so it hangs as weight on a line and its swing damps out; the pitch instrument reads the same attitude the player can see.",
-    "at": "2026-09-06T04:30:00Z"
+    "note": "Pitch-over and the camera ladder (T13c/T15/T16/T30/T31). A flight is now a phase machine: ascent (physics replay) → gravity turn → Earth orbit → dotted transfer arc → lunar orbit → cargo drop → return → parachute, cross-fading between camera views so each mission zooms out one step and the Moon zooms back in. Budgets per mission: 10 s at mission 1, 21 s for the full Moon round trip, under the 30 s cap. The ladder re-scales: altitude, then distance to the Moon, then population toward 10,000. Zero console errors, 60–61 fps, sim PASS. T33/T34/T24: the readiness window owns the top-left on the ground and becomes a go/no-go board when idle; mission control and the gimbal take over the moment the flight starts. Task pool is 36 jokey items grouped into six assembly stages, read as live commentary. T35 optimization: static farm and pad layers cached to offscreen canvases, fills batched, off-screen ground culled. Pad 150 draws to 49, turnaround 232 to 140, desktop turnaround 55 fps to 61. Verified identical with the clock frozen: 0.06% of pixels differ, none by more than 64/255, all on cached-layer antialiasing seams. T14 retune: cost growth 2.55, equipment priced above the tier it unlocks, population 0.95 per tonne. A player who buys what they can afford reaches low Earth orbit on launch 14 and finishes in about an hour. T17 railgun: fires during the Moon cargo phase where the camera actually is, pays about 90 cents per resident, grows with the colony. T36–T39 + A1/A2: ten mishaps, the upper-right checklist, a square LAUNCH with its own clock, the rocket lifting off the pad, and one canonical journey geometry — Earth lower-left, counter-clockwise orbit, a lunar orbit at the Moon. T40 then moved the figure eight to where Apollo puts it: it spans the whole Earth-Moon path — a long lobe past the Earth, a tight hook round the far side of the Moon, crossing between them — while the Moon itself gets a circular orbit, and the return leg runs forward round the second half instead of rewinding the first. T52 fixed the one thing a ballistic object cannot do: the ship used to snap upright the instant the engine quit. It now carries its burnout lean on round the arc — horizontal at the top, nose-down on the way back — and the descent splits into two rates so the canopy has time to read. Under the chute the ship turns about the riser above it rather than its own base, so it hangs as weight on a line and its swing damps out; the pitch instrument reads the same attitude the player can see. T53/T55/T56: the parachute is gone from the game. The ship swings its recovery flaps out in thick air, belly-flops flat to the airstream, flips to vertical between 9 and 4 km, lights the engine at 7 km and is taken by the chopsticks under 3 km — drawCatch's drogue removed with the rest. T54 moved the payoff panel out of the middle of the frame, where it covered the catch, into the right column under the to-do box, positioned from the measured goal window and carrying a tonnes-and-$/tonne line. The green aurora is deleted. Building the flaps turned up T56: the W1 rocket block was in the file twice and the later, plainer copy won every call, so drawRocket's opts — heat, cargo bay — had never rendered. One definition now.",
+    "at": "2026-09-06T14:30:00Z"
   }
 }
