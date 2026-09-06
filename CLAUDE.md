@@ -47,24 +47,18 @@ and `skills/orchestrate.md` for how workers are split, heartbeat and report.
 - **Static layers are cached.** The farm, the pad, the tilted site and the lunar ground render
   once into offscreen canvases keyed by size, ground line and theme. **Call `w12_invalidate()`
   and `siteInvalidate()` on resize, DPR change and theme change** or the scene keeps a stale layer. Anything that animates (crew, cows, windsock, beacons, pond, glows) still draws live.
-- **The journey is one arc (T50).** The gravity turn starts at the tower — `ascent` eases `view.ang`
-  to `-ASCENT_ANG` and `pitch` carries it on to −1.52 (horizontal), leaning **left**; it used to hold
-  vertical and snap over at the phase boundary. `maxQHeat(km)` warms the nose low down, peaking near
-  12 km. In the orbit view the Earth is **centred** (`orbitEarth`, not `jrnyEarth` — the transfer view
-  still needs Earth low-left to fit the Moon in). **T59:** the camera looks *down* on the orbit plane,
-  not along it, so `orbitRing` projects a tall ellipse whose **top half is the far side** and runs
-  behind the globe. `a` increases counter-clockwise (0 right, π/2 top). The lap starts at
-  `ORBIT_FROM` (π/4, top right — behind the globe, so the ship leaves behind the Earth and comes
-  round to the front). **T80:** a Moon mission is leaving, not doing laps — it runs from
-  `ORBIT_TLI_FROM` (π, the left limb) round the **bottom** of the Earth to `ORBIT_TLI_TO` (lower
-  right), the corner the transfer burn is aimed from: 141°, symmetric ease, never a full lap. It
-  used to share the low-orbit start and sweep 277° in about a second, which read as spinning. A low-orbit flight has nowhere to go: it takes a full
-  lap and a half to `ORBIT_LEO_TO` (lower left), then over the last `1 − ORBIT_COAST` of the phase it
-  holds station while `view.retro` turns it end-for-end and lights the engine retrograde. The Moon
-  gets two full laps. Coming home, `reentry` is the same ring onward — in at the top, round
-  counter-clockwise to the near side — and every Moon mission has one before `descent`.
-  `orbitRing(DW, DH, zoom)` is the single definition: `drawOrbitView` paints it and `w21_path`
-  traces the dotted overlay along it.
+- **The journey is one world, one camera, one path (T82).** The gravity turn starts at the
+  tower — `ascent` eases `view.ang` to `-ASCENT_ANG` and `pitch` carries it on to −1.52
+  (horizontal), leaning **left**; `maxQHeat(km)` warms the nose low down, peaking near 12 km.
+  Once the ship leaves the pad the whole trip is **one path through one world**: `jcam` says where
+  the Earth is and how big, `jpath` gives position *and tangent* for a single parameter from the
+  Earth ring, along a C¹ Hermite whose end tangent **is** the lunar circle's, round two laps, out
+  of the corner and back to the ring. `w26_journeyState` is called once per frame from `runFlight`
+  and **owns `jt`, `jcam`, `jmix`, `ang`, `zoom` and `retro` — no phase branch may set them**, or
+  the ship teleports at that boundary again (it used to move 288 px at `orbit`→`transfer`).
+  `orbitRing` is still the single definition of the ring; `drawOrbitView`, `drawTransferView` and
+  `drawMoonApproach` are all `drawJourney`. The retro flip is **mission 1 only** — the flight that
+  is actually landing back on Earth. Read `docs/JOURNEY.md` before touching any of it.
 - **The recovery is propulsive — there is no parachute anywhere (T52/T53).** After burnout the ship
   keeps its attitude and goes on falling over: `coast` carries `view.ang` from the burnout lean to
   `BALLISTIC_TOP` (horizontal at the top of the arc). Then it is the Starship routine, in altitudes —
