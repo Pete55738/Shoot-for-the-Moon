@@ -56,13 +56,20 @@ and `skills/orchestrate.md` for how workers are split, heartbeat and report.
   corner the burn for the Moon is aimed from. The Moon gets two full laps. Coming home, `reentry` is
   the same ring the other way — in at the top of the Earth, round to the near side — and every Moon
   mission has one before `descent`.
-- **Nothing pushes a spent rocket (T52).** After burnout the sub-orbital flight keeps its attitude and
-  goes on falling over — `coast` carries `view.ang` from the burnout lean to `BALLISTIC_TOP`, `descent`
-  on past it to `BALLISTIC_DOWN`, nose-down. `descent` uses **two rates**: free fall down to `CHUTE_KM`
-  in the first 40 % of the phase, then a slow canopy crawl — one curve made the whole chute stretch
-  flash past. Under the canopy `view.hang` rises and the scene pivots the ship about the riser above
-  it instead of its own base, so it hangs as weight on a line. Attitude lives in `view.ang` alone so
-  the pitch instrument and the scene agree; **never rotate the ship in the draw layer.**
+- **The recovery is propulsive — there is no parachute anywhere (T52/T53).** After burnout the ship
+  keeps its attitude and goes on falling over: `coast` carries `view.ang` from the burnout lean to
+  `BALLISTIC_TOP` (horizontal at the top of the arc). Then it is the Starship routine, in altitudes —
+  `view.flaps` swings the recovery flaps out in thick air, it belly-flops at `BELLY_ANG`, flips to
+  vertical between `FLIP_KM` and `FLIP_END_KM`, lights the engine at `BURN_KM`, and under 3 km
+  `drawCatch` takes it into the chopsticks. `descent` uses **two rates**: free fall down to `RECOV_KM`
+  in the first 40 % of the phase, then a decelerating crawl — one curve made the whole recovery flash
+  past in a few frames. The flaps are not an aero upgrade; every tier has them. Attitude lives in
+  `view.ang` alone so the pitch instrument and the scene agree; **never rotate the ship in the draw
+  layer** — the draw layer only chooses the pivot (body centre once the flaps are out, base otherwise).
+- **One definition per drawing function.** The W1 rocket block was in the file **twice** — the
+  integrated W1+W7 copy and the raw worker fragment after it — and the later one silently won, so
+  `opts` (heat, bay, flaps) was dead code for weeks. When splicing a worker fragment, delete the
+  fragment; `grep -n '^function drawX' app/shoot-for-the-moon.html` should print one line.
 - **Camera:** `FLIGHT_PLAN` in the balance block gives each mission its phase list and seconds. `runFlight` is a phase machine; `view.scene` picks the camera view (`pad` / `orbit` / `transfer` / `moonorbit` / `cargo`) and `view.fadeFrom` cross-fades between them. The views are whole frames — they paint their own background; the pad scene is `drawPadScene`.
 - **Missions:** five, in `MISSIONS` in the balance block. A flight reaches mission *n* when delivered Δv clears `dvReq` AND both `equip` items are owned AND mission *n−1* is achieved. `capOf(missions)` caps every track at 2×(missions+1). `plan`/`replan()` cache the flight; **anything that changes tiers or equipment must call `replan()`** or the hint and the gold LAUNCH go stale.
 - **Payload is the economy (T45).** Below a mission's Δv requirement the ship carries the bare

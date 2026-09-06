@@ -469,22 +469,20 @@ body {
               border: 1px solid var(--h-border); border-radius: var(--radius-lg); overflow: hidden; }
   #scene { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: manipulation; }
   .overlay { position: absolute; inset: 0; pointer-events: none; display: flex; flex-direction: column; }
-  /* The flash sits over whatever the camera is showing — Earth, the Moon, the pad — so it carries its own ground. */
-  .flash { position: absolute; left: 50%; top: 16%; transform: translateX(-50%); text-align: center;
-           transition: opacity .3s, top .3s;
-           font-family: var(--wa-font-family-heading); font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
-           color: var(--h-text); opacity: 0; transition: opacity .3s; max-width: calc(100% - 1.6rem);
-           background: var(--h-surface-glass); border: 1px solid var(--h-border); border-radius: var(--radius-lg);
-           padding: .5rem .9rem; backdrop-filter: blur(8px); box-shadow: 0 8px 24px rgb(0 0 0 / .45); }
+  /* T54 · the payoff panel lives in the right column under the to-do box. It used to sit across the
+     middle of the frame, which is exactly where the catch happens — the one thing worth watching.
+     `top` is set from the measured goal window each time it opens, so it tracks a list that grows. */
+  .flash { position: absolute; right: .6rem; top: .6rem; width: min(13rem, 46%); box-sizing: border-box;
+           text-align: left; transition: opacity .3s, top .3s;
+           font-family: var(--wa-font-family-heading); font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+           color: var(--h-text); opacity: 0;
+           background: var(--h-surface-glass); border: 1px solid var(--h-border); border-radius: var(--radius);
+           padding: .4rem .55rem; backdrop-filter: blur(8px); box-shadow: 0 8px 24px rgb(0 0 0 / .45); }
   .flash.show { opacity: 1; }
-  /* the readiness window owns the top-left while the crew works, so the flash drops below it */
-  .flash.low { top: auto; bottom: 12%; }
-  /* T39b · on the way home the eight crosses the middle of the frame, so the payoff panel
-     steps down out of it rather than sitting on the one thing the scene is showing. */
-  .flash.aside { top: auto; bottom: 6%; }
-  .flash .big { font-size: 1.3rem; color: var(--h-accent-strong); text-wrap: balance; line-height: 1.15; }
-  .flash .sub { font-size: var(--text-2xs); color: var(--h-text-muted); margin-top: .25rem; letter-spacing: .1em; text-wrap: balance; line-height: 1.3; }
-  .flash .money { font-size: 1.1rem; color: var(--h-positive); margin-top: .35rem; }
+  .flash .big { font-size: .95rem; color: var(--h-accent-strong); text-wrap: balance; line-height: 1.2; }
+  .flash .sub { font-size: var(--text-3xs); color: var(--h-text-muted); margin-top: .25rem; letter-spacing: .08em; text-wrap: balance; line-height: 1.35; }
+  .flash .money { font-size: 1rem; color: var(--h-positive); margin-top: .3rem; }
+  .flash .rate { font-size: var(--text-3xs); color: var(--h-text-muted); letter-spacing: .08em; line-height: 1.35; margin-top: .1rem; }
 
   /* Mission control — the "inside the screen it's mission control" window (T12). Glass, mono, legible on sky or space. */
   .datawin { position: absolute; left: .6rem; top: .6rem; width: min(13.5rem, 46%); box-sizing: border-box;
@@ -757,7 +755,7 @@ body {
             <div class="insts"><canvas id="hud-side"></canvas><canvas id="hud-eng"></canvas></div>
             <div class="row"><span>Pitch</span><b id="gm-pitch">0°</b></div>
           </div>
-          <div class="flash" id="flash"><div class="big" id="fl-big"></div><div class="sub" id="fl-sub"></div><div class="money" id="fl-money"></div></div>
+          <div class="flash" id="flash"><div class="big" id="fl-big"></div><div class="sub" id="fl-sub"></div><div class="money" id="fl-money"></div><div class="rate" id="fl-rate"></div></div>
           <button id="launch" title="Launch the rocket. One button; that's the game.">Launch<small id="launch-sub">ready</small></button>
         </div>
       </div>
@@ -978,10 +976,13 @@ const BASE_MODULES = ['Habitat', 'Solar array', 'Greenhouse', 'Comms dish', 'Obs
    here to 1.52 rad (horizontal), so the whole turn is one curve rather than two. */
 const ASCENT_ANG = 0.42;
 /* T52 · where the ballistic arc takes the nose once the engine is done: over to horizontal at the
-   top (1.45 rad off vertical) and on past it, nose-down, on the way back to the ground. */
-const BALLISTIC_TOP = 1.45, BALLISTIC_DOWN = 2.55;
-/* Where the canopy comes out, and where the fall stops being a fall. */
-const CHUTE_KM = 14;
+   top of the arc, 1.45 rad off vertical. The descent carries on from there (T53). */
+const BALLISTIC_TOP = 1.45;
+/* T53 · the recovery, in altitudes. Above RECOV_KM the ship is still falling like a stone; below
+   it the flaps are out and it belly-flops down, flips to vertical at FLIP_KM and lights the engine
+   at BURN_KM for the last few seconds into the chopsticks. There is no parachute anywhere in it. */
+const RECOV_KM = 14, FLIP_KM = 9, FLIP_END_KM = 4, BURN_KM = 7;
+const BELLY_ANG = 1.57;   // flat to the airstream, belly down
 /* Just under a full lap: the ship leaves the atmosphere at the right-hand limb (angle 0, the Moon
    side), goes the long way round the back, and ends at the lower right ready to burn for the Moon. */
 /* The lap starts at the left limb (angle π) — where the ascent's leftward turn put the ship, and
@@ -992,12 +993,12 @@ const ORBIT_FROM = Math.PI, ORBIT_TO = -0.68;
    peaks low: warm from ~4 km, hottest near 12, gone by 30. Used for the nose glow on the way up. */
 function maxQHeat(km) { return km <= 2 || km >= 30 ? 0 : Math.pow(Math.sin(Math.PI * clamp((km - 2) / 28, 0, 1)), 1.6) * 0.55; }
 const FLIGHT_PLAN = {
-  0: [['ascent', 3.0], ['coast', 2.2], ['descent', 3.4]],   /* T52 · +0.8 s, all of it under the canopy */
-  1: [['ascent', 2.2], ['pitch', 1.8], ['orbit', 3.2], ['reentry', 1.4], ['descent', 2.0]],
-  2: [['ascent', 2.0], ['pitch', 1.6], ['orbit', 1.2], ['transfer', 4.4], ['back', 1.8], ['reentry', 1.1], ['descent', 1.6]],
-  3: [['ascent', 1.8], ['pitch', 1.5], ['orbit', 1.0], ['transfer', 4.0], ['moonorbit', 3.4], ['back', 2.2], ['reentry', 1.1], ['descent', 1.4]],
-  4: [['ascent', 1.8], ['pitch', 1.5], ['orbit', 0.9], ['transfer', 3.6], ['moonorbit', 2.0], ['land', 3.6], ['back', 1.8], ['reentry', 1.0], ['descent', 1.3]],
-  5: [['ascent', 1.7], ['pitch', 1.4], ['orbit', 0.9], ['transfer', 4.0], ['moonorbit', 1.7], ['cargo', 5.4], ['back', 2.5], ['reentry', 1.1], ['descent', 1.3]],
+  0: [['ascent', 3.0], ['coast', 2.2], ['descent', 4.2]],   /* T53 · the flip and the catch live in here */
+  1: [['ascent', 2.2], ['pitch', 1.8], ['orbit', 3.2], ['reentry', 1.4], ['descent', 2.6]],
+  2: [['ascent', 2.0], ['pitch', 1.6], ['orbit', 1.2], ['transfer', 4.4], ['back', 1.8], ['reentry', 1.1], ['descent', 2.2]],
+  3: [['ascent', 1.8], ['pitch', 1.5], ['orbit', 1.0], ['transfer', 4.0], ['moonorbit', 3.4], ['back', 2.2], ['reentry', 1.1], ['descent', 2.0]],
+  4: [['ascent', 1.8], ['pitch', 1.5], ['orbit', 0.9], ['transfer', 3.6], ['moonorbit', 2.0], ['land', 3.6], ['back', 1.8], ['reentry', 1.0], ['descent', 1.9]],
+  5: [['ascent', 1.7], ['pitch', 1.4], ['orbit', 0.9], ['transfer', 4.0], ['moonorbit', 1.7], ['cargo', 5.4], ['back', 2.5], ['reentry', 1.1], ['descent', 1.9]],
 };
 const FADE_S = 0.45;                // cross-fade between camera views; reads as a zoom-out
 /* T17 · once the base passes RAILGUN_POP it fires one cargo shipment home per turnaround.
@@ -1306,7 +1307,7 @@ function launch() {
   runFlight(f, () => {
     S.money += r; S.earned += r; save();
     replan(); paintMoney(); paintShop(); paintBadge(); paintLog();
-    showFlash(f, r, record, hit, module, override);
+    showFlash(f, r, record, hit, module, override, payloadT);
   }, () => startTurnaround(), flightMission);
 }
 
@@ -1316,7 +1317,7 @@ function launch() {
    ═══════════════════════════════════════════════════════════════════════ */
 const rail = { charge: 0, fire: -1, arc: -1, fired: false };   // T17 · railgun state, only alive during turnaround
 const view = { km: 0, v: 0, fuel: 1, t: 0, burning: false, para: 0, apogeeKm: 0, flame: 0, countdown: null, liftT: -1, heat: 0, forces: null,
-  scene: 'pad', p: 0, ang: 0, hang: 0, drift: 0, zoom: 0, cargo: 0, fadeFrom: null, fadeK: 0, mission: 0 };
+  scene: 'pad', p: 0, ang: 0, flaps: 0, drift: 0, zoom: 0, cargo: 0, fadeFrom: null, fadeK: 0, mission: 0 };
 let anim = null;
 const easeOut = x => 1 - Math.pow(1 - x, 3);
 function runFlight(f, onApogee, onLanded, mission) {
@@ -1325,7 +1326,7 @@ function runFlight(f, onApogee, onLanded, mission) {
   const plan = FLIGHT_PLAN[view.mission] || FLIGHT_PLAN[0];
   if (REDUCED) {   /* no animation: land the result, keep every number true */
     view.km = f.apogeeKm; view.v = 0; view.fuel = 0; view.burning = false; view.countdown = null; view.liftT = -1;
-    view.scene = 'pad'; view.ang = 0; view.hang = 0; view.heat = 0; onApogee(); view.para = 0; onLanded(); return;
+    view.scene = 'pad'; view.ang = 0; view.flaps = 0; view.heat = 0; onApogee(); onLanded(); return;
   }
   const CD = [[3, 0.4], [2, 0.4], [1, 0.4], [0, 0.35]], cdDur = CD.reduce((a, c) => a + c[1], 0);
   const total = plan.reduce((a, x) => a + x[1], 0);
@@ -1355,7 +1356,7 @@ function runFlight(f, onApogee, onLanded, mission) {
       let acc = 0, cd = null;
       for (const [n, d] of CD) { if (tAll < acc + d) { cd = { n, frac: (tAll - acc) / d }; break; } acc += d; }
       view.countdown = cd; view.liftT = -1; view.km = 0; view.v = 0; view.fuel = 1; view.scene = 'pad';
-      view.flame = cd && cd.n === 0 ? cd.frac : 0; view.ang = 0; view.hang = 0; view.drift = 0;
+      view.flame = cd && cd.n === 0 ? cd.frac : 0; view.ang = 0; view.flaps = 0; view.drift = 0;
       paintGauges(); drawScene(); anim = requestAnimationFrame(frame); return;
     }
     view.countdown = null;
@@ -1379,7 +1380,7 @@ function runFlight(f, onApogee, onLanded, mission) {
       view.drift = view.ang * 26;                        // negative rotation and drift = leaning left
       /* T50 · max Q: the nose warms in the thick air low down, peaks around 12 km and is gone by 30. */
       view.heat = maxQHeat(view.km);
-      view.liftT = t; view.para = 0;
+      view.liftT = t; view.flaps = 0;
     } else if (ph.name === 'pitch') {          /* the gravity turn: tilt over and slide out of frame */
       /* gradual, and it keeps rising while it leans — no snap to horizontal */
       const e = p * p * (3 - 2 * p);                      // smoothstep
@@ -1443,34 +1444,33 @@ function runFlight(f, onApogee, onLanded, mission) {
       if (!paid && p > 0.75) { paid = true; view.apogeeKm = MOON_KM; onApogee(); }
     } else if (ph.name === 'descent') {
       const fromKm = view.mission >= 1 ? 120 : f.apogeeKm;
-      /* T52 · the fall and the canopy are two different rates, so they get two different curves.
-         Free fall covers everything above CHUTE_KM in the first 40% of the phase; the canopy
-         then walks the last few km down at a steady crawl, which is what gives the hang and the
-         swing time to read. One curve made the whole chute stretch flash past in a few frames. */
+      /* T52/T53 · the fall and the recovery are two different rates, so they get two different
+         curves. Free fall covers everything above RECOV_KM in the first 40% of the phase; below it
+         the flaps are out and the ship decelerates, which leaves real screen time for the flip and
+         the catch. One curve made the whole recovery flash past in a few frames. */
       view.scene = 'pad'; view.cargo = 0;
-      view.km = p < 0.40 ? lerp(fromKm, CHUTE_KM, easeOut(p / 0.40))
-                         : CHUTE_KM * (1 - (p - 0.40) / 0.60);
+      view.km = p < 0.40 ? lerp(fromKm, RECOV_KM, easeOut(p / 0.40))
+                         : RECOV_KM * (1 - Math.pow((p - 0.40) / 0.60, 0.72));
       /* The lean carried it left on the way up; the fall brings it back over the site, and it is
-         centred by the time the canopy is out — otherwise it hangs behind the HUD window. */
+         lined up on the tower well before the flip. */
       view.drift = lerp(-74, 0, easeOut(clamp(p * 1.5, 0, 1)));
       view.heat = fromKm > 60 ? clamp(1 - Math.abs(view.km - 80) / 40, 0, 1) : 0;
-      view.para = view.km < 3 ? 0 : clamp((CHUTE_KM - view.km) / 5, 0, 1);   /* A6 · under 3 km the catch tower has it */
-      /* T52 · the arc keeps going over the top and down — nose-first — until the canopy catches it.
-         After that the ship is just weight on a line: it hangs under the chute and swings, the
-         swing damping out as it settles. `view.hang` says how much the lines have taken over, and
-         the scene uses it to move the pivot up to the riser; attitude stays in view.ang alone so
-         the pitch instrument reads the same thing the player can see. */
-      view.hang = clamp((view.para - 0.15) / 0.5, 0, 1);
-      const fall = lerp(-BALLISTIC_TOP, -BALLISTIC_DOWN, easeOut(clamp(p * 1.6, 0, 1)));
-      const swing = Math.sin(t * 1.6) * 0.20 * (1 - view.hang) + Math.sin(t * 1.05) * 0.055 * view.hang;
-      view.ang = lerp(fall, swing, view.hang);
-      view.v = Math.min(7000, Math.sqrt(2 * 9.81 * view.km * 1000)) * (view.para > 0 ? (1 - view.para) * 0.5 + 0.02 : 1);
+      /* T53 · the flaps swing out as it hits thick air, and from there it is the Starship routine:
+         belly-flop flat to the airstream, then flip to vertical and light the engine for the last
+         few seconds. No parachute — the chopsticks take it under 3 km (drawCatch). */
+      view.flaps = clamp((60 - view.km) / 25, 0, 1);
+      const flip = clamp((FLIP_KM - view.km) / (FLIP_KM - FLIP_END_KM), 0, 1);
+      const belly = lerp(-BALLISTIC_TOP, -BELLY_ANG, clamp(p * 2.5, 0, 1)) + Math.sin(t * 1.3) * 0.05 * (1 - flip);
+      view.ang = lerp(belly, 0, easeOut(flip));
+      view.flame = clamp((BURN_KM - view.km) / 3, 0, 1) * 0.9;
+      view.burning = view.flame > 0.15;   /* the landing burn gets a real plume, not an idle glow */
+      view.v = Math.min(7000, Math.sqrt(2 * 9.81 * view.km * 1000)) * (view.flaps > 0 ? 1 - view.flaps * 0.55 : 1) * (1 - flip * 0.6);
       view.forces = forcesAt(S.tiers, view.km * 1000, view.v, 0); view.liftT = -1;
       if (!paid) { paid = true; view.apogeeKm = f.apogeeKm; onApogee(); }
       if (phase !== 'descent') phase = 'descent';
     }
     paintGauges(); drawScene();
-    if (t >= total) { view.para = 0; view.hang = 0; view.heat = 0; view.km = 0; view.v = 0; view.cargo = 0; view.scene = 'pad';
+    if (t >= total) { view.flaps = 0; view.heat = 0; view.km = 0; view.v = 0; view.cargo = 0; view.scene = 'pad';
       view.fadeFrom = null; hideFlash(); onLanded(); return; }
     anim = requestAnimationFrame(frame);
   }
@@ -1566,7 +1566,7 @@ function tickTurnaround() {
 }
 function finishTurnaround() {
   phase = 'ready'; turn = null; paintLaunch(); paintShop();
-  view.km = 0; view.v = 0; view.fuel = 1; view.flame = 0; view.para = 0; view.ang = 0; view.hang = 0; view.drift = 0;
+  view.km = 0; view.v = 0; view.fuel = 1; view.flame = 0; view.flaps = 0; view.ang = 0; view.drift = 0;
   paintGauges(); paintWindows(); drawScene();
 }
 function showChecklist() {
@@ -1767,20 +1767,18 @@ function drawPadScene(c, now) {
     c.restore();
   } else {
   c.save(); c.translate(DW / 2 + (view.drift || 0), rocketBase); c.scale(rocketK, rocketK);
-  const dims = rocketDims(S.tiers), riser = -dims.bodyH - dims.noseH - 118;
-  if (view.para > 0) drawChute(c, 0, riser, view.para, now);
+  const dims = rocketDims(S.tiers);
   if (phase === 'turnaround' && turn) { c.translate(-DW / 2, 0); drawTurnaround(c, 4, DW, DH, turnP(), S.tiers, now, drawRocket, rocketDims); }
-  else if (view.hang > 0) {
-    /* T52 · under the canopy the ship is weight on a line, so it turns about the riser above it
-       rather than about its own base. The pivot slides up as the lines come taut, so the frame the
-       chute appears on looks exactly like the one before it — no snap. The attitude itself
-       (the fall arc easing into the swing) is `view.ang`, set with the rest of the flight. */
-    const pivot = riser * view.hang;
-    c.translate(0, pivot); c.rotate(view.ang || 0); c.translate(0, -pivot);
-    drawRocket(c, 0, 0, S.tiers, view.flame, false, now, { heat: view.heat });
+  else {
+    /* T53 · once the flaps are out the ship is flying itself, not standing on anything, so the
+       belly-flop and the flip turn about its own middle rather than about the base — pivoting a
+       horizontal ship about its tail swings the nose through half the frame. The pivot slides up
+       as the flaps deploy so the frame it starts on looks exactly like the one before it. */
+    const mid = -dims.bodyH * 0.5 * clamp(view.flaps || 0, 0, 1);
+    if (mid) { c.translate(0, mid); c.rotate(view.ang || 0); c.translate(0, -mid); }
+    else if (view.ang) c.rotate(view.ang);
+    drawRocket(c, 0, 0, S.tiers, view.flame, (phase === 'flight' || phase === 'descent') && view.burning, now, { heat: view.heat, flaps: view.flaps });
   }
-  else { if (view.ang) c.rotate(view.ang);
-    drawRocket(c, 0, 0, S.tiers, view.flame, phase === 'flight' && view.burning, now, { heat: view.heat }); }
   c.restore(); }
   if (phase === 'flight' && view.liftT >= 0 && view.liftT < 6 && groundY < DH + 40) {
     c.save(); c.translate(DW / 2, padY); c.scale(padK, padK); c.translate(-DW / 2, -padY);
@@ -1931,6 +1929,26 @@ function drawRocket(c, x, baseY, t, flame, burning, now, opts) {
 
   /* ── fins (behind the body) ── */
   const finCol = S.kind === 'steel' ? '#6E777F' : S.kind === 'carbon' ? '#2A3038' : ART.fin;
+  /* T53 · recovery flaps. Every ship has them whatever its aero tier, because they are not an
+     upgrade — they are how it comes home: they swing out for the belly-flop and steer the fall.
+     Drawn before the tier fins so they sit behind the body like the rest of the aero. */
+  const flaps = clamp(opts.flaps || 0, 0, 1);
+  if (flaps > 0.01) {
+    const flapCol = S.kind === 'carbon' ? '#242A31' : S.kind === 'foil' ? '#8E6A20' : '#5B646D';
+    const flap = (hy, len, wid, side) => {
+      const L = len * flaps;
+      c.fillStyle = flapCol; c.beginPath();
+      c.moveTo(x + side * hw, hy - wid * 0.5);
+      c.lineTo(x + side * (hw + L), hy - wid * 0.5 + len * 0.22 * flaps);
+      c.lineTo(x + side * (hw + L), hy + wid * 0.5);
+      c.lineTo(x + side * hw, hy + wid * 0.5);
+      c.closePath(); c.fill(); drawCount++;
+      c.fillStyle = 'rgba(255,255,255,.22)'; c.fillRect(x + side * hw, hy - wid * 0.5, side * L, 1.4); drawCount++;
+      c.fillStyle = '#2A2F36'; c.fillRect(x + side * (hw - 1.5), hy - wid * 0.5 - 1, side * 3, wid + 2); drawCount++;   // hinge fairing
+    };
+    const fwdY = top + bodyH * 0.13, aftY = baseY - bodyH * 0.20;
+    for (const side of [-1, 1]) { flap(fwdY, 9 + bodyW * 0.30, bodyH * 0.16, side); flap(aftY, 13 + bodyW * 0.42, bodyH * 0.22, side); }
+  }
   const finEdge = S.kind === 'carbon' ? ART.nose : 'rgba(0,0,0,.18)';
   if (t.aero >= 2 && t.aero <= 3) { const fw = 7 + t.aero * 1.5, fh = 12 + t.aero * 2; // stubby
     c.fillStyle = finCol; c.beginPath();
@@ -2091,232 +2109,6 @@ function w1_heat(c, x, top, baseY, bodyW, noseH, t, k, now, dir) {
 
 /* ── preview: tiers 1/4/7/10 burning · a 7-bell cluster on a tank-1 body · re-entry at heat .8 · bay open ── */
 
-/* ── W1 · the rocket ──────────────────────────────────────────────────────────
-   rocketDims(t) → { bodyH, bodyW, noseH, totalH }   design units
-   drawRocket(c, x, baseY, t, flame, burning, now)
-     x = centre, baseY = where the engine bells sit (bells span baseY-3 .. baseY+6, same as before).
-   Pure drawing, deterministic (motion on `now`), ≤ ~45 draw calls per rocket incl. exhaust.
-   ─────────────────────────────────────────────────────────────────────────── */
-function rocketDims(t) {
-  const bodyH = 48 + t.tank * 6.5;                       // 54.5 .. 113
-  const bodyW = 20 + t.tank * 1.6;                       // 21.6 .. 36
-  const noseH = 12 + t.aero * 3 + (t.aero >= 9 ? 6 : 0); // 15 .. 48 (needle adds a spike)
-  return { bodyH, bodyW, noseH, totalH: bodyH + noseH + 8 }; // tier 1: 77.5 · tier 10: 169
-}
-
-/* hull material scheme */
-function w1_scheme(h) {
-  if (h <= 3) return { lo: '#7F8891', hi: '#CBD2D8', accent: '#4A5561', noseLo: '#6E777F', noseHi: '#AEB6BD', kind: 'steel' };
-  if (h <= 6) return { lo: ART.rocketDk, hi: ART.rocket, accent: ART.nose, noseLo: '#B23E2B', noseHi: '#F07A62', kind: 'paint' };
-  if (h <= 8) return { lo: '#B27F26', hi: '#F6D97F', accent: '#2B2F36', noseLo: ART.rocketDk, noseHi: ART.rocket, kind: 'foil' };
-  return { lo: '#111417', hi: '#3E464F', accent: ART.nose, noseLo: '#111417', noseHi: '#3E464F', kind: 'carbon' };
-}
-function w1_grad(c, x0, x1, lo, hi) {
-  const g = c.createLinearGradient(x0, 0, x1, 0);
-  g.addColorStop(0, lo); g.addColorStop(0.38, hi); g.addColorStop(1, lo); return g;
-}
-function w1_engine(e, bodyW) {
-  const n = e <= 2 ? 1 : e <= 4 ? 2 : e <= 6 ? 3 : e <= 8 ? 5 : 7;
-  const front = n <= 3 ? n : n === 5 ? 3 : 4, back = n - front;
-  const pitch = bodyW / (front + 0.15);
-  const bw = clamp(pitch * 0.42, 3.5, 8) * (e % 2 === 0 ? 1.12 : 1); // half-width at the lip
-  return { n, front, back, pitch, bw };
-}
-
-/* the passenger in the window — recognisable at 8 px */
-function w1_passenger(c, cx, cy, r, p, now) {
-  const s = r / 8; // scale unit: window radius 8 → s = 1
-  c.save(); c.translate(cx, cy); c.scale(s, s); c.lineWidth = 1;
-  switch (p) {
-    case 1: { // balloon
-      c.fillStyle = '#E0523A'; c.beginPath(); c.ellipse(0, -1.5, 3.2, 3.8, 0, 0, 7); c.fill();
-      c.fillStyle = 'rgba(255,255,255,.5)'; c.beginPath(); c.ellipse(-1.2, -2.8, .9, 1.3, -.5, 0, 7); c.fill();
-      c.strokeStyle = '#333'; c.beginPath(); c.moveTo(0, 2.3); c.quadraticCurveTo(1, 4, 0, 6); c.stroke(); drawCount += 3; break; }
-    case 2: { // dog — ears!
-      c.fillStyle = '#5A3A1E'; c.beginPath(); c.ellipse(-3.6, -.5, 1.6, 3.2, .2, 0, 7); c.ellipse(3.6, -.5, 1.6, 3.2, -.2, 0, 7); c.fill();
-      c.fillStyle = '#A9743E'; c.beginPath(); c.arc(0, -.5, 3.4, 0, 7); c.fill();
-      c.fillStyle = '#F3E5CF'; c.beginPath(); c.ellipse(0, 1.4, 1.9, 1.6, 0, 0, 7); c.fill();
-      c.fillStyle = '#222'; c.beginPath(); c.arc(-1.3, -1.4, .55, 0, 7); c.arc(1.3, -1.4, .55, 0, 7); c.arc(0, .8, .7, 0, 7); c.fill();
-      c.fillStyle = '#E86A7A'; c.beginPath(); c.ellipse(0, 2.9, .8, 1.1, 0, 0, 7); c.fill(); drawCount += 5; break; }
-    case 3: { // coffee can
-      c.fillStyle = '#8C3B1F'; c.fillRect(-2.8, -3, 5.6, 6.6);
-      c.fillStyle = '#F3E5CF'; c.fillRect(-2.8, -1, 5.6, 2.4);
-      c.fillStyle = '#8C3B1F'; c.beginPath(); c.arc(0, .2, .8, 0, 7); c.fill();
-      c.fillStyle = '#B9C4CF'; c.beginPath(); c.ellipse(0, -3, 2.8, 1, 0, 0, 7); c.fill(); drawCount += 4; break; }
-    case 4: { // ant farm
-      c.fillStyle = '#B98552'; c.fillRect(-4.2, -3.4, 8.4, 6.8);
-      c.fillStyle = '#EAD7A8'; c.fillRect(-3.4, -2.6, 6.8, 5.2);
-      c.strokeStyle = '#C9A46B'; c.lineWidth = .9; c.beginPath(); c.moveTo(-3.4, -.5); c.quadraticCurveTo(-1, 1.5, 1, -.5); c.quadraticCurveTo(2.5, -1.5, 3.4, 1); c.moveTo(-2, 2.6); c.quadraticCurveTo(-1, .5, .5, 2); c.stroke();
-      c.fillStyle = '#222'; c.beginPath(); c.arc(-2, -.6, .5, 0, 7); c.arc(1.6, -.4, .5, 0, 7); c.arc(-.5, 1.6, .5, 0, 7); c.fill(); drawCount += 4; break; }
-    case 5: { // pizza
-      c.fillStyle = '#D89B4A'; c.beginPath(); c.arc(0, 0, 4.3, 0, 7); c.fill();
-      c.fillStyle = '#F2C14E'; c.beginPath(); c.arc(0, 0, 3.4, 0, 7); c.fill();
-      c.fillStyle = '#C2372A'; c.beginPath(); for (const [a, b] of [[-1.5, -1.2], [1.4, -.6], [-.4, 1.7], [1.6, 1.6]]) { c.moveTo(a, b); c.arc(a, b, .75, 0, 7); } c.fill();
-      c.fillStyle = ART.window; c.beginPath(); c.moveTo(0, 0); c.arc(0, 0, 4.6, -1.15, -.35); c.fill(); drawCount += 4; break; }
-    case 6: { // cubesat
-      c.fillStyle = '#2F6FB7'; c.fillRect(-7, -1.4, 4.2, 2.8); c.fillRect(2.8, -1.4, 4.2, 2.8);
-      c.strokeStyle = '#9FD3F5'; c.lineWidth = .5; c.beginPath(); c.moveTo(-5.6, -1.4); c.lineTo(-5.6, 1.4); c.moveTo(-4.2, -1.4); c.lineTo(-4.2, 1.4); c.moveTo(4.2, -1.4); c.lineTo(4.2, 1.4); c.moveTo(5.6, -1.4); c.lineTo(5.6, 1.4); c.moveTo(-7, 0); c.lineTo(7, 0); c.stroke();
-      c.fillStyle = '#D9A441'; c.fillRect(-2.6, -2.6, 5.2, 5.2); c.fillStyle = '#7A8794'; c.fillRect(-1.8, -1.8, 3.6, 3.6);
-      c.strokeStyle = '#E9EEF3'; c.beginPath(); c.moveTo(0, -2.6); c.lineTo(0, -4.5); c.stroke(); drawCount += 5; break; }
-    case 7: { // houseplant
-      c.fillStyle = '#5FA85A'; c.beginPath(); c.ellipse(-2.2, -1.6, 1.6, 2.6, .6, 0, 7); c.ellipse(2.2, -1.6, 1.6, 2.6, -.6, 0, 7); c.ellipse(0, -2.8, 1.5, 2.8, 0, 0, 7); c.fill();
-      c.strokeStyle = '#2F6B2C'; c.lineWidth = .7; c.beginPath(); c.moveTo(0, 1); c.lineTo(0, -4.5); c.moveTo(0, 0); c.lineTo(-2.4, -2.2); c.moveTo(0, 0); c.lineTo(2.4, -2.2); c.stroke();
-      c.fillStyle = '#C8663A'; c.beginPath(); c.moveTo(-3, .8); c.lineTo(3, .8); c.lineTo(2.2, 4.4); c.lineTo(-2.2, 4.4); c.fill();
-      c.fillStyle = '#A34F2A'; c.fillRect(-3.2, .8, 6.4, 1); drawCount += 4; break; }
-    case 8: { // telescope
-      c.save(); c.rotate(-.65);
-      c.fillStyle = '#E9EEF3'; c.fillRect(-4.6, -1.3, 8.2, 2.6);
-      c.fillStyle = '#4A5561'; c.fillRect(3, -1.6, 1.8, 3.2); c.fillRect(-5.2, -1, 1.2, 2);
-      c.fillStyle = '#4FD9E6'; c.fillRect(4.4, -1.1, .6, 2.2); c.restore();
-      c.strokeStyle = '#4A5561'; c.lineWidth = .9; c.beginPath(); c.moveTo(0, .5); c.lineTo(-2.4, 4.6); c.moveTo(0, .5); c.lineTo(2.4, 4.6); c.moveTo(0, .5); c.lineTo(.4, 4.8); c.stroke(); drawCount += 4; break; }
-    case 9: { // rover
-      c.fillStyle = '#2F6FB7'; c.fillRect(-3.4, -3.6, 6.8, 1.6);
-      c.fillStyle = '#B9C4CF'; c.fillRect(-3.6, -2, 7.2, 3);
-      c.fillStyle = '#4A5561'; c.fillRect(1.4, -5.2, .7, 3.4); c.fillRect(.6, -5.8, 2.4, 1.2);
-      c.fillStyle = '#222'; c.beginPath(); for (const wx of [-3, 0, 3]) { c.moveTo(wx, 1.8); c.arc(wx, 1.8, 1.4, 0, 7); } c.fill(); drawCount += 4; break; }
-    default: { // base module
-      c.fillStyle = '#7A8794'; c.fillRect(-4.6, 2.2, 9.2, 1.6);
-      c.fillStyle = '#DCE3EA'; c.beginPath(); c.arc(0, 2.2, 4.4, Math.PI, 0); c.fill();
-      c.fillStyle = '#FFD46A'; c.fillRect(-2.8, -.2, 1.5, 1.5); c.fillRect(-.7, -1.3, 1.5, 1.5); c.fillRect(1.4, -.2, 1.5, 1.5);
-      c.strokeStyle = '#4A5561'; c.lineWidth = .8; c.beginPath(); c.moveTo(0, -2.2); c.lineTo(0, -4.6); c.moveTo(-1, -4.6); c.lineTo(1, -4.6); c.stroke(); drawCount += 4; }
-  }
-  c.restore();
-}
-
-/* the payload window: frame, glass, passenger, glare */
-function w1_window(c, cx, cy, r, payload, accent, now) {
-  c.fillStyle = accent; c.beginPath(); c.arc(cx, cy, r + 1.6, 0, 7); c.fill();
-  const g = c.createRadialGradient(cx - r * .3, cy - r * .3, r * .2, cx, cy, r);
-  g.addColorStop(0, '#9FEFF7'); g.addColorStop(1, '#1FA9B8');
-  c.fillStyle = g; c.beginPath(); c.arc(cx, cy, r, 0, 7); c.fill(); drawCount += 2;
-  c.save(); c.beginPath(); c.arc(cx, cy, r - .5, 0, 7); c.clip();
-  w1_passenger(c, cx, cy + r * .1, r, payload, now);
-  c.restore();
-  c.strokeStyle = 'rgba(255,255,255,.65)'; c.lineWidth = 1.2; c.beginPath(); c.arc(cx, cy, r * .72, Math.PI * 1.1, Math.PI * 1.5); c.stroke(); drawCount++;
-}
-
-function drawRocket(c, x, baseY, t, flame, burning, now) {
-  now = now || 0;
-  const { bodyH, bodyW, noseH } = rocketDims(t);
-  const hw = bodyW / 2, top = baseY - bodyH;
-  const S = w1_scheme(t.hull);
-  const E = w1_engine(t.engine, bodyW);
-  const fx = i => x + (i - (E.front - 1) / 2) * E.pitch;
-  const bx = i => x + (i - (E.back - 1) / 2) * E.pitch;
-  c.save(); c.lineWidth = 1;
-
-  /* ── exhaust ── */
-  if (flame > 0) {
-    const k = (t.engine - 1) / 9;                              // 0 orange .. 1 blue-white
-    const outer = mixHex('#FF7A1A', '#5FA8FF', k), mid = mixHex('#FFB347', '#BFE3FF', k), core = mixHex('#FFF4C2', '#FFFFFF', k);
-    const Lbase = (burning ? 58 + t.engine * 6.5 : 26) * flame;
-    const fl = i => 1 + Math.sin(now / 37 + i * 1.7) * .07 + Math.sin(now / 21 + i) * .05;
-    const plume = (w, lenK, y0) => { c.beginPath(); for (let i = 0; i < E.front; i++) { const nx = fx(i), L = Lbase * fl(i) * lenK, bw = E.bw * w;
-      c.moveTo(nx - bw, baseY + y0); c.quadraticCurveTo(nx - bw * 1.35, baseY + L * .42, nx, baseY + L); c.quadraticCurveTo(nx + bw * 1.35, baseY + L * .42, nx + bw, baseY + y0); } c.fill(); drawCount++; };
-    c.save(); c.filter = 'blur(4px)'; c.globalAlpha = .75 * flame; c.fillStyle = outer; plume(1.35, 1.08, 2); c.restore();
-    c.globalAlpha = .9 * flame; c.fillStyle = mid; plume(.85, .82, 4);
-    c.globalAlpha = flame; c.fillStyle = core; plume(.42, .5, 4);
-    if (t.engine >= 7) { // shock diamonds
-      c.fillStyle = 'rgba(255,255,255,.85)'; c.beginPath();
-      for (let i = 0; i < E.front; i++) for (let d = 1; d <= 3; d++) { const nx = fx(i), y = baseY + Lbase * fl(i) * (.14 * d + .06), w = E.bw * (.45 - d * .08), h = w * 1.6;
-        c.moveTo(nx, y - h); c.lineTo(nx + w, y); c.lineTo(nx, y + h); c.lineTo(nx - w, y); }
-      c.fill(); drawCount++;
-    }
-    c.globalAlpha = 1;
-  }
-
-  /* ── fins (behind the body) ── */
-  const finCol = S.kind === 'steel' ? '#6E777F' : S.kind === 'carbon' ? '#2A3038' : ART.fin;
-  const finEdge = S.kind === 'carbon' ? ART.nose : 'rgba(0,0,0,.18)';
-  if (t.aero >= 2 && t.aero <= 3) { const fw = 7 + t.aero * 1.5, fh = 12 + t.aero * 2; // stubby
-    c.fillStyle = finCol; c.beginPath();
-    c.moveTo(x - hw, baseY - fh); c.lineTo(x - hw - fw, baseY - fh * .35); c.lineTo(x - hw - fw, baseY + 1); c.lineTo(x - hw, baseY + 1);
-    c.moveTo(x + hw, baseY - fh); c.lineTo(x + hw + fw, baseY - fh * .35); c.lineTo(x + hw + fw, baseY + 1); c.lineTo(x + hw, baseY + 1); c.fill(); drawCount++;
-  } else if (t.aero >= 4) { const a = Math.min(t.aero, 7), fw = 8 + a * 1.9, fh = 18 + a * 3.2; // swept delta
-    c.fillStyle = finCol; c.beginPath();
-    c.moveTo(x - hw, baseY - fh); c.quadraticCurveTo(x - hw - fw * .45, baseY - fh * .35, x - hw - fw, baseY + 3); c.lineTo(x - hw - fw * .55, baseY + 3); c.lineTo(x - hw, baseY - 1);
-    c.moveTo(x + hw, baseY - fh); c.quadraticCurveTo(x + hw + fw * .45, baseY - fh * .35, x + hw + fw, baseY + 3); c.lineTo(x + hw + fw * .55, baseY + 3); c.lineTo(x + hw, baseY - 1); c.fill();
-    c.fillStyle = 'rgba(0,0,0,.18)'; c.beginPath(); c.moveTo(x + hw, baseY - fh); c.quadraticCurveTo(x + hw + fw * .45, baseY - fh * .35, x + hw + fw, baseY + 3); c.lineTo(x + hw + fw * .55, baseY + 3); c.lineTo(x + hw, baseY - 1); c.fill(); drawCount += 2;
-    if (S.kind === 'carbon') { c.strokeStyle = finEdge; c.lineWidth = 1.5; c.beginPath(); c.moveTo(x - hw, baseY - fh); c.quadraticCurveTo(x - hw - fw * .45, baseY - fh * .35, x - hw - fw, baseY + 3); c.moveTo(x + hw, baseY - fh); c.quadraticCurveTo(x + hw + fw * .45, baseY - fh * .35, x + hw + fw, baseY + 3); c.stroke(); drawCount++; }
-  }
-  if (t.aero >= 8) { // grid fins high on the body
-    const gw = 9 + (t.aero - 8) * 1.5, gh = 6, gy0 = top + bodyH * .36;
-    c.fillStyle = '#5B646D'; c.fillRect(x - hw - gw, gy0, gw, gh); c.fillRect(x + hw, gy0, gw, gh);
-    c.strokeStyle = 'rgba(255,255,255,.55)'; c.lineWidth = .8; c.beginPath();
-    for (let i = 1; i < 4; i++) { const yy = gy0 + gh * i / 4; c.moveTo(x - hw - gw, yy); c.lineTo(x - hw, yy); c.moveTo(x + hw, yy); c.lineTo(x + hw + gw, yy); }
-    for (let i = 1; i < 4; i++) { const dx = gw * i / 4; c.moveTo(x - hw - dx, gy0); c.lineTo(x - hw - dx, gy0 + gh); c.moveTo(x + hw + dx, gy0); c.lineTo(x + hw + dx, gy0 + gh); }
-    c.stroke(); drawCount += 3;
-  }
-  if (t.aero >= 10) { // canards near the nose
-    c.fillStyle = S.kind === 'carbon' ? ART.nose : finCol; c.beginPath();
-    c.moveTo(x - hw + 1, top - 3); c.lineTo(x - hw - 9, top + 7); c.lineTo(x - hw + 1, top + 9);
-    c.moveTo(x + hw - 1, top - 3); c.lineTo(x + hw + 9, top + 7); c.lineTo(x + hw - 1, top + 9); c.fill(); drawCount++;
-  }
-
-  /* ── engine skirt + bells ── */
-  c.fillStyle = '#3A434D'; c.fillRect(x - hw - 1, baseY - 7, bodyW + 2, 5); drawCount++;
-  for (let i = 0; i < E.back; i++) { const nx = bx(i), bw = E.bw * .8; // back row of the cluster, darker
-    c.fillStyle = '#2E353D'; c.beginPath(); c.moveTo(nx - bw * .55, baseY - 4); c.lineTo(nx + bw * .55, baseY - 4); c.lineTo(nx + bw, baseY + 3); c.lineTo(nx - bw, baseY + 3); c.fill(); drawCount++; }
-  for (let i = 0; i < E.front; i++) { const nx = fx(i), bw = E.bw;
-    c.fillStyle = w1_grad(c, nx - bw, nx + bw, '#3A434D', '#8A949E'); c.beginPath(); c.moveTo(nx - bw * .55, baseY - 3); c.lineTo(nx + bw * .55, baseY - 3); c.lineTo(nx + bw, baseY + 6); c.lineTo(nx - bw, baseY + 6); c.fill();
-    c.fillStyle = '#242A30'; c.fillRect(nx - bw, baseY + 5, bw * 2, 1.2); drawCount += 2; }
-
-  /* ── body ── */
-  c.fillStyle = w1_grad(c, x - hw, x + hw, S.lo, S.hi); c.fillRect(x - hw, top, bodyW, bodyH); drawCount++;
-  // material detail
-  if (S.kind === 'steel') { // rivet rows
-    c.fillStyle = 'rgba(0,0,0,.28)'; c.beginPath();
-    const rows = t.hull + 1; for (let r = 0; r <= rows; r++) { const yy = top + 6 + (bodyH - 12) * r / rows; for (let rx = x - hw + 3; rx <= x + hw - 3; rx += 4) { c.moveTo(rx, yy); c.arc(rx, yy, .8, 0, 7); } }
-    for (let yy = top + 6; yy < baseY - 8; yy += 4) { c.moveTo(x - hw + 2, yy); c.arc(x - hw + 2, yy, .8, 0, 7); c.moveTo(x + hw - 2, yy); c.arc(x + hw - 2, yy, .8, 0, 7); }
-    c.fill(); drawCount++;
-    if (t.hull >= 2) { c.fillStyle = 'rgba(0,0,0,.12)'; c.fillRect(x - hw, top + bodyH * .45, bodyW, bodyH * .1); drawCount++; }
-  } else if (S.kind === 'paint') {
-    c.fillStyle = ART.nose; c.fillRect(x - hw, baseY - 7 - bodyH * .12, bodyW, bodyH * .12); drawCount++;   // red skirt band
-    if (t.hull >= 5) { c.fillRect(x - hw, top + 2, bodyW, 4); drawCount++; }                              // top ring
-    if (t.hull >= 6) { const cy = top + bodyH * .5, cs = bodyW / 4; c.fillStyle = '#23272C';                   // roll-pattern checker
-      for (let i = 0; i < 4; i++) for (let j = 0; j < 2; j++) if ((i + j) % 2 === 0) c.fillRect(x - hw + i * cs, cy + j * cs, cs, cs); drawCount++; }
-  } else if (S.kind === 'foil') { // upper white, lower gold foil
-    const split = top + bodyH * .36;
-    c.fillStyle = w1_grad(c, x - hw, x + hw, ART.rocketDk, ART.rocket); c.fillRect(x - hw, top, bodyW, split - top); drawCount++;
-    c.strokeStyle = 'rgba(120,80,10,.45)'; c.lineWidth = .8; c.beginPath();
-    for (let yy = split + 3; yy < baseY - 10; yy += 5) { const j = ((yy * 7) % 5) - 2; c.moveTo(x - hw, yy); c.lineTo(x - hw * .3, yy + j); c.lineTo(x + hw * .35, yy - j); c.lineTo(x + hw, yy + j * .5); }
-    c.stroke(); drawCount++;
-    if (t.hull >= 8) { const th = bodyH * .14, ty = baseY - 7 - th; c.fillStyle = '#23272C'; c.fillRect(x - hw, ty, bodyW, th);                     // heat tiles
-      c.strokeStyle = 'rgba(255,255,255,.22)'; c.lineWidth = .7; c.beginPath(); for (let tx = x - hw + 4; tx < x + hw; tx += 4) { c.moveTo(tx, ty); c.lineTo(tx, ty + th); } c.moveTo(x - hw, ty + th / 2); c.lineTo(x + hw, ty + th / 2); c.stroke(); drawCount += 2; }
-  } else { // carbon: racing stripes + gloss
-    const sw = Math.max(2.5, bodyW * .12);
-    c.fillStyle = ART.nose; c.fillRect(x - sw * .2, top + 4, sw, bodyH - 12);
-    c.fillStyle = '#E9EEF3'; c.fillRect(x + sw * 1.1, top + 4, sw * .5, bodyH - 12); drawCount += 2;
-    if (t.hull >= 10) { c.fillStyle = ART.nose; c.fillRect(x - sw * 1.9, top + 4, sw * .5, bodyH - 12); c.fillStyle = '#FFD46A'; c.fillRect(x + sw * 1.9, top + 4, sw * .4, bodyH - 12); drawCount += 2; }
-    c.fillStyle = 'rgba(255,255,255,.14)'; c.fillRect(x - hw + 2, top, 2.5, bodyH); drawCount++;
-  }
-  // tank seams
-  const seams = Math.ceil(t.tank / 2);
-  c.fillStyle = 'rgba(0,0,0,.18)'; for (let i = 1; i <= seams; i++) c.fillRect(x - hw, top + (bodyH - 8) * i / (seams + 1), bodyW, 1.5); drawCount++;
-  if (t.tank >= 6) { const sy = top + bodyH * .62; // second-stage interstage
-    c.fillStyle = '#2E353D'; c.fillRect(x - hw, sy, bodyW, 5); c.fillStyle = 'rgba(255,255,255,.35)'; c.fillRect(x - hw, sy, bodyW, 1); drawCount += 2;
-    if (t.tank >= 9) { c.fillStyle = '#8A949E'; for (let sx = x - hw + 3; sx < x + hw - 2; sx += 6) c.fillRect(sx, sy + 1, 2, 3); drawCount++; }
-  }
-  // lit edge
-  c.fillStyle = 'rgba(0,0,0,.18)'; c.fillRect(x + hw - 2, top, 2, bodyH); drawCount++;
-
-  /* ── nose ── */
-  c.fillStyle = w1_grad(c, x - hw, x + hw, S.noseLo, S.noseHi); c.beginPath(); c.moveTo(x - hw, top);
-  if (t.aero <= 2) { c.quadraticCurveTo(x - hw, top - noseH * 1.25, x, top - noseH); c.quadraticCurveTo(x + hw, top - noseH * 1.25, x + hw, top); }          // blunt cap
-  else if (t.aero <= 5) { c.lineTo(x, top - noseH); c.lineTo(x + hw, top); }                                                                                  // cone
-  else if (t.aero <= 8) { c.quadraticCurveTo(x - hw * .8, top - noseH * .7, x, top - noseH); c.quadraticCurveTo(x + hw * .8, top - noseH * .7, x + hw, top); } // ogive
-  else { const nh = noseH - 8; c.quadraticCurveTo(x - hw * .8, top - nh * .75, x - 1.2, top - nh); c.lineTo(x, top - noseH); c.lineTo(x + 1.2, top - nh); c.quadraticCurveTo(x + hw * .8, top - nh * .75, x + hw, top); } // needle
-  c.closePath(); c.fill(); drawCount++;
-  if (S.kind === 'foil' || S.kind === 'paint') { c.fillStyle = 'rgba(0,0,0,.18)'; c.fillRect(x - hw, top - 1, bodyW, 2); drawCount++; } // nose join ring
-  if (t.aero >= 9) { c.fillStyle = '#FFD46A'; c.globalAlpha = .6 + .4 * Math.sin(now / 250); c.beginPath(); c.arc(x, top - noseH + 1.5, 1.6, 0, 7); c.fill(); c.globalAlpha = 1; drawCount++; } // tip beacon
-
-  /* ── payload window ── */
-  const wr = clamp(bodyW * .3, 5.5, 9), wy = top + Math.max(12, bodyW * .5);
-  w1_window(c, x, wy, wr, t.payload, S.accent, now);
-  c.restore();
-}
-
-/* ── preview: four tiers side by side, then the ten passengers enlarged ── */
 
 /* ── W4 · the Moon, the descent ── */
 /* W4 — the Moon, the descent, the Earth from the Moon */
@@ -2468,37 +2260,6 @@ function drawMoonBase(c, DW, DH, modules, now) {
   }
 }
 
-/* ── parachute: k 0 packed → 0.5 streaming → 1 full canopy, 8 gores ── */
-function drawChute(c, x, y, k, now) {
-  if (k <= 0) return;
-  now = now || 0;
-  c.save();
-  const ay = y + 110;                              // attachment point (rocket nose)
-  c.translate(x, ay); c.rotate(Math.sin(now / 900) * 0.05 * k); c.translate(-x, -ay);
-  const R = 50;
-  // shape: packed (narrow, short), streaming (narrow, tall), full (wide, half-dome)
-  const s = clamp(k / 0.5, 0, 1), f = clamp((k - 0.5) / 0.5, 0, 1);
-  const sx = lerp(lerp(0.12, 0.28, s), 1, f * f);
-  const sy = lerp(lerp(0.3, 1.5, s), 1, f);
-  const cy = y + 4;
-  // shroud lines to the rim points
-  c.strokeStyle = 'rgba(255,255,255,.75)'; c.lineWidth = 1; c.beginPath();
-  for (let i = 0; i <= 8; i += 2) { const a = Math.PI + i * Math.PI / 8; c.moveTo(x + Math.cos(a) * R * sx, cy + Math.sin(a) * R * sy * 0.15); c.lineTo(x, ay); } c.stroke(); drawCount++;
-  // canopy (8 gores) — scaled about the rim centre
-  c.save(); c.translate(x, cy); c.scale(sx, sy);
-  for (let i = 0; i < 8; i++) { c.fillStyle = i % 2 ? ART.chute : ART.chute2; c.beginPath(); c.moveTo(0, 0); c.arc(0, 0, R, Math.PI + i * Math.PI / 8, Math.PI + (i + 1) * Math.PI / 8); c.closePath(); c.fill(); drawCount++; }
-  // lit side + skirt shading
-  const lg = c.createLinearGradient(-R, 0, R, 0); lg.addColorStop(0, 'rgba(255,255,255,.35)'); lg.addColorStop(0.5, 'rgba(255,255,255,0)'); lg.addColorStop(1, 'rgba(0,0,0,.22)');
-  c.fillStyle = lg; c.beginPath(); c.arc(0, 0, R, Math.PI, 0); c.closePath(); c.fill(); drawCount++;
-  // scalloped skirt edge
-  c.fillStyle = 'rgba(0,0,0,.18)'; c.beginPath(); c.moveTo(-R, 0); for (let i = 0; i < 8; i++) { c.quadraticCurveTo(-R + (i + 0.5) * R / 4, 6, -R + (i + 1) * R / 4, 0); } c.lineTo(-R, 0); c.fill(); drawCount++;
-  c.restore();
-  // vent at the top when full
-  if (f > 0) { c.fillStyle = 'rgba(5,9,18,' + (0.6 * f) + ')'; c.beginPath(); c.arc(x, cy - R * sy + 1, 3 * f, 0, 7); c.fill(); drawCount++; }
-  // packed bundle: a taut bag while k is small
-  if (k < 0.3) { c.fillStyle = '#B9C4CF'; c.beginPath(); c.ellipse(x, cy - 6, 5, 8 - k * 10, 0, 0, 7); c.fill(); drawCount++; }
-  c.restore();
-}
 
 /* ── preview tiles ── */
 
@@ -2601,17 +2362,6 @@ function w3_paperPlane(c, x, y, dir, now) {
   c.fillStyle = '#F3F4F6'; c.beginPath(); c.moveTo(24, 0); c.lineTo(-20, -12); c.lineTo(-10, 0); c.lineTo(-20, 10); c.fill(); drawCount++;
   c.fillStyle = '#B9C4CF'; c.beginPath(); c.moveTo(24, 0); c.lineTo(-10, 0); c.lineTo(-20, 10); c.fill(); drawCount++;
   c.restore();
-}
-function w3_aurora(c, DW, y, now) {
-  c.save(); c.globalAlpha = 0.55;
-  const g = c.createLinearGradient(0, y - 60, 0, y + 30); g.addColorStop(0, 'rgba(120,80,220,0)'); g.addColorStop(0.5, '#4ADE80'); g.addColorStop(1, 'rgba(74,222,128,0)');
-  c.fillStyle = g; c.beginPath(); c.moveTo(-10, y - 60);
-  for (let x = -10; x <= DW + 10; x += 20) c.lineTo(x, y - 60 + Math.sin(x / 60 + now / 900) * 24 + Math.sin(x / 23 - now / 600) * 6);
-  for (let x = DW + 10; x >= -10; x -= 20) c.lineTo(x, y + 30 + Math.sin(x / 45 + now / 700) * 20);
-  c.fill(); drawCount++;
-  c.strokeStyle = 'rgba(200,255,220,.35)'; c.lineWidth = 2; c.beginPath();
-  for (let x = 10; x < DW; x += 26) { const t = y - 50 + Math.sin(x / 60 + now / 900) * 14; c.moveTo(x, t); c.lineTo(x + 4, t + 55 + Math.sin(x / 30 + now / 500) * 12); }
-  c.stroke(); drawCount++; c.restore();
 }
 function w3_meteor(c, x, y, dir) {
   c.save(); c.translate(x, y); c.scale(dir, 1);
@@ -2759,8 +2509,10 @@ function drawSkyExtras(c, DW, DH, km, now, seed) {
     w3_wxBalloon(c, x1, y1, now);
     w3_paperPlane(c, x2, y2, dir2, now);
   } else if (km < 150) {
-    w3_aurora(c, DW, DH * 0.22, now);
-    const mu = (((now / 1000) / 4 + r(7)) % 1 + 1) % 1; if (mu < 0.45) w3_meteor(c, DW * 0.15 + mu * DW * 1.6, DH * 0.1 + mu * DH * 0.5, 1);
+    /* T55 · the aurora used to sit across this band and read as a green grid over everything.
+       It is gone; the meteor runs more often so the band is not bare. */
+    const mu = (((now / 1000) / 3 + r(7)) % 1 + 1) % 1; if (mu < 0.7) w3_meteor(c, DW * 0.15 + mu * DW * 1.6, DH * 0.1 + mu * DH * 0.5, 1);
+    w3_wxBalloon(c, x2, y2, now);
   } else if (km < 400) {
     w3_superman(c, x1, y1, dir, now);
     if (pick === 0) w3_iss(c, x2, y2); else w3_astronaut(c, x2, y2, now);
@@ -5599,20 +5351,6 @@ function w19_arm(c, rootX, rootY, tipX, tipY, k, side, grip) {
   c.restore();
 }
 
-/* the drogue: a small ribbon canopy over the booster, cut away mid-fall. */
-function w19_drogue(c, x, y, k, kk, now) {
-  if (kk <= 0.01) return;
-  const R = 21 * k * (0.35 + 0.65 * kk), sway = Math.sin(now / 800) * 0.06;
-  c.save(); c.globalAlpha = Math.min(1, kk * 1.4); c.translate(x, y); c.rotate(sway);
-  c.strokeStyle = 'rgba(255,255,255,.7)'; c.lineWidth = 1; c.beginPath();
-  for (let i = -2; i <= 2; i++) { c.moveTo(i * R * 0.42, -R * 0.34); c.lineTo(0, 26 * k); } c.stroke(); drawCount++;
-  for (let i = 0; i < 6; i++) {
-    c.fillStyle = i % 2 ? ART.chute : ART.chute2; c.beginPath();
-    c.moveTo(0, -R * 0.30); c.arc(0, -R * 0.30, R, Math.PI + i * Math.PI / 6, Math.PI + (i + 1) * Math.PI / 6); c.closePath(); c.fill(); drawCount++;
-  }
-  c.restore();
-}
-
 /* ── the catch ─────────────────────────────────────────────────────────────── */
 function drawCatch(c, DW, DH, gy, p, t, now, drawRocketFn, rocketDimsFn) {
   p = clamp(p || 0, 0, 1); now = now || 0;
@@ -5677,10 +5415,11 @@ function drawCatch(c, DW, DH, gy, p, t, now, drawRocketFn, rocketDimsFn) {
   w19_arm(c, rootX, carrY - 6 * k, tipX, farTip, k, -1, grip);
 
   // ---- the booster ----------------------------------------------------------
-  w19_drogue(c, bx, baseY - H - 6 * k, k, p < 0.34 ? clamp(p / 0.06, 0, 1) : clamp(1 - (p - 0.34) / 0.09, 0, 1), now);
+  /* T53 · no drogue. It arrives vertical on the engine with its flaps still out, and they fold
+     back in as the arms take the weight — that is what the grippers are closing on. */
   c.save();
   c.translate(bx, baseY - gripH); c.rotate(tilt); c.translate(0, gripH); c.scale(k, k);
-  drawRocketFn(c, 0, 0, t, flame, rel > 0.05, now);
+  drawRocketFn(c, 0, 0, t, flame, rel > 0.05, now, { flaps: 1 - w19_ease(clamp((p - 0.45) / 0.25, 0, 1)) });
   c.restore();
 
   // near arm (in front of the booster) — this is the one that reads as "caught"
@@ -6888,9 +6627,6 @@ function paintDataWin() {
   rows.forEach((r, i) => { const tr = tb.children[i]; tr.children[0].textContent = r[0]; tr.children[1].children[0].textContent = r[1]; tr.children[1].children[1].textContent = r[2]; });
   $('dw-mode').textContent = view.countdown ? 'T−' + (view.countdown.n || 'IGN') : phase === 'flight' ? (view.burning ? 'BURN' : 'COAST') : phase === 'descent' ? (view.km >= MOON_KM ? 'MOON' : view.heat > 0.2 ? 'RE-ENTRY' : 'DESCENT') : phase === 'turnaround' ? 'GROUND OPS' : 'PAD';
   $('datawin').classList.toggle('away', view.km >= MOON_KM * 0.999 && phase === 'descent');
-  /* T39b · the payoff panel steps aside while the free-return eight crosses the middle of the
-     frame. Toggled here, per frame: showFlash fires during the cargo drop, one scene early. */
-  $('flash').classList.toggle('aside', view.scene === 'transfer');
 }
 function paintLaunch() {
   const b = $('launch');
@@ -6999,13 +6735,18 @@ function paintLog() {
 }
 function paintRegister() { const r = $('reg-save'); r.textContent = saveStatus; r.className = 'reg-status ' + (/saved/.test(saveStatus) && !/could not|ignored|unreadable/.test(saveStatus) ? 'on' : 'warn'); }
 let flashTimer = null;
-function showFlash(f, r, record, hit, module, override) {
+function showFlash(f, r, record, hit, module, override, payloadT) {
   const big = override ? override.big : f.moon ? (module ? 'MOON · ' + module.toUpperCase() : 'THE MOON') : 'APOGEE ' + fmtMi(f.apogeeKm) + ' MI';
   $('fl-big').textContent = big;
   $('fl-sub').textContent = override && override.sub ? override.sub
     : hit.length ? hit.map(m => m.name).join(' · ') : record ? 'New record' : 'Top velocity ' + fmtV(f.maxV);
   $('fl-money').textContent = '+' + fmtMoney(r);
-  $('flash').classList.toggle('low', phase === 'turnaround');
+  /* T54 · what actually earned it: the tonnes flown and what a tonne was worth this launch.
+     That is the whole payload economy in one line, and it is the number an upgrade moves. */
+  const t = payloadT == null ? PAY_MIN : payloadT;
+  $('fl-rate').textContent = t > 0 ? t.toFixed(1) + ' t · ' + fmtMoney(Math.round(r / t)) + '/t' : '';
+  const gw = $('goalwin');
+  $('flash').style.top = gw && !gw.hidden ? (gw.offsetTop + gw.offsetHeight + 8) + 'px' : '';
   $('flash').classList.add('show');
   clearTimeout(flashTimer); flashTimer = setTimeout(hideFlash, 4200);
 }
@@ -7104,16 +6845,16 @@ function requirePat() { let p = ''; try { p = localStorage.getItem(PAT_KEY) || '
 function devJump(sc) {
   cancelAnimationFrame(anim); hideFlash(); hideChecklist();
   const out = $('dev-out');
-  if (sc === 'pad') { phase = 'ready'; view.km = 0; view.v = 0; view.fuel = 1; view.flame = 0; view.para = 0; view.hang = 0; }
+  if (sc === 'pad') { phase = 'ready'; view.km = 0; view.v = 0; view.fuel = 1; view.flame = 0; view.flaps = 0; }
   else if (sc === 'turnaround') { startTurnaround(); if (turn) turn.t0 -= 6000; }
   else if (sc === 'flight') { const f = flyRocket(S.tiers, S.equipment); const s = f.samples[Math.floor(f.samples.length * 0.6)]; phase = 'flight';
-    view.km = s[0] / 1000; view.v = s[1]; view.fuel = s[2]; view.flame = 1; view.burning = true; view.para = 0;
+    view.km = s[0] / 1000; view.v = s[1]; view.fuel = s[2]; view.flame = 1; view.burning = true; view.flaps = 0;
     view.forces = { thrust: s[4], drag: s[5], mass: s[6], g: s[7] }; }
-  else if (sc === 'space') { const f = flyRocket(S.tiers, S.equipment); phase = 'flight'; view.km = Math.max(f.apogeeKm * 0.8, 150); view.v = f.burnoutV * 0.3; view.fuel = 0; view.flame = 0.2; view.burning = false; view.para = 0; view.forces = forcesAt(S.tiers, view.km * 1000, view.v, 0); }
-  else if (sc === 'apogee') { const f = flyRocket(S.tiers, S.equipment); phase = 'descent'; view.km = f.apogeeKm; view.v = 0; view.fuel = 0; view.flame = 0; view.para = 0;
-    showFlash(f, rewardOf(f.apogeeKm, S.tiers, 0), true, MILESTONES.filter(m => f.apogeeKm >= m.km).slice(-1), null); }
-  else if (sc === 'descent') { phase = 'descent'; view.km = 6; view.v = 0; view.fuel = 0; view.flame = 0; view.para = 1; view.hang = 1; view.ang = 0.09; }
-  else if (sc === 'moon') { phase = 'descent'; view.moonAt = performance.now(); view.km = MOON_KM; view.v = 0; view.fuel = 0; view.flame = 0; view.para = 0; if (!S.modules) S.modules = 3; }
+  else if (sc === 'space') { const f = flyRocket(S.tiers, S.equipment); phase = 'flight'; view.km = Math.max(f.apogeeKm * 0.8, 150); view.v = f.burnoutV * 0.3; view.fuel = 0; view.flame = 0.2; view.burning = false; view.flaps = 0; view.forces = forcesAt(S.tiers, view.km * 1000, view.v, 0); }
+  else if (sc === 'apogee') { const f = flyRocket(S.tiers, S.equipment); phase = 'descent'; view.km = f.apogeeKm; view.v = 0; view.fuel = 0; view.flame = 0; view.flaps = 0;
+    showFlash(f, rewardOf(f.apogeeKm, S.tiers, 0), true, MILESTONES.filter(m => f.apogeeKm >= m.km).slice(-1), null, null, PAY_MIN); }
+  else if (sc === 'descent') { phase = 'descent'; view.km = 5; view.v = 0; view.fuel = 0; view.flame = 0.6; view.burning = true; view.flaps = 1; view.ang = -0.55; }
+  else if (sc === 'moon') { phase = 'descent'; view.moonAt = performance.now(); view.km = MOON_KM; view.v = 0; view.fuel = 0; view.flame = 0; view.flaps = 0; if (!S.modules) S.modules = 3; }
   paintLaunch(); paintGauges(); drawScene(); out.textContent = 'scene → ' + sc + ' · phase ' + phase;
 }
 document.querySelectorAll('[data-dev]').forEach(b => b.addEventListener('click', () => {
@@ -7162,7 +6903,7 @@ function resetProgress() {
   phase = 'ready'; turn = null;
   Object.assign(view, { km: 0, v: 0, fuel: 1, t: 0, burning: false, para: 0, apogeeKm: 0, flame: 0,
     countdown: null, liftT: -1, heat: 0, forces: null,
-    scene: 'pad', p: 0, jp: 0, ang: 0, hang: 0, drift: 0, zoom: 0, cargo: 0, fadeFrom: null, fadeK: 0, mission: 0 });
+    scene: 'pad', p: 0, jp: 0, ang: 0, flaps: 0, drift: 0, zoom: 0, cargo: 0, fadeFrom: null, fadeK: 0, mission: 0 });
   Object.assign(rail, { charge: 0, fire: -1, arc: -1, fired: false });   // its real defaults, not zeroes
   S = freshState();
   try { localStorage.removeItem(SAVE_KEY); localStorage.removeItem(TOUR_KEY); } catch (e) {}
