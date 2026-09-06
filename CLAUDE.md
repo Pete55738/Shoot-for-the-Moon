@@ -73,6 +73,13 @@ and `skills/orchestrate.md` for how workers are split, heartbeat and report.
   past in a few frames. The flaps are not an aero upgrade; every tier has them. Attitude lives in
   `view.ang` alone so the pitch instrument and the scene agree; **never rotate the ship in the draw
   layer** — the draw layer only chooses the pivot (body centre once the flaps are out, base otherwise).
+- **The turnaround happens in the VAB, not on the pad (T65/T69).** `drawTurnaround` ferries the
+  caught booster off the ring along **one straight line at the ring's own depth** (`W23_ROUTE` is two
+  points; `z` never changes, so the ship holds scale 1 and the p 0 / p 1 hand-overs with
+  `drawPadScene` are exact by construction). The main door is the whole pad-facing high bay; the ship
+  is fuelled *inside* on the `fuel` beat. The building is sized from `S.tiers` — the lifted nose has
+  to clear the lintel — so it is **drawn live from `drawSite` (`w23_vabStatic`), never baked into the
+  cached site layer**, whose key knows size, ground line and theme but not the tier set.
 - **One definition per drawing function.** The W1 rocket block was in the file **twice** — the
   integrated W1+W7 copy and the raw worker fragment after it — and the later one silently won, so
   `opts` (heat, bay, flaps) was dead code for weeks. When splicing a worker fragment, delete the
