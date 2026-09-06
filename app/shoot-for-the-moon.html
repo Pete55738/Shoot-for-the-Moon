@@ -1607,7 +1607,26 @@ function tickTurnaround() {
 function finishTurnaround() {
   phase = 'ready'; turn = null; paintLaunch(); paintShop();
   view.km = 0; view.v = 0; view.fuel = 1; view.flame = 0; view.flaps = 0; view.retro = 0; view.ang = 0; view.drift = 0;
-  paintGauges(); paintWindows(); drawScene();
+  paintGauges(); paintWindows(); startIdle();
+}
+/* T76 · The base was alive during the rebuild and during the flight, and dead in between — which is
+   backwards, because standing-ready is when you actually sit and look at it. Nothing scheduled a
+   frame while `phase === 'ready'`, so the instant the countdown finished the whole site froze:
+   lorries stopped mid-turn, walkers mid-stride, beacons dark, windsock stiff. Idle runs its own
+   loop now. The rocket stands still on the pad because it is standing still, not because the clock
+   stopped. `drawScene` is the only thing that has to run at frame rate; the ladder's breathing ring
+   costs a getBoundingClientRect and a getComputedStyle, so it gets every sixth frame. */
+let idleN = 0;
+function idleTick() {
+  if (phase !== 'ready') return;                 // launch() and startTurnaround() cancel `anim` anyway
+  drawScene();
+  if ((idleN++ % 6) === 0) drawLadder();
+  anim = requestAnimationFrame(idleTick);
+}
+function startIdle() {
+  if (phase !== 'ready') return;
+  cancelAnimationFrame(anim);                    // one loop at a time — `anim` is the single handle
+  anim = requestAnimationFrame(idleTick);
 }
 function showChecklist() {
   const ol = $('cl-list'); ol.textContent = '';
@@ -9055,7 +9074,7 @@ function requirePat() { let p = ''; try { p = localStorage.getItem(PAT_KEY) || '
 function devJump(sc) {
   cancelAnimationFrame(anim); hideFlash(); hideChecklist();
   const out = $('dev-out');
-  if (sc === 'pad') { phase = 'ready'; view.km = 0; view.v = 0; view.fuel = 1; view.flame = 0; view.flaps = 0; }
+  if (sc === 'pad') { phase = 'ready'; view.km = 0; view.v = 0; view.fuel = 1; view.flame = 0; view.flaps = 0; startIdle(); }
   else if (sc === 'turnaround') { startTurnaround(); if (turn) turn.t0 -= 6000; }
   else if (sc === 'flight') { const f = flyRocket(S.tiers, S.equipment); const s = f.samples[Math.floor(f.samples.length * 0.6)]; phase = 'flight';
     view.km = s[0] / 1000; view.v = s[1]; view.fuel = s[2]; view.flame = 1; view.burning = true; view.flaps = 0;
@@ -9106,7 +9125,7 @@ function redrawEverything() {
   if (typeof siteInvalidate === 'function') siteInvalidate();
   if (typeof trajInvalidate === 'function') trajInvalidate();
   stars = null;                       // the starfield is sized to the old viewport
-  drawGround(); sizeScene(); paintAll(); drawLadder();
+  drawGround(); sizeScene(); paintAll(); drawLadder(); startIdle();   /* T76 */
 }
 function resetProgress() {
   cancelAnimationFrame(anim); anim = null;
@@ -9141,6 +9160,7 @@ function resetProgress() {
 }
 load();
 drawGround(); sizeScene(); paintAll();
+startIdle();   /* T76 · the site keeps moving while the ship stands ready */
 addEventListener('resize', () => { if (typeof w12_invalidate === 'function') w12_invalidate();
   if (typeof siteInvalidate === 'function') siteInvalidate(); drawGround(); sizeScene(); drawScene(); drawLadder(); });
 { const want = (location.hash || '').replace('#', ''); const b = document.querySelector('.tab[data-p="' + want + '"]'); if (b && !b.hidden) b.click(); }
