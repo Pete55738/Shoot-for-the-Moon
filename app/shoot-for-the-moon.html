@@ -5499,184 +5499,757 @@ function w16_carpark(c, P) {
 }
 
 /* ══════════ the open-fence warehouse — trucks load and drop off here all day ══════════ */
-function w16_warehouse(c, P) {
-  var X0 = -0.82, X1 = -0.34, Z0 = 0.234, Z1 = 0.326;
-  /* yard slab */
-  c.fillStyle = 'rgba(96,100,104,.62)'; c.beginPath(); w16_quad(c, P, X0, X1, Z0, Z1); c.fill(); drawCount++;
-  c.strokeStyle = 'rgba(240,244,248,.16)'; c.lineWidth = 0.7; c.beginPath();
-  for (var i = 1; i < 8; i++) { var x = lerp(X0, X1, i / 8), a = P(x, Z0), b = P(x, Z1); c.moveTo(a.sx, a.sy); c.lineTo(b.sx, b.sy); }
-  c.stroke(); drawCount++;
-  /* three dock bays marked out on the apron */
-  c.fillStyle = 'rgba(242,194,48,.55)'; c.beginPath();
-  for (i = 0; i < 3; i++) { var bx = W22_DOCK[i]; w16_quad(c, P, bx - 0.045, bx - 0.040, Z0 + 0.004, 0.278); w16_quad(c, P, bx + 0.040, bx + 0.045, Z0 + 0.004, 0.278); }
-  c.fill(); drawCount++;
-  /* the racking, deep in the shed: three rows of shelved pallets */
-  var rackCols = ['#C25A3A', '#3F7FA8', '#8AC46A', '#D9A441', '#B3564E', '#5F6B78'];
-  var pallets = [];
-  for (var row = 0; row < 3; row++) for (i = 0; i < 9; i++) {
-    if (w16_r(row * 23 + i + 5) < 0.18) continue;
-    pallets.push({ x: lerp(X0 + 0.035, X1 - 0.035, i / 8), z: 0.288 + row * 0.016, lvl: w16_r(row * 9 + i) > 0.55 ? 2 : 1, col: Math.floor(w16_r(row * 11 + i + 3) * 6) });
-  }
-  pallets.sort(function (a, b) { return b.z - a.z; });
-  c.strokeStyle = '#E0523A'; c.lineWidth = 1; c.beginPath();       /* rack uprights */
-  for (row = 0; row < 3; row++) for (i = 0; i <= 9; i++) { var rp = P(lerp(X0 + 0.02, X1 - 0.02, i / 9), 0.288 + row * 0.016);
-    c.moveTo(rp.sx, rp.sy); c.lineTo(rp.sx, rp.sy - 30 * rp.k); }
-  c.stroke(); drawCount++;
-  for (i = 0; i < pallets.length; i++) {
-    var q = pallets[i], p = P(q.x, q.z), w = 15 * p.k, h = 8 * p.k;
-    c.fillStyle = rackCols[q.col];
-    for (var l = 0; l < q.lvl; l++) { c.fillRect(p.sx - w / 2, p.sy - h * (l + 1) - l * 3 * p.k, w, h); }
-    drawCount++;
-    c.fillStyle = 'rgba(255,255,255,.20)';
-    for (l = 0; l < q.lvl; l++) c.fillRect(p.sx - w / 2, p.sy - h * (l + 1) - l * 3 * p.k, w, h * 0.22);
-    drawCount++;
-  }
-  /* the open steel frame: columns, a truss and a canopy over the back half only */
-  var canZ0 = 0.292, canZ1 = Z1 + 0.006, ch = 54;
-  var cA = P(X0, canZ0), cB = P(X1, canZ0), cD = P(X1, canZ1), cE = P(X0, canZ1);
-  c.strokeStyle = '#B0BBC6'; c.lineWidth = Math.max(1, 1.8 * cA.k); c.beginPath();
-  for (i = 0; i <= 6; i++) { var cx = lerp(X0, X1, i / 6), f = P(cx, canZ0), g = P(cx, canZ1);
-    c.moveTo(f.sx, f.sy); c.lineTo(f.sx, f.sy - ch * f.k); c.moveTo(g.sx, g.sy); c.lineTo(g.sx, g.sy - ch * g.k); }
-  c.stroke(); drawCount++;
-  c.strokeStyle = 'rgba(150,162,175,.8)'; c.lineWidth = 0.8; c.beginPath();   /* truss lattice on the open face */
-  for (i = 0; i < 6; i++) { var u = P(lerp(X0, X1, i / 6), canZ0), v = P(lerp(X0, X1, (i + 1) / 6), canZ0);
-    c.moveTo(u.sx, u.sy - ch * u.k); c.lineTo(v.sx, v.sy - (ch - 9) * v.k); c.moveTo(u.sx, u.sy - (ch - 9) * u.k); c.lineTo(v.sx, v.sy - ch * v.k); }
-  c.stroke(); drawCount++;
-  c.fillStyle = 'rgba(146,158,170,.95)'; c.beginPath();                        /* the canopy roof */
-  c.moveTo(cA.sx, cA.sy - ch * cA.k); c.lineTo(cB.sx, cB.sy - ch * cB.k);
-  c.lineTo(cD.sx, cD.sy - (ch + 8) * cD.k); c.lineTo(cE.sx, cE.sy - (ch + 8) * cE.k); c.fill(); drawCount++;
-  c.fillStyle = 'rgba(120,134,148,.9)'; c.beginPath();                         /* the fascia edge */
-  c.moveTo(cA.sx, cA.sy - ch * cA.k); c.lineTo(cB.sx, cB.sy - ch * cB.k);
-  c.lineTo(cB.sx, cB.sy - (ch - 5) * cB.k); c.lineTo(cA.sx, cA.sy - (ch - 5) * cA.k); c.fill(); drawCount++;
-  c.strokeStyle = 'rgba(90,102,114,.35)'; c.lineWidth = 0.7; c.beginPath();    /* roof ribs */
-  for (i = 1; i < 7; i++) { var rx2 = lerp(X0, X1, i / 7), s0 = P(rx2, canZ0), s1 = P(rx2, canZ1);
-    c.moveTo(s0.sx, s0.sy - ch * s0.k); c.lineTo(s1.sx, s1.sy - (ch + 8) * s1.k); }
-  c.stroke(); drawCount++;
-  /* bay numbers stencilled on the apron */
-  c.fillStyle = 'rgba(255,255,255,.45)'; c.textAlign = 'center'; c.textBaseline = 'middle';
-  for (i = 0; i < 3; i++) { var np = P(W22_DOCK[i], 0.250);
-    c.font = '800 ' + Math.max(6, 13 * np.k).toFixed(1) + 'px ui-monospace, monospace';
-    c.save(); c.translate(np.sx, np.sy); c.scale(1, 0.55); c.fillText(String(i + 1), 0, 0); c.restore(); }
-  drawCount++;
-  /* the yard fence, open at both gates */
-  w16_fenceRun(c, P, [[X1 + 0.03, Z0 - 0.008], [X1 + 0.03, Z1 + 0.012], [X0 - 0.03, Z1 + 0.012], [X0 - 0.03, Z0 - 0.008]], 22, true);
-  /* a gatehouse and a barrier on the west gate */
-  w16_box(c, P, -0.90, -0.855, 0.206, 0.222, 16, '#C3CDD6', '#E7ECF1', '#9AA6B2');
-  var gb = P(-0.845, 0.214);
-  c.strokeStyle = '#E0523A'; c.lineWidth = Math.max(1, 2 * gb.k); c.beginPath();
-  c.moveTo(gb.sx, gb.sy - 9 * gb.k); c.lineTo(gb.sx + 26 * gb.k, gb.sy - 12 * gb.k); c.stroke(); drawCount++;
-  /* skips and a stack of loose crates outside the fence */
-  for (i = 0; i < 2; i++) { var sk = P(-0.30 + i * 0.05, 0.246 + i * 0.014), sw = 16 * sk.k;
-    c.fillStyle = '#D9A441'; c.beginPath();
-    c.moveTo(sk.sx - sw, sk.sy); c.lineTo(sk.sx + sw, sk.sy); c.lineTo(sk.sx + sw * 0.8, sk.sy - 9 * sk.k); c.lineTo(sk.sx - sw * 0.8, sk.sy - 9 * sk.k); c.fill(); drawCount++; }
+/* ── W25 · T71/T72/T74/T75 · the dish farm, the warehouse, the container yard and
+   the seating, rebuilt. Spliced from the worker fragment, which was then deleted. */
+/* ══════════════════════════════════════════════════════════════════════════════
+   W25 · T71 / T72 / T74 / T75 — the front band of the launch site, revised
+   ------------------------------------------------------------------------------
+   REPLACES (delete the W22 definitions when splicing — one definition each):
+     W22_STAND_DX · w16_antennas · w16_warehouse · w16_yard · w16_stand
+     w16_frontage · w16_static
+   KEEPS, unchanged — this fragment calls them:
+     gproj · w16_quad · w16_poly · w16_box · w16_shed · w16_lamp · w16_tree
+     w16_fenceRun · w16_gradV · w16_gradH · w16_ell · w16_r · w16_vehicle
+     w16_farm · w16_industry · w16_admin · w16_masts · w16_roads · w16_pad
+     w16_helipad · w16_concourse · w16_carpark · w16_bunker · w16_plaza
+     ART · lerp · drawCount
+   ONE EDIT OUTSIDE THIS FRAGMENT — drawLife's grandstand-rail block. See the
+   report; the three spectators must move from z .094–.096 to z .080–.082.
+
+   GROUND CONTRACT.  gy = DH*0.34 ⇒ frame bottom z 0.071, horizon z 0.626.
+   Nothing here goes past z 0.336. The pad apron (x ±0.38, z 0.305–0.475) is
+   untouched.  The LAUNCH button owns the bottom-right: in portrait it covers
+   x > ≈0.15 for z 0.071 … 0.145, so nothing that matters is put there.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* ── T75 · the grandstand slides only a little left now: it is narrower, so it
+      reads as centred and still clears the LAUNCH button. Was −0.16. ────────── */
+const W22_STAND_DX = -0.05;
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   T71 · THE DISH FARM  —  x −0.36 … +0.21,  z 0.226 … 0.296
+   Six real parabolic antennas. Each one is built in its own aperture frame, so
+   azimuth and elevation are geometry, not a fudge: the rim circle is carried
+   through the same oblique projection the ground uses, which makes the ellipse,
+   and the feed legs land on the rim because they are struck from it.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+var W25_DEPTH = 0.45;    /* how much a unit of scene depth reads as up-screen */
+
+/* Project the aperture frame of a dish pointing at (az, el).
+   World: X right, Y up, Z into the screen.  screen = (X, −(Y + DEPTH·Z)).
+     n = aperture normal   u = dish "right"   v = dish "up"
+   `face` is true when the concave side is turned toward the camera, which sits
+   about 23° above the ground plane. */
+function w25_frame(az, el) {
+  var sa = Math.sin(az), ca = Math.cos(az), se = Math.sin(el), ce = Math.cos(el);
+  return {
+    nx: sa * ce, ny: -(se + W25_DEPTH * ca * ce),
+    ux: ca, uy: W25_DEPTH * sa,
+    vx: -sa * se, vy: -(ce - W25_DEPTH * ca * se),
+    face: (ca * ce - 0.42 * se) < 0
+  };
 }
 
-/* ══════════ dish farm ══════════ */
-function w16_antennas(c, P) {
-  c.fillStyle = 'rgba(58,67,77,.30)'; c.beginPath(); w16_quad(c, P, -0.30, 0.16, 0.232, 0.288); c.fill(); drawCount++;
-  var spec = [[-0.24, 0.276, 19], [-0.11, 0.268, 15], [0.02, 0.276, 17], [-0.18, 0.242, 12], [-0.04, 0.240, 11], [0.11, 0.246, 13]];
-  for (var i = 0; i < spec.length; i++) {
-    var p = P(spec[i][0], spec[i][1]), h = 32 * p.k, R = spec[i][2] * p.k;
-    c.strokeStyle = '#8A949E'; c.lineWidth = 1.2; c.beginPath(); c.moveTo(p.sx, p.sy); c.lineTo(p.sx, p.sy - h); c.stroke(); drawCount++;
-    c.fillStyle = '#DCE3EA'; c.beginPath(); c.ellipse(p.sx, p.sy - h - R * 0.4, R, R * 0.75, -0.5, 0, 7); c.fill(); drawCount++;
-    c.fillStyle = 'rgba(120,132,146,.5)'; c.beginPath(); c.ellipse(p.sx + R * 0.25, p.sy - h - R * 0.4, R * 0.55, R * 0.5, -0.5, 0, 7); c.fill(); drawCount++;
-  }
-  w16_box(c, P, -0.40, -0.34, 0.240, 0.266, 22, '#5F6B78', '#C3CDD6', '#93A0AD');
-  /* the ground-support yard east of the dishes: two generator trailers, cable drums, a spares cage */
-  c.fillStyle = 'rgba(58,67,77,.34)'; c.beginPath(); w16_quad(c, P, 0.19, 0.37, 0.238, 0.284); c.fill(); drawCount++;
-  for (var t2 = 0; t2 < 2; t2++) { var tq = P(0.225 + t2 * 0.085, 0.252 + t2 * 0.016), tw = 22 * tq.k, th = 13 * tq.k;
-    c.fillStyle = 'rgba(0,0,0,.18)'; c.fillRect(tq.sx - tw / 2 + 2, tq.sy - 2, tw, 4); drawCount++;
-    c.fillStyle = t2 ? '#D9A441' : '#8AC46A'; c.fillRect(tq.sx - tw / 2, tq.sy - th, tw, th); drawCount++;
-    c.fillStyle = 'rgba(255,255,255,.22)'; c.fillRect(tq.sx - tw / 2, tq.sy - th, tw, th * 0.2); drawCount++; }
-  c.strokeStyle = '#6B4A2E'; c.lineWidth = 1.2; c.beginPath();
-  for (t2 = 0; t2 < 3; t2++) { var dq = P(0.205 + t2 * 0.035, 0.276); c.moveTo(dq.sx + 6 * dq.k, dq.sy - 6 * dq.k); c.arc(dq.sx, dq.sy - 6 * dq.k, 6 * dq.k, 0, 7); }
+/* one antenna. p = foot on the ground plane, r = aperture radius in site units. */
+function w25_dish(c, p, r, az, el, tint) {
+  var k = p.k, R = r * k, f = w25_frame(az, el);
+  var ped = 16 * k;                                   /* pedestal height          */
+  var cx = p.sx, cy = p.sy - ped - R * 0.86;          /* rim centre               */
+
+  /* ---- ground: a concrete pad and the machine's shadow ---- */
+  c.fillStyle = 'rgba(196,200,202,.55)'; c.beginPath();
+  c.ellipse(p.sx, p.sy, R * 0.60, R * 0.20, 0, 0, 7); c.fill(); drawCount++;
+  c.fillStyle = 'rgba(0,0,0,.20)'; c.beginPath();
+  c.ellipse(p.sx + R * 0.10, p.sy + 1, R * 0.44, R * 0.14, 0, 0, 7); c.fill(); drawCount++;
+
+  /* ---- pedestal: a tapered tower with a door, rungs and a cable duct ---- */
+  var pw = 6.2 * k, tw = 4.2 * k;
+  c.fillStyle = w16_gradH(c, p.sx - pw, p.sx + pw, '#E4EAEF', '#8C99A6'); c.beginPath();
+  c.moveTo(p.sx - pw, p.sy); c.lineTo(p.sx - tw, p.sy - ped);
+  c.lineTo(p.sx + tw, p.sy - ped); c.lineTo(p.sx + pw, p.sy); c.fill(); drawCount++;
+  c.fillStyle = '#5F6B78';
+  c.fillRect(p.sx - pw * 0.34, p.sy - ped * 0.62, pw * 0.68, ped * 0.62); drawCount++;   /* door  */
+  c.strokeStyle = 'rgba(96,110,126,.65)'; c.lineWidth = Math.max(0.5, 0.8 * k); c.beginPath();
+  for (var g = 1; g < 5; g++) { var yy = p.sy - ped * g / 5; c.moveTo(p.sx + tw * 0.55, yy); c.lineTo(p.sx + pw * 0.95, yy); }
+  c.moveTo(p.sx + pw * 0.8, p.sy); c.lineTo(p.sx + tw * 0.8, p.sy - ped);
   c.stroke(); drawCount++;
-  /* three lighting columns along the perimeter road */
-  w16_lamp(c, P(-0.34, 0.226), 40); w16_lamp(c, P(0.16, 0.226), 40); w16_lamp(c, P(0.66, 0.226), 40);
-  /* the fire station: an appliance bay with two doors and two pumps parked out */
+  /* turret: the azimuth housing the yoke turns on */
+  c.fillStyle = '#B7C2CC'; c.beginPath();
+  c.ellipse(p.sx, p.sy - ped, tw * 1.5, tw * 0.55, 0, 0, 7); c.fill(); drawCount++;
+  c.fillStyle = w16_gradH(c, p.sx - tw * 1.4, p.sx + tw * 1.4, '#DCE3EA', '#7E8B99');
+  c.fillRect(p.sx - tw * 1.4, p.sy - ped - 7 * k, tw * 2.8, 7 * k); drawCount++;
+
+  /* ---- elevation yoke: two arms to the trunnions, plus the jack-screw ---- */
+  var hubx = cx - f.nx * R * 0.16, huby = cy - f.ny * R * 0.16;          /* behind the vertex */
+  var t1x = hubx + f.ux * R * 0.56, t1y = huby + f.uy * R * 0.56;
+  var t2x = hubx - f.ux * R * 0.56, t2y = huby - f.uy * R * 0.56;
+  c.strokeStyle = '#9AA6B2'; c.lineWidth = Math.max(1.1, 2.4 * k); c.beginPath();
+  c.moveTo(p.sx - tw, p.sy - ped - 5 * k); c.lineTo(t1x, t1y);
+  c.moveTo(p.sx + tw, p.sy - ped - 5 * k); c.lineTo(t2x, t2y);
+  c.stroke(); drawCount++;
+  c.strokeStyle = '#6B7783'; c.lineWidth = Math.max(0.8, 1.5 * k); c.beginPath();          /* jack-screw */
+  c.moveTo(p.sx + tw * 0.4, p.sy - ped - 4 * k);
+  c.lineTo(hubx - f.vx * R * 0.62, huby - f.vy * R * 0.62); c.stroke(); drawCount++;
+  c.fillStyle = '#5F6B78'; c.beginPath();                                                  /* trunnion bosses */
+  c.arc(t1x, t1y, 2.3 * k, 0, 7); c.arc(t2x, t2y, 2.3 * k, 0, 7); c.fill(); drawCount++;
+  c.fillStyle = '#6B7783';                                                                 /* counterweight, behind */
+  c.fillRect(hubx - f.vx * R * 0.78 - 3.4 * k, huby - f.vy * R * 0.78 - 2.6 * k, 6.8 * k, 5.2 * k); drawCount++;
+
+  /* ---- back structure, seen around the rim: a hub can and radial ribs ---- */
+  c.save(); c.transform(f.ux * R, f.uy * R, f.vx * R, f.vy * R, hubx, huby);
+  c.strokeStyle = 'rgba(112,124,138,.9)'; c.lineWidth = 0.035; c.beginPath();
+  for (var b = 0; b < 8; b++) { var ab = b * Math.PI / 4; c.moveTo(Math.cos(ab) * 0.22, Math.sin(ab) * 0.22); c.lineTo(Math.cos(ab) * 1.02, Math.sin(ab) * 1.02); }
+  c.moveTo(1.02, 0); c.arc(0, 0, 1.02, 0, 7);
+  c.stroke(); drawCount++;
+  c.fillStyle = '#7E8B99'; c.beginPath(); c.arc(0, 0, 0.24, 0, 7); c.fill(); drawCount++;
+  c.restore();
+
+  /* ---- the reflector itself, in the aperture frame ---- */
+  c.save(); c.transform(f.ux * R, f.uy * R, f.vx * R, f.vy * R, cx, cy);
+  var gr = c.createRadialGradient(-0.34, -0.30, 0.05, -0.10, -0.10, 1.7);
+  gr.addColorStop(0, '#FBFDFE'); gr.addColorStop(0.55, tint || '#D5DEE6'); gr.addColorStop(1, '#8E9DAC');
+  c.fillStyle = gr; c.beginPath(); c.arc(0, 0, 1, 0, 7); c.fill(); drawCount++;
+  /* the bowl: an offset inner disc puts a lit crescent along the lower-left rim */
+  var gb = c.createRadialGradient(-0.10, -0.06, 0.05, 0.22, 0.20, 1.25);
+  gb.addColorStop(0, 'rgba(255,255,255,.55)'); gb.addColorStop(0.5, 'rgba(150,164,178,.30)');
+  gb.addColorStop(1, 'rgba(72,86,100,.55)');
+  c.fillStyle = gb; c.beginPath(); c.arc(0.13, 0.11, 0.87, 0, 7); c.fill(); drawCount++;
+  /* panel seams — 12 gores and two hoops */
+  c.strokeStyle = 'rgba(96,112,128,.42)'; c.lineWidth = 0.017; c.beginPath();
+  for (var s = 0; s < 12; s++) { var as = s * Math.PI / 6; c.moveTo(Math.cos(as) * 0.17, Math.sin(as) * 0.17); c.lineTo(Math.cos(as) * 0.97, Math.sin(as) * 0.97); }
+  c.moveTo(0.44, 0); c.arc(0, 0, 0.44, 0, 7); c.moveTo(0.75, 0); c.arc(0, 0, 0.75, 0, 7);
+  c.stroke(); drawCount++;
+  /* vertex plate and the rim, twice — a bright lip and a dark outer edge */
+  c.fillStyle = 'rgba(120,134,148,.55)'; c.beginPath(); c.arc(0, 0, 0.16, 0, 7); c.fill(); drawCount++;
+  c.strokeStyle = 'rgba(255,255,255,.85)'; c.lineWidth = 0.055; c.beginPath(); c.arc(0, 0, 0.965, 0, 7); c.stroke(); drawCount++;
+  c.strokeStyle = 'rgba(70,84,98,.85)'; c.lineWidth = 0.028; c.beginPath(); c.arc(0, 0, 1.0, 0, 7); c.stroke(); drawCount++;
+  c.restore();
+
+  /* ---- feed: a tripod off the rim to the focus, and the horn ---- */
+  var fx = cx + f.nx * R * 0.70, fy = cy + f.ny * R * 0.70;
+  c.strokeStyle = 'rgba(74,86,100,.80)'; c.lineWidth = Math.max(0.6, 1.05 * k); c.beginPath();
+  for (var L = 0; L < 3; L++) {
+    var al = Math.PI / 2 + L * 2.0944;
+    c.moveTo(cx + (f.ux * Math.cos(al) + f.vx * Math.sin(al)) * R * 0.92,
+             cy + (f.uy * Math.cos(al) + f.vy * Math.sin(al)) * R * 0.92);
+    c.lineTo(fx, fy);
+  }
+  c.stroke(); drawCount++;
+  /* the horn: a short cone on the focus, wide end looking back into the dish */
+  var hx = f.nx * R * 0.13, hy = f.ny * R * 0.13;
+  c.fillStyle = '#5F6B78'; c.beginPath();                            /* the cone, wide end looking in */
+  c.moveTo(fx + hx + f.ux * R * 0.030, fy + hy + f.uy * R * 0.030);
+  c.lineTo(fx - hx + f.ux * R * 0.105, fy - hy + f.uy * R * 0.105);
+  c.lineTo(fx - hx - f.ux * R * 0.105, fy - hy - f.uy * R * 0.105);
+  c.lineTo(fx + hx - f.ux * R * 0.030, fy + hy - f.uy * R * 0.030); c.fill(); drawCount++;
+  c.fillStyle = '#20262E'; c.beginPath();                            /* the aperture */
+  c.ellipse(fx - hx, fy - hy, R * 0.105, R * 0.042, 0, 0, 7); c.fill(); drawCount++;
+  c.fillStyle = '#E7ECF1'; c.beginPath();                            /* the sub-reflector cap */
+  c.arc(fx + hx * 1.05, fy + hy * 1.05, R * 0.045, 0, 7); c.fill(); drawCount++;
+}
+
+function w16_antennas(c, P) {
+  var i;
+  /* ---- the compound: hardstand, kerb, cable trench ---- */
+  c.fillStyle = 'rgba(160,164,168,.86)'; c.beginPath(); w16_quad(c, P, -0.34, 0.21, 0.226, 0.296); c.fill(); drawCount++;
+  c.fillStyle = 'rgba(255,255,255,.14)'; c.beginPath();
+  w16_quad(c, P, -0.34, 0.21, 0.226, 0.230); w16_quad(c, P, -0.34, 0.21, 0.292, 0.296);
+  c.fill(); drawCount++;
+  c.fillStyle = 'rgba(58,67,77,.34)'; c.beginPath();                  /* cable trench along the row */
+  w16_quad(c, P, -0.32, 0.19, 0.256, 0.262); c.fill(); drawCount++;
+  c.strokeStyle = 'rgba(255,255,255,.20)'; c.lineWidth = 0.7; c.beginPath();
+  for (i = 0; i < 9; i++) { var tx = lerp(-0.32, 0.19, i / 8), ta = P(tx, 0.256), tb = P(tx, 0.262); c.moveTo(ta.sx, ta.sy); c.lineTo(tb.sx, tb.sy); }
+  c.stroke(); drawCount++;
+
+  /* ---- six antennas. Back row first. az/el chosen so the concave face is the
+         side turned to the camera in every case (checked, see the report). ---- */
+  var back = [[-0.270, 0.278, 18, 2.30, 0.62], [-0.080, 0.276, 19, 3.55, 0.78], [0.110, 0.280, 17, 1.95, 0.55]];
+  var frnt = [[-0.245, 0.238, 27, 2.75, 0.70], [0.005, 0.236, 25, 3.90, 0.60], [0.175, 0.240, 17, 2.15, 0.86]];
+  for (i = 0; i < 3; i++) w25_dish(c, P(back[i][0], back[i][1]), back[i][2], back[i][3], back[i][4], '#CFDAE4');
+  for (i = 0; i < 3; i++) w25_dish(c, P(frnt[i][0], frnt[i][1]), frnt[i][2], frnt[i][3], frnt[i][4], i === 1 ? '#DCE4EA' : '#D5DEE6');
+
+  /* ---- the equipment building at the west end, with its waveguide bridge ---- */
+  var eb = w16_box(c, P, -0.415, -0.345, 0.238, 0.272, 24, '#5F6B78', '#C3CDD6', '#93A0AD');
+  c.fillStyle = '#3A434D';
+  c.fillRect(lerp(eb.a.sx, eb.b.sx, 0.16), eb.up(eb.a) + 5, (eb.b.sx - eb.a.sx) * 0.26, 6); drawCount++;
+  c.fillStyle = '#4FD9E6';
+  c.fillRect(lerp(eb.a.sx, eb.b.sx, 0.56), eb.up(eb.a) + 5, (eb.b.sx - eb.a.sx) * 0.28, 5); drawCount++;
+  { var wa = P(-0.345, 0.255), wb = P(-0.270, 0.262);                  /* waveguide on trestles */
+    c.strokeStyle = '#B0BBC6'; c.lineWidth = Math.max(0.9, 1.6 * wa.k); c.beginPath();
+    c.moveTo(wa.sx, wa.sy - 22 * wa.k); c.lineTo(wb.sx, wb.sy - 14 * wb.k);
+    c.moveTo(wb.sx, wb.sy - 14 * wb.k); c.lineTo(wb.sx, wb.sy); c.stroke(); drawCount++; }
+  { var ac = P(-0.40, 0.276);                                          /* two aircon units out back */
+    c.fillStyle = '#93A0AD'; c.fillRect(ac.sx - 6 * ac.k, ac.sy - 8 * ac.k, 6 * ac.k, 8 * ac.k);
+    c.fillRect(ac.sx + 1 * ac.k, ac.sy - 7 * ac.k, 5 * ac.k, 7 * ac.k); drawCount++; }
+
+  /* ---- the ground-support yard, east of the dishes ---- */
+  c.fillStyle = 'rgba(58,67,77,.34)'; c.beginPath(); w16_quad(c, P, 0.24, 0.40, 0.238, 0.284); c.fill(); drawCount++;
+  for (var t2 = 0; t2 < 2; t2++) { var tq = P(0.275 + t2 * 0.075, 0.252 + t2 * 0.016), tw2 = 22 * tq.k, th = 13 * tq.k;
+    c.fillStyle = 'rgba(0,0,0,.18)'; c.fillRect(tq.sx - tw2 / 2 + 2, tq.sy - 2, tw2, 4); drawCount++;
+    c.fillStyle = t2 ? '#D9A441' : '#8AC46A'; c.fillRect(tq.sx - tw2 / 2, tq.sy - th, tw2, th); drawCount++;
+    c.fillStyle = 'rgba(255,255,255,.22)'; c.fillRect(tq.sx - tw2 / 2, tq.sy - th, tw2, th * 0.2); drawCount++; }
+  c.strokeStyle = '#6B4A2E'; c.lineWidth = 1.2; c.beginPath();
+  for (t2 = 0; t2 < 3; t2++) { var dq = P(0.255 + t2 * 0.032, 0.276); c.moveTo(dq.sx + 6 * dq.k, dq.sy - 6 * dq.k); c.arc(dq.sx, dq.sy - 6 * dq.k, 6 * dq.k, 0, 7); }
+  c.stroke(); drawCount++;
+
+  /* ---- three lighting columns along the perimeter road ---- */
+  w16_lamp(c, P(-0.36, 0.226), 40); w16_lamp(c, P(0.23, 0.226), 40); w16_lamp(c, P(0.66, 0.226), 40);
+
+  /* ---- the fire station (unmoved): appliance bay, two pumps, siren mast ---- */
   var fb = w16_box(c, P, -0.955, -0.78, 0.298, 0.334, 32, '#8D99A6', '#C24E42', '#8F3129');
   c.fillStyle = '#F2C230';
   c.fillRect(lerp(fb.a.sx, fb.b.sx, 0.10), fb.up(fb.a) + (fb.a.sy - fb.up(fb.a)) * 0.28, (fb.b.sx - fb.a.sx) * 0.32, (fb.a.sy - fb.up(fb.a)) * 0.72);
   c.fillRect(lerp(fb.a.sx, fb.b.sx, 0.56), fb.up(fb.a) + (fb.a.sy - fb.up(fb.a)) * 0.28, (fb.b.sx - fb.a.sx) * 0.32, (fb.a.sy - fb.up(fb.a)) * 0.72); drawCount++;
-  c.fillStyle = 'rgba(58,67,77,.40)'; c.beginPath(); w16_quad(c, P, -0.98, -0.74, 0.272, 0.298); c.fill(); drawCount++;
-  w16_vehicle(c, P(-0.92, 0.288), 48, '#E0523A', '#8F3129', false);
-  w16_vehicle(c, P(-0.82, 0.282), 46, '#E0523A', '#8F3129', false);
-  /* a mast with a siren beside the bay */
-  var sm = P(-0.76, 0.312);
+  c.fillStyle = 'rgba(58,67,77,.40)'; c.beginPath(); w16_quad(c, P, -0.98, -0.78, 0.272, 0.298); c.fill(); drawCount++;
+  w16_vehicle(c, P(-0.93, 0.288), 48, '#E0523A', '#8F3129', false);
+  w16_vehicle(c, P(-0.84, 0.282), 46, '#E0523A', '#8F3129', false);
+  var sm = P(-0.77, 0.312);
   c.strokeStyle = '#8A949E'; c.lineWidth = Math.max(0.8, 1.2 * sm.k); c.beginPath(); c.moveTo(sm.sx, sm.sy); c.lineTo(sm.sx, sm.sy - 42 * sm.k); c.stroke(); drawCount++;
   c.fillStyle = '#E0523A'; c.beginPath(); c.ellipse(sm.sx, sm.sy - 44 * sm.k, 4 * sm.k, 3 * sm.k, 0, 0, 7); c.fill(); drawCount++;
 }
 
-/* ══════════ the container yard, front left ══════════ */
-function w16_yard(c, P) {
-  var cols = ['#C25A3A', '#3F7FA8', '#8AC46A', '#D9A441', '#5F6B78', '#B3564E'];
-  var boxes = [];
-  for (var row = 0; row < 3; row++) for (var i = 0; i < 5; i++) {
-    if (w16_r(row * 17 + i + 2) < 0.16) continue;
-    boxes.push({ x: -0.66 + i * 0.088, z: 0.130 + row * 0.026, st: w16_r(row * 7 + i) > 0.58 ? 2 : 1, col: Math.floor(w16_r(row * 11 + i + 5) * 6) });
-  }
-  c.fillStyle = 'rgba(58,67,77,.35)'; c.beginPath(); w16_quad(c, P, -0.72, -0.26, 0.118, 0.198); c.fill(); drawCount++;
-  boxes.sort(function (a, b) { return b.z - a.z; });
-  for (i = 0; i < boxes.length; i++) {
-    var b = boxes[i], p = P(b.x, b.z), w = 40 * p.k, h = 16 * p.k * b.st, d = 11 * p.k;
-    c.fillStyle = 'rgba(0,0,0,.18)'; c.fillRect(p.sx - w / 2 + 3, p.sy - 2, w, 4); drawCount++;
-    c.fillStyle = cols[b.col]; c.fillRect(p.sx - w / 2, p.sy - h, w, h); drawCount++;
-    c.fillStyle = 'rgba(255,255,255,.22)'; c.fillRect(p.sx - w / 2, p.sy - h, w, h * 0.16); drawCount++;
-    c.fillStyle = 'rgba(255,255,255,.30)'; c.beginPath();
-    c.moveTo(p.sx - w / 2, p.sy - h); c.lineTo(p.sx - w / 2 + d, p.sy - h - d * 0.55); c.lineTo(p.sx + w / 2 + d, p.sy - h - d * 0.55); c.lineTo(p.sx + w / 2, p.sy - h); c.fill(); drawCount++;
-    c.strokeStyle = 'rgba(0,0,0,.22)'; c.lineWidth = 0.7; c.beginPath();
-    for (var q = 1; q < 6; q++) { var xx = p.sx - w / 2 + w * q / 6; c.moveTo(xx, p.sy - h); c.lineTo(xx, p.sy); } c.stroke(); drawCount++;
-  }
-  /* a straddle crane over the stack */
-  var ka = P(-0.72, 0.126), kb = P(-0.24, 0.126), kh = 46;
-  c.strokeStyle = '#F2C230'; c.lineWidth = Math.max(1, 1.8 * ka.k); c.beginPath();
-  c.moveTo(ka.sx, ka.sy); c.lineTo(ka.sx, ka.sy - kh * ka.k); c.lineTo(kb.sx, kb.sy - kh * kb.k); c.lineTo(kb.sx, kb.sy);
+/* ══════════════════════════════════════════════════════════════════════════════
+   T72 · THE WAREHOUSE  —  x −0.80 … −0.31,  z 0.222 … 0.336
+   A clad distribution shed with a mono-pitch roof, roof lights, plant on top and
+   a signed fascia; three numbered dock bays with shutters, levellers, bumpers and
+   dock lights; racking behind the open front; a fenced yard with two gates.
+   The dock anchors drawLife drives to (W22_DOCK, W22_DOCKZ, W22_RACKZ) are
+   unchanged, so the lorries and forklifts still land where they always did.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+var W25_WH = { x0: -0.755, x1: -0.375, zf: 0.292, zb: 0.334, h: 56, yz0: 0.228, yz1: 0.292 };
+
+/* a run of vertical rib lines over a wall quad — the cladding read */
+function w25_ribs(c, P, x0, x1, z, y0h, y1h, n, col) {
+  c.strokeStyle = col; c.lineWidth = 0.7; c.beginPath();
+  for (var i = 1; i < n; i++) { var p = P(lerp(x0, x1, i / n), z);
+    c.moveTo(p.sx, p.sy - y0h * p.k); c.lineTo(p.sx, p.sy - y1h * p.k); }
   c.stroke(); drawCount++;
-  c.fillStyle = '#F2C230'; c.fillRect(lerp(ka.sx, kb.sx, 0.42), ka.sy - kh * ka.k - 5, 16, 6); drawCount++;
 }
 
-/* ══════════ the grandstand — bottom centre, where the crawlerway used to run ══════════ */
-const W22_STAND_DX = -0.16;   /* T66 · how far the whole grandstand sits left of centre */
+function w16_warehouse(c, P) {
+  var W = W25_WH, i, x, p, q;
+  var YX0 = -0.79, YX1 = -0.335;
+
+  /* ---- yard slab, joints, and the painted dock aprons ---- */
+  c.fillStyle = 'rgba(104,108,112,.66)'; c.beginPath(); w16_quad(c, P, YX0, YX1, W.yz0, W.zf); c.fill(); drawCount++;
+  c.strokeStyle = 'rgba(240,244,248,.13)'; c.lineWidth = 0.7; c.beginPath();
+  for (i = 1; i < 9; i++) { x = lerp(YX0, YX1, i / 9); var a = P(x, W.yz0), b = P(x, W.zf); c.moveTo(a.sx, a.sy); c.lineTo(b.sx, b.sy); }
+  var j0 = P(YX0, 0.260), j1 = P(YX1, 0.260); c.moveTo(j0.sx, j0.sy); c.lineTo(j1.sx, j1.sy);
+  c.stroke(); drawCount++;
+  /* yellow guide lines into each bay + a hatched keep-clear strip along the dock */
+  c.fillStyle = 'rgba(242,194,48,.60)'; c.beginPath();
+  for (i = 0; i < 3; i++) { var bx = W22_DOCK[i];
+    w16_quad(c, P, bx - 0.047, bx - 0.042, 0.234, 0.286); w16_quad(c, P, bx + 0.042, bx + 0.047, 0.234, 0.286); }
+  c.fill(); drawCount++;
+  c.strokeStyle = 'rgba(242,194,48,.40)'; c.lineWidth = 0.9; c.beginPath();
+  for (i = 0; i < 16; i++) { var hx = lerp(YX0 + 0.01, YX1 - 0.01, i / 15);
+    var ha = P(hx, 0.230), hb = P(hx + 0.018, 0.242); c.moveTo(ha.sx, ha.sy); c.lineTo(hb.sx, hb.sy); }
+  c.stroke(); drawCount++;
+
+  /* ---- the shed, back to front ---- */
+  var bA = P(W.x0, W.zb), bB = P(W.x1, W.zb), fA = P(W.x0, W.zf), fB = P(W.x1, W.zf);
+  var H = W.h, HB = W.h + 11;                                     /* mono-pitch: taller at the back */
+  c.fillStyle = 'rgba(0,0,0,.18)'; c.beginPath();                  /* footprint shadow */
+  c.moveTo(fA.sx - 3, fA.sy + 2); c.lineTo(fB.sx + 3, fB.sy + 2); c.lineTo(bB.sx + 2, bB.sy + 1); c.lineTo(bA.sx - 2, bA.sy + 1); c.fill(); drawCount++;
+  c.fillStyle = '#7C8895'; c.beginPath();                          /* back wall, inside face */
+  c.moveTo(bA.sx, bA.sy); c.lineTo(bB.sx, bB.sy); c.lineTo(bB.sx, bB.sy - HB * bB.k); c.lineTo(bA.sx, bA.sy - HB * bA.k); c.fill(); drawCount++;
+  w25_ribs(c, P, W.x0, W.x1, W.zb, 0, HB, 22, 'rgba(48,58,70,.35)');
+  c.fillStyle = 'rgba(255,255,255,.10)'; c.beginPath();             /* a clerestory strip high on it */
+  c.moveTo(bA.sx, bA.sy - HB * bA.k * 0.86); c.lineTo(bB.sx, bB.sy - HB * bB.k * 0.86);
+  c.lineTo(bB.sx, bB.sy - HB * bB.k * 0.97); c.lineTo(bA.sx, bA.sy - HB * bA.k * 0.97); c.fill(); drawCount++;
+  c.fillStyle = '#6E7A87'; c.beginPath();                           /* the east flank, turned to centre */
+  c.moveTo(fB.sx, fB.sy); c.lineTo(bB.sx, bB.sy); c.lineTo(bB.sx, bB.sy - HB * bB.k); c.lineTo(fB.sx, fB.sy - H * fB.k); c.fill(); drawCount++;
+  c.fillStyle = 'rgba(38,46,56,.22)'; c.beginPath();                /* and its shaded strip */
+  c.moveTo(fB.sx, fB.sy); c.lineTo(fB.sx, fB.sy - H * fB.k);
+  c.lineTo(lerp(fB.sx, bB.sx, 0.3), lerp(fB.sy - H * fB.k, bB.sy - HB * bB.k, 0.3));
+  c.lineTo(lerp(fB.sx, bB.sx, 0.3), lerp(fB.sy, bB.sy, 0.3)); c.fill(); drawCount++;
+
+  /* ---- racking under the roof: uprights, beams, wrapped pallets ---- */
+  var rackCols = ['#C25A3A', '#3F7FA8', '#8AC46A', '#D9A441', '#B3564E', '#5F6B78'];
+  var rows = [0.324, 0.312, W22_RACKZ];                            /* deepest first */
+  for (var r = 0; r < 3; r++) {
+    var rz = rows[r], rh = 34 - r * 2;
+    c.strokeStyle = '#E0523A'; c.lineWidth = Math.max(0.8, 1.2 * P(W.x0, rz).k); c.beginPath();
+    for (i = 0; i <= 8; i++) { var rp = P(lerp(W.x0 + 0.02, W.x1 - 0.02, i / 8), rz);
+      c.moveTo(rp.sx, rp.sy); c.lineTo(rp.sx, rp.sy - rh * rp.k); }
+    for (var lv = 1; lv <= 3; lv++) { var la = P(W.x0 + 0.02, rz), lb = P(W.x1 - 0.02, rz);
+      c.moveTo(la.sx, la.sy - rh * la.k * lv / 3); c.lineTo(lb.sx, lb.sy - rh * lb.k * lv / 3); }
+    c.stroke(); drawCount++;
+    for (var s = 0; s < 8; s++) {
+      if (w16_r(r * 23 + s + 5) < 0.20) continue;
+      p = P(lerp(W.x0 + 0.045, W.x1 - 0.045, s / 7), rz);
+      var pw2 = 13 * p.k, ph = 7 * p.k, lvl = w16_r(r * 9 + s) > 0.5 ? 2 : (w16_r(r * 9 + s) > 0.2 ? 3 : 1);
+      c.fillStyle = rackCols[Math.floor(w16_r(r * 11 + s + 3) * 6)];
+      for (var l = 0; l < lvl; l++) c.fillRect(p.sx - pw2 / 2, p.sy - (rh * (l + 1) / 3) - ph * 0.1, pw2, ph);
+      drawCount++;
+      c.fillStyle = 'rgba(236,244,250,.34)';                        /* shrink-wrap sheen */
+      for (l = 0; l < lvl; l++) c.fillRect(p.sx - pw2 / 2, p.sy - (rh * (l + 1) / 3) - ph * 0.1, pw2 * 0.34, ph);
+      drawCount++;
+    }
+  }
+
+  /* ---- the dock face: a low platform, shutters, bumpers, levellers ---- */
+  c.fillStyle = '#9AA6B2'; c.beginPath();                           /* the loading platform edge */
+  c.moveTo(fA.sx, fA.sy); c.lineTo(fB.sx, fB.sy);
+  c.lineTo(fB.sx, fB.sy - 9 * fB.k); c.lineTo(fA.sx, fA.sy - 9 * fA.k); c.fill(); drawCount++;
+  c.fillStyle = '#3A434D'; c.beginPath();                           /* the openings, dark inside */
+  for (i = 0; i < 3; i++) { var dx = W22_DOCK[i], da = P(dx - 0.038, W.zf), db = P(dx + 0.038, W.zf);
+    c.moveTo(da.sx, da.sy - 9 * da.k); c.lineTo(db.sx, db.sy - 9 * db.k);
+    c.lineTo(db.sx, db.sy - 40 * db.k); c.lineTo(da.sx, da.sy - 40 * da.k); }
+  c.fill(); drawCount++;
+  c.fillStyle = '#C9D3DC'; c.beginPath();                           /* shutter, half down on bay 2 */
+  { var dx2 = W22_DOCK[1], sa2 = P(dx2 - 0.038, W.zf), sb2 = P(dx2 + 0.038, W.zf);
+    c.moveTo(sa2.sx, sa2.sy - 22 * sa2.k); c.lineTo(sb2.sx, sb2.sy - 22 * sb2.k);
+    c.lineTo(sb2.sx, sb2.sy - 40 * sb2.k); c.lineTo(sa2.sx, sa2.sy - 40 * sa2.k); c.fill(); drawCount++;
+    c.strokeStyle = 'rgba(110,124,138,.7)'; c.lineWidth = 0.7; c.beginPath();
+    for (i = 1; i < 6; i++) { var sy2 = 22 + i * 3; c.moveTo(sa2.sx, sa2.sy - sy2 * sa2.k); c.lineTo(sb2.sx, sb2.sy - sy2 * sb2.k); }
+    c.stroke(); drawCount++; }
+  c.fillStyle = '#2B2F38'; c.beginPath();                           /* rubber bumpers */
+  for (i = 0; i < 3; i++) { var bx2 = W22_DOCK[i];
+    var u1 = P(bx2 - 0.041, W.zf), u2 = P(bx2 + 0.041, W.zf);
+    c.rect(u1.sx - 2 * u1.k, u1.sy - 9 * u1.k, 4 * u1.k, 7 * u1.k);
+    c.rect(u2.sx - 2 * u2.k, u2.sy - 9 * u2.k, 4 * u2.k, 7 * u2.k); }
+  c.fill(); drawCount++;
+  c.fillStyle = '#B7C2CC'; c.beginPath();                           /* dock levellers, folded out */
+  for (i = 0; i < 3; i++) { var lx = W22_DOCK[i], l1 = P(lx - 0.030, W.zf - 0.004), l2 = P(lx + 0.030, W.zf - 0.004);
+    c.rect(l1.sx, l1.sy - 6 * l1.k, l2.sx - l1.sx, 3 * l1.k); }
+  c.fill(); drawCount++;
+  /* dock lights on bendy arms, and a red/green traffic light per bay */
+  for (i = 0; i < 3; i++) {
+    q = P(W22_DOCK[i] + 0.044, W.zf);
+    c.strokeStyle = '#5F6B78'; c.lineWidth = Math.max(0.7, 1.1 * q.k); c.beginPath();
+    c.moveTo(q.sx, q.sy - 24 * q.k); c.quadraticCurveTo(q.sx + 9 * q.k, q.sy - 34 * q.k, q.sx + 14 * q.k, q.sy - 26 * q.k);
+    c.stroke(); drawCount++;
+    c.fillStyle = '#FFE9A8'; c.beginPath(); c.arc(q.sx + 14 * q.k, q.sy - 26 * q.k, 2.2 * q.k, 0, 7); c.fill(); drawCount++;
+    c.fillStyle = '#20262E'; c.fillRect(q.sx - 1.6 * q.k, q.sy - 21 * q.k, 3.2 * q.k, 7 * q.k); drawCount++;
+    c.fillStyle = i === 1 ? '#E0523A' : '#67C24A'; c.beginPath();
+    c.arc(q.sx, q.sy - (i === 1 ? 19 : 16) * q.k, 1.1 * q.k, 0, 7); c.fill(); drawCount++;
+  }
+  /* bay numbers stencilled on the apron */
+  c.fillStyle = 'rgba(255,255,255,.50)'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  for (i = 0; i < 3; i++) { var np = P(W22_DOCK[i], 0.244);
+    c.font = '800 ' + Math.max(6, 14 * np.k).toFixed(1) + 'px ui-monospace, monospace';
+    c.save(); c.translate(np.sx, np.sy); c.scale(1, 0.55); c.fillText(String(i + 1), 0, 0); c.restore(); }
+  drawCount++;
+
+  /* ---- the roof: portal columns, fascia, sheeting, roof lights, plant ---- */
+  c.strokeStyle = '#AAB5C0'; c.lineWidth = Math.max(1, 1.9 * fA.k); c.beginPath();
+  for (i = 0; i <= 5; i++) { var cx2 = lerp(W.x0, W.x1, i / 5), f2 = P(cx2, W.zf);
+    c.moveTo(f2.sx, f2.sy); c.lineTo(f2.sx, f2.sy - H * f2.k); }
+  c.stroke(); drawCount++;
+  c.fillStyle = '#9CA9B6'; c.beginPath();                           /* the sheeted roof */
+  c.moveTo(fA.sx, fA.sy - H * fA.k); c.lineTo(fB.sx, fB.sy - H * fB.k);
+  c.lineTo(bB.sx, bB.sy - HB * bB.k); c.lineTo(bA.sx, bA.sy - HB * bA.k); c.fill(); drawCount++;
+  c.strokeStyle = 'rgba(84,96,110,.34)'; c.lineWidth = 0.7; c.beginPath();
+  for (i = 1; i < 14; i++) { var mx = lerp(W.x0, W.x1, i / 14), ma = P(mx, W.zf), mb = P(mx, W.zb);
+    c.moveTo(ma.sx, ma.sy - H * ma.k); c.lineTo(mb.sx, mb.sy - HB * mb.k); }
+  c.stroke(); drawCount++;
+  c.fillStyle = 'rgba(236,246,252,.42)'; c.beginPath();             /* three roof-light strips */
+  for (i = 0; i < 3; i++) { var g0 = lerp(W.x0 + 0.03, W.x1 - 0.03, i / 3), g1 = g0 + 0.075;
+    var r0 = P(g0, 0.302), r1 = P(g1, 0.302), r2 = P(g1, 0.326), r3 = P(g0, 0.326);
+    c.moveTo(r0.sx, r0.sy - (H + 3) * r0.k); c.lineTo(r1.sx, r1.sy - (H + 3) * r1.k);
+    c.lineTo(r2.sx, r2.sy - (HB - 2) * r2.k); c.lineTo(r3.sx, r3.sy - (HB - 2) * r3.k); c.closePath(); }
+  c.fill(); drawCount++;
+  for (i = 0; i < 3; i++) {                                          /* rooftop air handlers */
+    p = P(lerp(W.x0 + 0.06, W.x1 - 0.06, i / 2), 0.318);
+    var uh = HB - 4, uw = 11 * p.k;
+    c.fillStyle = '#8E9BA8'; c.fillRect(p.sx - uw / 2, p.sy - uh * p.k - 7 * p.k, uw, 7 * p.k); drawCount++;
+    c.fillStyle = '#C3CDD6'; c.beginPath(); c.ellipse(p.sx, p.sy - uh * p.k - 7 * p.k, uw * 0.5, uw * 0.16, 0, 0, 7); c.fill(); drawCount++;
+  }
+  /* fascia band across the front, with the name and a chevron mark */
+  c.fillStyle = '#2F4E8F'; c.beginPath();
+  c.moveTo(fA.sx, fA.sy - H * fA.k); c.lineTo(fB.sx, fB.sy - H * fB.k);
+  c.lineTo(fB.sx, fB.sy - (H - 11) * fB.k); c.lineTo(fA.sx, fA.sy - (H - 11) * fA.k); c.fill(); drawCount++;
+  c.fillStyle = 'rgba(255,255,255,.22)'; c.beginPath();
+  c.moveTo(fA.sx, fA.sy - H * fA.k); c.lineTo(fB.sx, fB.sy - H * fB.k);
+  c.lineTo(fB.sx, fB.sy - (H - 2.5) * fB.k); c.lineTo(fA.sx, fA.sy - (H - 2.5) * fA.k); c.fill(); drawCount++;
+  { var fm = P((W.x0 + W.x1) / 2, W.zf), fw = fB.sx - fA.sx;
+    c.fillStyle = '#F2C230'; c.beginPath();                          /* chevron logo */
+    var lx2 = fA.sx + fw * 0.055, ly = fA.sy - (H - 5.5) * fA.k, ls = 5.5 * fm.k;
+    c.moveTo(lx2, ly + ls); c.lineTo(lx2 + ls, ly - ls); c.lineTo(lx2 + ls * 1.9, ly - ls);
+    c.lineTo(lx2 + ls * 0.9, ly + ls); c.fill(); drawCount++;
+    c.fillStyle = '#F3F4F6'; c.textAlign = 'left'; c.textBaseline = 'middle';
+    var fs = Math.max(4.5, 7.8 * fm.k);
+    c.font = '800 ' + fs.toFixed(1) + 'px ui-monospace, monospace';
+    c.save(); c.translate(fA.sx + fw * 0.20, fA.sy - (H - 5.5) * fA.k);
+    c.scale(Math.min(1, (fw * 0.74) / Math.max(1, c.measureText('SITE LOGISTICS').width)), 0.92);
+    c.fillText('SITE LOGISTICS', 0, 0); c.restore(); drawCount++; }
+  /* gutter and two downpipes */
+  c.strokeStyle = 'rgba(200,210,220,.8)'; c.lineWidth = Math.max(0.7, 1.1 * fA.k); c.beginPath();
+  for (i = 0; i < 2; i++) { var dp = P(lerp(W.x0 + 0.02, W.x1 - 0.02, i), W.zf);
+    c.moveTo(dp.sx, dp.sy - (H - 11) * dp.k); c.lineTo(dp.sx, dp.sy); }
+  c.stroke(); drawCount++;
+
+  /* ---- yard furniture: pallet stack, gas cage, skip, cones ---- */
+  { var ps = P(-0.335, 0.276);                                       /* pallets, stacked */
+    c.fillStyle = '#B98A4E'; c.beginPath();
+    for (i = 0; i < 5; i++) c.rect(ps.sx - 9 * ps.k, ps.sy - (i + 1) * 3.2 * ps.k, 18 * ps.k, 2.4 * ps.k);
+    c.fill(); drawCount++; }
+  { var gc = P(-0.375, 0.242);                                       /* gas-bottle cage */
+    c.strokeStyle = '#8AC46A'; c.lineWidth = 0.9; c.beginPath();
+    c.rect(gc.sx - 7 * gc.k, gc.sy - 12 * gc.k, 14 * gc.k, 12 * gc.k);
+    c.moveTo(gc.sx, gc.sy - 12 * gc.k); c.lineTo(gc.sx, gc.sy); c.stroke(); drawCount++; }
+  for (i = 0; i < 2; i++) { var sk = P(-0.355 + i * 0.02, 0.240 + i * 0.012), sw = 15 * sk.k;
+    c.fillStyle = '#D9A441'; c.beginPath();
+    c.moveTo(sk.sx - sw, sk.sy); c.lineTo(sk.sx + sw, sk.sy); c.lineTo(sk.sx + sw * 0.8, sk.sy - 9 * sk.k); c.lineTo(sk.sx - sw * 0.8, sk.sy - 9 * sk.k); c.fill(); drawCount++; }
+  c.fillStyle = '#E0523A'; c.beginPath();                            /* traffic cones on the apron */
+  for (i = 0; i < 5; i++) { var cn = P(-0.78 + i * 0.026, 0.232);
+    c.moveTo(cn.sx - 2.2 * cn.k, cn.sy); c.lineTo(cn.sx + 2.2 * cn.k, cn.sy); c.lineTo(cn.sx, cn.sy - 6 * cn.k); }
+  c.fill(); drawCount++;
+
+  /* ---- the fence: two runs, leaving the two road gates open ---- */
+  w16_fenceRun(c, P, [[-0.775, 0.300], [-0.775, 0.222]], 22, true);   /* west leg, up to the shed */
+  w16_fenceRun(c, P, [[-0.315, 0.300], [-0.315, 0.222]], 22, true);   /* east leg               */
+  w16_fenceRun(c, P, [[-0.60, 0.222], [-0.44, 0.222]], 22, true);     /* front, between the gates */
+  /* gatehouse and barrier on the east gate, where the road spur enters */
+  w16_box(c, P, -0.295, -0.250, 0.204, 0.220, 17, '#C3CDD6', '#E7ECF1', '#9AA6B2');
+  { var gb = P(-0.305, 0.212);
+    c.strokeStyle = '#E0523A'; c.lineWidth = Math.max(1, 2 * gb.k); c.beginPath();
+    c.moveTo(gb.sx, gb.sy - 9 * gb.k); c.lineTo(gb.sx - 26 * gb.k, gb.sy - 12 * gb.k); c.stroke(); drawCount++; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   T74 · THE CONTAINER YARD  —  x −1.05 … −0.50,  z 0.076 … 0.158
+   Moved hard into the bottom-left corner (it used to sit at −0.72…−0.24, z
+   0.118–0.198, half of it under the perimeter road). Corrugated boxes with door
+   ends, corner castings and stencilled marks, and a reach stacker holding one in
+   the air so the pile reads as a working container yard and not as blue-green
+   things.  The west end deliberately runs off the frame.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+var W25_CONT = ['#C25A3A', '#3F7FA8', '#2F8F6E', '#D9A441', '#B3564E', '#5B6E82'];
+
+/* one shipping container, standing on the plane at p, `st` high. `door` shows the
+   door end toward the camera. Boxes are 38 units long, 16 tall, 11 deep. */
+function w25_box(c, p, st, col, door, id) {
+  var k = p.k, w = 36 * k, h = 15 * k, d = 10 * k, top = p.sy - h * st;
+  c.fillStyle = 'rgba(0,0,0,.22)'; c.beginPath();
+  c.moveTo(p.sx - w / 2, p.sy); c.lineTo(p.sx + w / 2, p.sy);
+  c.lineTo(p.sx + w / 2 + d, p.sy - d * 0.5); c.lineTo(p.sx - w / 2 + d, p.sy - d * 0.5); c.fill(); drawCount++;
+  /* body */
+  c.fillStyle = col; c.fillRect(p.sx - w / 2, top, w, h * st); drawCount++;
+  /* corrugation: a shaded rib and a lit rib per pitch — the give-away texture */
+  c.strokeStyle = 'rgba(0,0,0,.34)'; c.lineWidth = Math.max(0.6, 1.1 * k); c.beginPath();
+  for (var i = 0; i < 12; i++) { var xx = p.sx - w / 2 + w * (i + 0.30) / 12; c.moveTo(xx, top + h * 0.13); c.lineTo(xx, p.sy - h * 0.10); }
+  c.stroke(); drawCount++;
+  c.strokeStyle = 'rgba(255,255,255,.30)'; c.lineWidth = Math.max(0.5, 0.9 * k); c.beginPath();
+  for (i = 0; i < 12; i++) { var x2 = p.sx - w / 2 + w * (i + 0.72) / 12; c.moveTo(x2, top + h * 0.13); c.lineTo(x2, p.sy - h * 0.10); }
+  c.stroke(); drawCount++;
+  /* top and bottom rails, and the seam between stacked boxes */
+  c.fillStyle = 'rgba(255,255,255,.28)'; c.fillRect(p.sx - w / 2, top, w, h * 0.12); drawCount++;
+  c.fillStyle = 'rgba(0,0,0,.30)';
+  c.fillRect(p.sx - w / 2, p.sy - h * 0.10, w, h * 0.10);
+  for (i = 1; i < st; i++) c.fillRect(p.sx - w / 2, p.sy - h * i - h * 0.05, w, h * 0.11);
+  drawCount++;
+  /* the roof plane */
+  c.fillStyle = 'rgba(255,255,255,.32)'; c.beginPath();
+  c.moveTo(p.sx - w / 2, top); c.lineTo(p.sx - w / 2 + d, top - d * 0.5);
+  c.lineTo(p.sx + w / 2 + d, top - d * 0.5); c.lineTo(p.sx + w / 2, top); c.fill(); drawCount++;
+  c.strokeStyle = 'rgba(0,0,0,.18)'; c.lineWidth = 0.6; c.beginPath();
+  for (i = 1; i < 7; i++) { var t = i / 7;
+    c.moveTo(p.sx - w / 2 + w * t, top); c.lineTo(p.sx - w / 2 + w * t + d, top - d * 0.5); }
+  c.stroke(); drawCount++;
+  /* corner castings — the give-away detail */
+  c.fillStyle = '#22262D'; c.beginPath();
+  c.rect(p.sx - w / 2, top, 3.2 * k, 2.8 * k); c.rect(p.sx + w / 2 - 3.2 * k, top, 3.2 * k, 2.8 * k);
+  c.rect(p.sx - w / 2, p.sy - 2.8 * k, 3.2 * k, 2.8 * k); c.rect(p.sx + w / 2 - 3.2 * k, p.sy - 2.8 * k, 3.2 * k, 2.8 * k);
+  c.rect(p.sx - w / 2 + d - 1.2 * k, top - d * 0.5, 2.8 * k, 2.3 * k);
+  c.rect(p.sx + w / 2 + d - 2.4 * k, top - d * 0.5, 2.8 * k, 2.3 * k);
+  c.fill(); drawCount++;
+  if (door) {                                                     /* door end: two leaves, four lock bars */
+    c.fillStyle = 'rgba(0,0,0,.14)'; c.fillRect(p.sx - w * 0.44, top + h * 0.10, w * 0.88, h * 0.80); drawCount++;
+    c.strokeStyle = 'rgba(20,24,30,.62)'; c.lineWidth = Math.max(0.6, 1.1 * k); c.beginPath();
+    c.moveTo(p.sx, top + h * 0.10); c.lineTo(p.sx, p.sy - h * 0.12);
+    for (i = 0; i < 4; i++) { var bx = p.sx - w * 0.33 + w * 0.22 * i;
+      c.moveTo(bx, top + h * 0.16); c.lineTo(bx, p.sy - h * 0.16); }
+    c.stroke(); drawCount++;
+    c.fillStyle = 'rgba(240,244,248,.65)';
+    c.fillRect(p.sx + w * 0.18, top + h * 0.62, w * 0.20, h * 0.16); drawCount++;   /* the placard */
+  }
+  /* the owner code, stencilled small in the top-left corner where it belongs */
+  c.fillStyle = 'rgba(246,249,251,.80)'; c.textAlign = 'left'; c.textBaseline = 'middle';
+  c.font = '700 ' + Math.max(2.6, 3.9 * k).toFixed(1) + 'px ui-monospace, monospace';
+  c.save(); c.translate(p.sx - w * 0.42, top + h * 0.30); c.scale(0.92, 0.82);
+  c.fillText(id, 0, 0); c.restore(); drawCount++;
+}
+
+function w16_yard(c, P) {
+  var i, r, p;
+  var X0 = -1.05, X1 = -0.45, Z0 = 0.076, Z1 = 0.158;
+
+  /* ---- hardstand, painted lanes, row letters ---- */
+  c.fillStyle = 'rgba(48,54,60,.60)'; c.beginPath(); w16_quad(c, P, X0, X1, Z0, Z1); c.fill(); drawCount++;
+  c.strokeStyle = 'rgba(242,194,48,.34)'; c.lineWidth = 0.9; c.beginPath();
+  for (i = 0; i < 5; i++) { var lx = lerp(X0 + 0.03, X1 - 0.03, i / 4), a = P(lx, 0.080), b = P(lx, 0.154);
+    c.moveTo(a.sx, a.sy); c.lineTo(b.sx, b.sy); }
+  var m0 = P(X0, 0.102), m1 = P(X1, 0.102); c.moveTo(m0.sx, m0.sy); c.lineTo(m1.sx, m1.sy);
+  var n0 = P(X0, 0.133), n1 = P(X1, 0.133); c.moveTo(n0.sx, n0.sy); c.lineTo(n1.sx, n1.sy);
+  c.stroke(); drawCount++;
+  c.fillStyle = 'rgba(242,194,48,.55)'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  for (i = 0; i < 3; i++) { var sp = P(-0.86 + i * 0.155, 0.079);
+    c.font = '800 ' + Math.max(5, 11 * sp.k).toFixed(1) + 'px ui-monospace, monospace';
+    c.save(); c.translate(sp.sx, sp.sy); c.scale(1, 0.5); c.fillText('ABC'[i], 0, 0); c.restore(); }
+  drawCount++;
+
+  /* ---- the stacks. Deepest row first. The gap in row B, column 3 is the slot
+         the reach stacker is lowering a box into. ---- */
+  var cols = [-0.90, -0.745, -0.59], rows = [0.148, 0.116, 0.086];
+  var plan = [[2, 1, 2], [3, 2, 0], [2, 1, 0]];               /* 0 = empty slot */
+  var ids = ['MNU 4471', 'SFM 2210', 'LNR 8806', 'ORB 3195', 'MNU 6023', 'TYC 7714',
+             'SFM 1188', 'LNR 4402', 'ORB 9137'];
+  for (r = 0; r < 3; r++) for (i = 0; i < 3; i++) {
+    var st = plan[r][i]; if (!st) continue;
+    var n = r * 3 + i;
+    p = P(cols[i] + (w16_r(n * 5) - 0.5) * 0.010, rows[r]);
+    w25_box(c, p, st, W25_CONT[Math.floor(w16_r(n * 11 + 5) * 6)], w16_r(n * 13 + 4) > 0.42, ids[n]);
+  }
+
+  /* ---- the reach stacker, lowering a box into the empty slot beside it ---- */
+  (function () {
+    var m = P(-0.545, 0.090), k = m.k;
+    var hp = P(-0.590, 0.116), hy = hp.sy - 26 * hp.k, sy0 = hy - 15 * hp.k;   /* box base, box top */
+    c.fillStyle = 'rgba(0,0,0,.26)'; c.beginPath(); c.ellipse(m.sx, m.sy + 1, 32 * k, 5 * k, 0, 0, 7); c.fill(); drawCount++;
+    c.fillStyle = '#20242B'; c.beginPath();                          /* wheels */
+    c.arc(m.sx - 20 * k, m.sy - 7 * k, 7.2 * k, 0, 7); c.arc(m.sx - 6 * k, m.sy - 7 * k, 7.2 * k, 0, 7);
+    c.arc(m.sx + 20 * k, m.sy - 5.2 * k, 5.4 * k, 0, 7); c.fill(); drawCount++;
+    c.fillStyle = '#4C555F'; c.beginPath();
+    c.arc(m.sx - 20 * k, m.sy - 7 * k, 2.9 * k, 0, 7); c.arc(m.sx - 6 * k, m.sy - 7 * k, 2.9 * k, 0, 7); c.fill(); drawCount++;
+    c.fillStyle = '#E08A22'; c.fillRect(m.sx - 28 * k, m.sy - 17 * k, 54 * k, 10 * k); drawCount++;
+    c.fillStyle = 'rgba(255,255,255,.22)'; c.fillRect(m.sx - 28 * k, m.sy - 17 * k, 54 * k, 2.2 * k); drawCount++;
+    c.fillStyle = '#3A434D'; c.fillRect(m.sx + 17 * k, m.sy - 20 * k, 11 * k, 13 * k); drawCount++;   /* counterweight */
+    c.fillStyle = '#F2A83A'; c.fillRect(m.sx + 3 * k, m.sy - 32 * k, 14 * k, 15 * k); drawCount++;     /* cab */
+    c.fillStyle = '#2A3A4A'; c.fillRect(m.sx + 5 * k, m.sy - 30 * k, 10 * k, 7.5 * k); drawCount++;
+    c.fillStyle = '#F2C230'; c.beginPath(); c.arc(m.sx + 10 * k, m.sy - 34 * k, 1.7 * k, 0, 7); c.fill(); drawCount++;
+    /* boom: a fat main section and a thinner telescopic one, out to the spreader */
+    var b0x = m.sx + 12 * k, b0y = m.sy - 19 * k, tipx = hp.sx + 4 * hp.k, tipy = sy0 - 6 * hp.k;
+    c.lineCap = 'butt';
+    c.strokeStyle = '#E08A22'; c.lineWidth = Math.max(2.2, 7.5 * k); c.beginPath();
+    c.moveTo(b0x, b0y); c.lineTo(lerp(b0x, tipx, 0.58), lerp(b0y, tipy, 0.58)); c.stroke(); drawCount++;
+    c.strokeStyle = '#C4741A'; c.lineWidth = Math.max(1.4, 4.6 * k); c.beginPath();
+    c.moveTo(lerp(b0x, tipx, 0.48), lerp(b0y, tipy, 0.48)); c.lineTo(tipx, tipy); c.stroke(); drawCount++;
+    c.strokeStyle = '#6F7B87'; c.lineWidth = Math.max(0.9, 1.9 * k); c.beginPath();   /* lift ram */
+    c.moveTo(m.sx - 3 * k, m.sy - 17 * k); c.lineTo(lerp(b0x, tipx, 0.36), lerp(b0y, tipy, 0.36)); c.stroke(); drawCount++;
+    /* spreader beam, twist-locks, and the container swinging from it */
+    c.fillStyle = '#5F6B78'; c.fillRect(hp.sx - 19 * hp.k, sy0 - 7 * hp.k, 38 * hp.k, 4 * hp.k); drawCount++;
+    c.strokeStyle = '#5F6B78'; c.lineWidth = Math.max(0.9, 1.6 * hp.k); c.beginPath();
+    c.moveTo(hp.sx - 16 * hp.k, sy0 - 3 * hp.k); c.lineTo(hp.sx - 16 * hp.k, sy0);
+    c.moveTo(hp.sx + 16 * hp.k, sy0 - 3 * hp.k); c.lineTo(hp.sx + 16 * hp.k, sy0); c.stroke(); drawCount++;
+    w25_box(c, { sx: hp.sx, sy: hy, k: hp.k }, 1, '#D9A441', false, 'ORB 2049');
+  })();
+
+  /* ---- the back fence, between the yard and the perimeter road, and a sign ---- */
+  w16_fenceRun(c, P, [[-0.44, 0.158], [-1.05, 0.158]], 15, false);
+  { var sg = P(-0.470, 0.146), sw = 16 * sg.k;
+    c.strokeStyle = '#8A949E'; c.lineWidth = Math.max(0.7, 1.1 * sg.k); c.beginPath();
+    c.moveTo(sg.sx, sg.sy); c.lineTo(sg.sx, sg.sy - 14 * sg.k); c.stroke(); drawCount++;
+    c.fillStyle = '#2F4E8F'; c.fillRect(sg.sx - sw * 0.5, sg.sy - 23 * sg.k, sw, 9 * sg.k); drawCount++;
+    c.fillStyle = 'rgba(255,255,255,.80)';
+    c.fillRect(sg.sx - sw * 0.36, sg.sy - 20.8 * sg.k, sw * 0.72, 1.7 * sg.k);
+    c.fillRect(sg.sx - sw * 0.36, sg.sy - 17.6 * sg.k, sw * 0.5, 1.7 * sg.k); drawCount++; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   T75 · THE GRANDSTAND  —  drawn through Pstand, so world x is +W22_STAND_DX
+   Terrace  x −0.16 … +0.16 → world −0.21 … +0.11,  z 0.086 … 0.142
+   Lower and centred; the back row now stops 0.018 short of the perimeter road
+   (z 0.160) instead of running into it, and the right-hand end clears the LAUNCH
+   button (which owns x > ≈0.15 below z 0.145 in portrait).
+   ══════════════════════════════════════════════════════════════════════════════ */
 function w16_stand(c, P) {
-  var x0 = -0.20, x1 = 0.20, z0 = 0.104, z1 = 0.160, steps = 5;
+  var x0 = -0.155, x1 = 0.155, z0 = 0.084, z1 = 0.128, steps = 4;
   var shirts = ['#E0523A', '#FFC24D', '#4FD9E6', '#8AC46A', '#F3F4F6', '#B36BE0'];
   var seats = [], s, i;
   var base = P(0, z0);
-  c.fillStyle = 'rgba(0,0,0,.20)'; c.beginPath();
+  c.fillStyle = 'rgba(0,0,0,.22)'; c.beginPath();
   c.ellipse(base.sx, base.sy + 4, (P(x1, z0).sx - P(x0, z0).sx) * 0.56, 7 * base.k, 0, 0, 7); c.fill(); drawCount++;
+  /* the deck understructure, so it does not float */
+  { var ua = P(x0, z0), ub = P(x1, z0);
+    c.fillStyle = '#3E4650'; c.beginPath();
+    c.moveTo(ua.sx, ua.sy); c.lineTo(ub.sx, ub.sy); c.lineTo(ub.sx, ub.sy - 5 * ub.k); c.lineTo(ua.sx, ua.sy - 5 * ua.k); c.fill(); drawCount++; }
+  /* a solid back wall, so the terrace stops in a crisp line short of the road */
+  { var ba = P(x0, z1), bb = P(x1, z1), br = steps * 7.6;
+    c.fillStyle = '#48515C'; c.beginPath();
+    c.moveTo(ba.sx, ba.sy); c.lineTo(bb.sx, bb.sy);
+    c.lineTo(bb.sx, bb.sy - br * bb.k); c.lineTo(ba.sx, ba.sy - br * ba.k); c.fill(); drawCount++;
+    c.fillStyle = 'rgba(255,255,255,.14)'; c.beginPath();
+    c.moveTo(ba.sx, ba.sy - br * ba.k); c.lineTo(bb.sx, bb.sy - br * bb.k);
+    c.lineTo(bb.sx, bb.sy - (br - 3) * bb.k); c.lineTo(ba.sx, ba.sy - (br - 3) * ba.k); c.fill(); drawCount++; }
   for (s = 0; s < steps; s++) {
     var za = lerp(z0, z1, s / steps), zb = lerp(z0, z1, (s + 1) / steps);
-    var a = P(x0, za), b = P(x1, za), d = P(x1, zb), e = P(x0, zb), rise = (s + 1) * 10 * a.k;
+    var a = P(x0, za), b = P(x1, za), d = P(x1, zb), e = P(x0, zb), rise = (s + 1) * 7.6 * a.k;
     c.fillStyle = '#5A6470'; c.beginPath();
-    c.moveTo(a.sx, a.sy - (s ? s * 9 * a.k : 0)); c.lineTo(b.sx, b.sy - (s ? s * 9 * b.k : 0));
+    c.moveTo(a.sx, a.sy - (s ? s * 7.0 * a.k : 0)); c.lineTo(b.sx, b.sy - (s ? s * 7.0 * b.k : 0));
     c.lineTo(b.sx, b.sy - rise); c.lineTo(a.sx, a.sy - rise); c.fill(); drawCount++;
     c.fillStyle = w16_gradH(c, a.sx, b.sx, '#B99560', '#8C6B3E'); c.beginPath();
     c.moveTo(a.sx, a.sy - rise); c.lineTo(b.sx, b.sy - rise); c.lineTo(d.sx, d.sy - rise); c.lineTo(e.sx, e.sy - rise); c.fill(); drawCount++;
-    var n = 11;
+    var n = 12;
     for (i = 0; i < n; i++) { var t = (i + 0.5) / n, x = lerp(x0 + 0.02, x1 - 0.02, t), p = P(x, (za + zb) / 2);
       if (w16_r(s * 31 + i + 11) < 0.10) continue;
       seats.push({ x: p.sx, y: p.sy - rise - 1, k: p.k, col: Math.floor(w16_r(s * 20 + i) * 6), dark: w16_r(s * 20 + i + 7) > 0.5 }); }
   }
   shirts.forEach(function (col, kk) { c.fillStyle = col; c.beginPath();
     for (var j = 0; j < seats.length; j++) { var f = seats[j]; if (f.col !== kk) continue;
-      c.roundRect(f.x - 3.4 * f.k, f.y - 8.4 * f.k, 6.8 * f.k, 8.4 * f.k, 2.2 * f.k); }
+      c.roundRect(f.x - 2.9 * f.k, f.y - 8.0 * f.k, 5.8 * f.k, 8.0 * f.k, 1.9 * f.k); }
     c.fill(); drawCount++; });
   [false, true].forEach(function (dark) { c.fillStyle = dark ? '#8D5A3A' : '#F2C9A0'; c.beginPath();
-    for (var j = 0; j < seats.length; j++) { var f = seats[j]; if (f.dark !== dark) continue; w16_ell(c, f.x, f.y - 10.6 * f.k, 2.8 * f.k, 2.8 * f.k); }
+    for (var j = 0; j < seats.length; j++) { var f = seats[j]; if (f.dark !== dark) continue; w16_ell(c, f.x, f.y - 10.1 * f.k, 2.5 * f.k, 2.5 * f.k); }
     c.fill(); drawCount++; });
   /* stanchions, safety rail and the banner */
-  var a2 = P(x0, z0), b2 = P(x1, z0), mid = P(0, z0 - 0.006);
+  var a2 = P(x0, z0), b2 = P(x1, z0), mid = P(0, z0 - 0.005);
   c.strokeStyle = '#5A6470'; c.lineWidth = Math.max(1, 2.4 * a2.k); c.beginPath();
   for (i = 0; i <= 4; i++) { var sp = P(lerp(x0, x1, i / 4), z0); c.moveTo(sp.sx, sp.sy); c.lineTo(sp.sx, sp.sy - 26 * sp.k); }
   c.moveTo(a2.sx, a2.sy - 26 * a2.k); c.lineTo(b2.sx, b2.sy - 26 * b2.k);
   c.moveTo(a2.sx, a2.sy - 15 * a2.k); c.lineTo(b2.sx, b2.sy - 15 * b2.k);
   c.stroke(); drawCount++;
-  var bw = 104 * mid.k;
-  c.fillStyle = '#F3F4F6'; c.beginPath(); c.roundRect(mid.sx - bw / 2, mid.sy - 23 * mid.k, bw, 13 * mid.k, 3); c.fill(); drawCount++;
-  c.fillStyle = '#E0523A'; c.font = '800 ' + Math.max(8, 12 * mid.k).toFixed(1) + 'px ui-monospace, monospace';
+  var bw = 50 * mid.k;
+  c.fillStyle = '#F3F4F6'; c.beginPath(); c.roundRect(mid.sx - bw / 2, mid.sy - 14 * mid.k, bw, 8.5 * mid.k, 2.5); c.fill(); drawCount++;
+  c.fillStyle = '#E0523A'; c.font = '800 ' + Math.max(5.5, 7.4 * mid.k).toFixed(1) + 'px ui-monospace, monospace';
   c.textAlign = 'center'; c.textBaseline = 'middle';
-  c.fillText('GO!', mid.sx, mid.sy - 16.5 * mid.k); drawCount++;
+  c.fillText('GO!', mid.sx, mid.sy - 9.8 * mid.k); drawCount++;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   T75 · THE SPECTATOR ENTRANCE  —  drawn through Pstand as well.
+   It used to be a paved strip in FRONT of the terrace at z 0.078–0.106; with the
+   terrace itself at z 0.086 there is no room there any more, and gates in front
+   of a stand were the wrong way round anyway — the crowd arrives off the
+   perimeter road. It is now a gated plaza on the west side of the stand,
+   stand-x −0.44 … −0.18 (world −0.49 … −0.23), z 0.096 … 0.158, reached by a
+   path off the road. The road furniture it also owns (zebra crossings, the two
+   signboards) is drawn through the UNSHIFTED projector so it stays on the road.
+   ══════════════════════════════════════════════════════════════════════════════ */
+function w16_frontage(c, P) {
+  var i, a, b;
+  /* P here is the stand-shifted projector; recover the site one */
+  var Praw = function (x, z) { return P(x - W22_STAND_DX, z); };
+
+  /* ══ site-wide road furniture — UNSHIFTED ══ */
+  /* two zebra crossings on the perimeter road */
+  c.fillStyle = 'rgba(255,255,255,.60)'; c.beginPath();
+  for (i = 0; i < 6; i++) { var cx = -0.355 + i * 0.014; w16_quad(c, Praw, cx, cx + 0.008, 0.164, 0.216);
+    var dx = 0.545 + i * 0.014; w16_quad(c, Praw, dx, dx + 0.008, 0.164, 0.216); }
+  c.fill(); drawCount++;
+  /* two site signboards on the verge */
+  for (i = 0; i < 2; i++) { var sp = Praw(i ? 0.68 : -0.90, 0.150), sw = 20 * sp.k;
+    c.strokeStyle = '#8A949E'; c.lineWidth = Math.max(0.8, 1.2 * sp.k); c.beginPath();
+    c.moveTo(sp.sx - sw * 0.5, sp.sy); c.lineTo(sp.sx - sw * 0.5, sp.sy - 16 * sp.k);
+    c.moveTo(sp.sx + sw * 0.5, sp.sy); c.lineTo(sp.sx + sw * 0.5, sp.sy - 16 * sp.k); c.stroke(); drawCount++;
+    c.fillStyle = i ? '#2F4E8F' : '#3B6B33'; c.fillRect(sp.sx - sw * 0.7, sp.sy - 28 * sp.k, sw * 1.4, 13 * sp.k); drawCount++;
+    c.fillStyle = 'rgba(255,255,255,.75)'; c.fillRect(sp.sx - sw * 0.55, sp.sy - 25 * sp.k, sw * 1.1, 2.2 * sp.k);
+    c.fillRect(sp.sx - sw * 0.55, sp.sy - 21 * sp.k, sw * 0.8, 2.2 * sp.k); drawCount++; }
+
+  /* ---- the entrance plaza ---- */
+  c.fillStyle = 'rgba(152,158,164,.55)'; c.beginPath(); w16_quad(c, P, -0.375, -0.185, 0.096, 0.158); c.fill(); drawCount++;
+  c.strokeStyle = 'rgba(255,255,255,.16)'; c.lineWidth = 0.7; c.beginPath();
+  for (i = 1; i < 5; i++) { var px = lerp(-0.375, -0.185, i / 5); a = P(px, 0.098); b = P(px, 0.156); c.moveTo(a.sx, a.sy); c.lineTo(b.sx, b.sy); }
+  for (i = 1; i < 3; i++) { var pz = lerp(0.096, 0.158, i / 3); a = P(-0.375, pz); b = P(-0.185, pz); c.moveTo(a.sx, a.sy); c.lineTo(b.sx, b.sy); }
+  c.stroke(); drawCount++;
+
+  /* ---- the entrance arch across the head of the plaza ---- */
+  { var ga = P(-0.370, 0.150), gb = P(-0.190, 0.150), gh = 32;
+    c.strokeStyle = '#5A6470'; c.lineWidth = Math.max(1, 2.2 * ga.k); c.beginPath();
+    c.moveTo(ga.sx, ga.sy); c.lineTo(ga.sx, ga.sy - gh * ga.k);
+    c.moveTo(gb.sx, gb.sy); c.lineTo(gb.sx, gb.sy - gh * gb.k); c.stroke(); drawCount++;
+    c.fillStyle = '#2F4E8F'; c.beginPath();
+    c.moveTo(ga.sx, ga.sy - gh * ga.k); c.lineTo(gb.sx, gb.sy - gh * gb.k);
+    c.lineTo(gb.sx, gb.sy - (gh - 11) * gb.k); c.lineTo(ga.sx, ga.sy - (gh - 11) * ga.k); c.fill(); drawCount++;
+    c.fillStyle = '#F3F4F6'; c.textAlign = 'center'; c.textBaseline = 'middle';
+    var mm = P(-0.28, 0.150), fs = Math.max(4.5, 7.6 * mm.k);
+    c.font = '800 ' + fs.toFixed(1) + 'px ui-monospace, monospace';
+    c.save(); c.translate((ga.sx + gb.sx) / 2, ga.sy - (gh - 5.5) * ga.k);
+    c.scale(Math.min(1, (gb.sx - ga.sx) * 0.80 / Math.max(1, c.measureText('VISITORS').width)), 0.9);
+    c.fillText('VISITORS', 0, 0); c.restore(); drawCount++; }
+
+  /* ---- four turnstiles facing the road, and a queue rope ---- */
+  c.fillStyle = '#5A6470'; c.beginPath();
+  for (i = 0; i < 4; i++) { var tp = P(-0.345 + i * 0.048, 0.134); c.rect(tp.sx - 2.6 * tp.k, tp.sy - 14 * tp.k, 5.2 * tp.k, 14 * tp.k); }
+  c.fill(); drawCount++;
+  c.strokeStyle = 'rgba(200,210,220,.9)'; c.lineWidth = Math.max(0.6, 1.0 * P(-0.3, 0.134).k); c.beginPath();
+  for (i = 0; i < 4; i++) { var tq = P(-0.345 + i * 0.048, 0.134);      /* the arms */
+    c.moveTo(tq.sx - 7 * tq.k, tq.sy - 9 * tq.k); c.lineTo(tq.sx + 7 * tq.k, tq.sy - 9 * tq.k);
+    c.moveTo(tq.sx, tq.sy - 9 * tq.k); c.lineTo(tq.sx, tq.sy - 14 * tq.k); }
+  c.stroke(); drawCount++;
+  c.strokeStyle = 'rgba(224,82,58,.60)'; c.lineWidth = Math.max(0.8, 1.3 * P(-0.3, 0.11).k); c.beginPath();
+  for (i = 0; i < 3; i++) { a = P(-0.350 + i * 0.052, 0.112); b = P(-0.298 + i * 0.052, 0.112);
+    c.moveTo(a.sx, a.sy - 10 * a.k); c.quadraticCurveTo((a.sx + b.sx) / 2, a.sy - 6 * a.k, b.sx, b.sy - 10 * b.k); }
+  c.stroke(); drawCount++;
+  c.fillStyle = '#5A6470'; c.beginPath();                                /* rope posts */
+  for (i = 0; i < 4; i++) { var rp = P(-0.350 + i * 0.052, 0.112); c.rect(rp.sx - 1.3 * rp.k, rp.sy - 11 * rp.k, 2.6 * rp.k, 11 * rp.k); }
+  c.fill(); drawCount++;
+
+  /* ---- a ticket booth on the plaza, and two bins ---- */
+  w16_box(c, P, -0.245, -0.200, 0.118, 0.140, 22, '#C3CDD6', '#E7ECF1', '#9AA6B2');
+  { var tb = P(-0.2225, 0.118);
+    c.fillStyle = '#2A3A4A'; c.fillRect(tb.sx - 7 * tb.k, tb.sy - 17 * tb.k, 14 * tb.k, 7 * tb.k); drawCount++;
+    c.fillStyle = '#F2C230'; c.fillRect(tb.sx - 8 * tb.k, tb.sy - 19 * tb.k, 16 * tb.k, 2.4 * tb.k); drawCount++; }
+  c.fillStyle = '#3F7FA8'; c.beginPath();
+  for (i = 0; i < 2; i++) { var bn = P(-0.360 + i * 0.170, 0.104); c.rect(bn.sx - 3.6 * bn.k, bn.sy - 10 * bn.k, 7.2 * bn.k, 10 * bn.k); }
+  c.fill(); drawCount++;
+
+  /* ---- the footpath from the perimeter road down into the plaza ---- */
+  c.fillStyle = 'rgba(152,158,164,.45)'; c.beginPath(); w16_quad(c, P, -0.310, -0.250, 0.156, 0.166); c.fill(); drawCount++;
+
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   The static layer. Same order as W22's; only the front band changed, and the
+   hedge bands moved out of the way of the relocated container yard and stand.
+   ══════════════════════════════════════════════════════════════════════════════ */
+function w16_static(c, DW, DH, gy) {
+  var P = function (x, z) { return gproj(DW, DH, gy, x, z); };
+  var gg = c.createLinearGradient(0, gy, 0, DH);
+  gg.addColorStop(0, '#6E9C60'); gg.addColorStop(0.28, '#5B8A52'); gg.addColorStop(0.62, ART.ground); gg.addColorStop(1, '#375632');
+  c.fillStyle = gg; c.fillRect(0, gy, DW, DH - gy); drawCount++;
+
+  w16_farm(c, P, DW, DH, gy);          /* horizon, fields, farmhouse, pond — the right */
+  w16_industry(c, P);                  /* the plant behind the rocket — the left */
+
+  /* mown stripes over the open lawn (paving later covers what it should) */
+  c.fillStyle = 'rgba(255,255,255,.040)'; c.beginPath();
+  for (var i = -13; i <= 12; i += 2) w16_quad(c, P, i * 0.115, i * 0.115 + 0.115, 0.078, 0.466);
+  c.fill(); drawCount++;
+
+  /* T65 · the VAB is NOT drawn here — it is sized off the player's rocket and this
+     layer is cached on size/ground line/theme only. drawSite calls w23_vabStatic. */
+  w16_admin(c, P);
+  w16_masts(c, P);
+  w16_roads(c, P, 'back');
+  w16_pad(c, P, DW, gy);               /* UNCHANGED — the apron owns x ±0.38, z 0.305–0.475 */
+  w16_helipad(c, P);
+  w16_concourse(c, P);
+  w16_warehouse(c, P);
+  w16_carpark(c, P);
+  w16_antennas(c, P);
+  w16_roads(c, P, 'front');
+  w16_bunker(c, P);
+  w16_yard(c, P);
+  w16_plaza(c, P);
+  /* T75 · the terrace and its entrance plaza go through one shifted projector so
+     the whole thing stays clear of the LAUNCH button in the bottom-right corner.
+     drawLife's three spectators at the rail read the same constant. */
+  var Pstand = function (x, z) { return P(x + W22_STAND_DX, z); };
+  w16_frontage(c, Pstand);
+  w16_stand(c, Pstand);
+
+  /* hedge band along the very front, east of the grandstand only — the west half
+     of the front band is the container yard now. */
+  c.fillStyle = '#274520'; c.beginPath();
+  for (i = 0; i <= 11; i++) { var hx = 0.14 + i * 0.085;
+    var hp = P(hx, 0.080); w16_ell(c, hp.sx, hp.sy + 4, 26 * hp.k, 11 * hp.k); }
+  c.fill(); drawCount++;
+  c.fillStyle = '#33591F'; c.beginPath();
+  for (i = 0; i <= 11; i++) { var hx2 = 0.175 + i * 0.085;
+    var hq = P(hx2, 0.084); w16_ell(c, hq.sx, hq.sy, 19 * hq.k, 8 * hq.k); }
+  c.fill(); drawCount++;
+}
+
+/* ══════════ dish farm ══════════ */
+
+/* ══════════ the container yard, front left ══════════ */
+
+/* ══════════ the grandstand — bottom centre, where the crawlerway used to run ══════════ */
 
 /* ══════════ the visitor plaza, right of the grandstand ══════════ */
 function w16_plaza(c, P) {
@@ -5714,31 +6287,6 @@ function w16_plaza(c, P) {
 }
 
 /* ══════════ the spectator frontage in front of the grandstand ══════════ */
-function w16_frontage(c, P) {
-  var i;
-  c.fillStyle = 'rgba(150,156,162,.50)'; c.beginPath(); w16_quad(c, P, -0.30, 0.30, 0.078, 0.106); c.fill(); drawCount++;
-  /* turnstiles and a rope line */
-  c.fillStyle = '#5A6470'; c.beginPath();
-  for (i = 0; i < 5; i++) { var tp = P(-0.20 + i * 0.10, 0.098); c.rect(tp.sx - 2.4 * tp.k, tp.sy - 13 * tp.k, 4.8 * tp.k, 13 * tp.k); }
-  c.fill(); drawCount++;
-  c.strokeStyle = 'rgba(224,82,58,.55)'; c.lineWidth = Math.max(0.8, 1.3 * P(0, 0.09).k); c.beginPath();
-  for (i = 0; i < 4; i++) { var a = P(-0.20 + i * 0.10, 0.094), b = P(-0.10 + i * 0.10, 0.094);
-    c.moveTo(a.sx, a.sy - 10 * a.k); c.quadraticCurveTo((a.sx + b.sx) / 2, a.sy - 6 * a.k, b.sx, b.sy - 10 * b.k); }
-  c.stroke(); drawCount++;
-  /* two zebra crossings on the perimeter road */
-  c.fillStyle = 'rgba(255,255,255,.60)'; c.beginPath();
-  for (i = 0; i < 6; i++) { var cx = -0.05 + i * 0.014; w16_quad(c, P, cx, cx + 0.008, 0.164, 0.216);
-    var dx = 0.545 + i * 0.014; w16_quad(c, P, dx, dx + 0.008, 0.164, 0.216); }
-  c.fill(); drawCount++;
-  /* two site signboards on the verge */
-  for (i = 0; i < 2; i++) { var sp = P(i ? 0.68 : -0.86, 0.150), sw = 20 * sp.k;
-    c.strokeStyle = '#8A949E'; c.lineWidth = Math.max(0.8, 1.2 * sp.k); c.beginPath();
-    c.moveTo(sp.sx - sw * 0.5, sp.sy); c.lineTo(sp.sx - sw * 0.5, sp.sy - 16 * sp.k);
-    c.moveTo(sp.sx + sw * 0.5, sp.sy); c.lineTo(sp.sx + sw * 0.5, sp.sy - 16 * sp.k); c.stroke(); drawCount++;
-    c.fillStyle = i ? '#2F4E8F' : '#3B6B33'; c.fillRect(sp.sx - sw * 0.7, sp.sy - 28 * sp.k, sw * 1.4, 13 * sp.k); drawCount++;
-    c.fillStyle = 'rgba(255,255,255,.75)'; c.fillRect(sp.sx - sw * 0.55, sp.sy - 25 * sp.k, sw * 1.1, 2.2 * sp.k);
-    c.fillRect(sp.sx - sw * 0.55, sp.sy - 21 * sp.k, sw * 0.8, 2.2 * sp.k); drawCount++; }
-}
 
 /* ══════════ roads. `part` 'back' runs before the pad, 'front' after the warehouse ══════════ */
 function w16_roads(c, P, part) {
@@ -5771,55 +6319,6 @@ function w16_roads(c, P, part) {
 }
 
 /* ══════════ everything static, back to front ══════════ */
-function w16_static(c, DW, DH, gy) {
-  var P = function (x, z) { return gproj(DW, DH, gy, x, z); };
-  var gg = c.createLinearGradient(0, gy, 0, DH);
-  gg.addColorStop(0, '#6E9C60'); gg.addColorStop(0.28, '#5B8A52'); gg.addColorStop(0.62, ART.ground); gg.addColorStop(1, '#375632');
-  c.fillStyle = gg; c.fillRect(0, gy, DW, DH - gy); drawCount++;
-
-  w16_farm(c, P, DW, DH, gy);          /* horizon, fields, farmhouse, pond — the right */
-  w16_industry(c, P);                  /* the plant behind the rocket — the left */
-
-  /* mown stripes over the open lawn (paving later covers what it should) */
-  c.fillStyle = 'rgba(255,255,255,.040)'; c.beginPath();
-  for (var i = -13; i <= 12; i += 2) w16_quad(c, P, i * 0.115, i * 0.115 + 0.115, 0.078, 0.466);
-  c.fill(); drawCount++;
-
-  /* T65 · the VAB is NOT drawn here any more. It is sized off the player's rocket (the lifted
-     nose has to clear the lintel), and this layer is cached on size/ground line/theme only —
-     baking it in would freeze the bay at whatever tier first painted it. drawSite calls
-     w23_vabStatic live instead, at about 40 draws. */
-  w16_admin(c, P);
-  w16_masts(c, P);
-  w16_roads(c, P, 'back');
-  w16_pad(c, P, DW, gy);               /* UNCHANGED — the apron owns x ±0.38, z 0.305–0.475 */
-  w16_helipad(c, P);
-  w16_concourse(c, P);
-  w16_warehouse(c, P);
-  w16_carpark(c, P);
-  w16_antennas(c, P);
-  w16_roads(c, P, 'front');
-  w16_bunker(c, P);
-  w16_yard(c, P);
-  /* T66 · the grandstand is bottom-centre as asked, but the square LAUNCH button owns the
-     bottom-right corner of the scene and was sitting on its right-hand end. Everything at the
-     stand — the terrace, the turnstile frontage and the spectators at the rail — is drawn through
-     one shifted projector, so the whole thing slides left together and stays clear of the button. */
-  w16_plaza(c, P);
-  const Pstand = (x, z) => P(x + W22_STAND_DX, z);
-  w16_frontage(c, Pstand);
-  w16_stand(c, Pstand);
-
-  /* hedge bands framing the very front, left and right of the grandstand */
-  c.fillStyle = '#274520'; c.beginPath();
-  for (i = -9; i <= 9; i++) { var hx = i * 0.088; if (Math.abs(hx) < 0.26) continue;
-    var hp = P(hx, 0.080); w16_ell(c, hp.sx, hp.sy + 4, 26 * hp.k, 11 * hp.k); }
-  c.fill(); drawCount++;
-  c.fillStyle = '#33591F'; c.beginPath();
-  for (i = -9; i <= 9; i++) { var hx2 = i * 0.088 + 0.035; if (Math.abs(hx2) < 0.26) continue;
-    var hq = P(hx2, 0.084); w16_ell(c, hq.sx, hq.sy, 19 * hq.k, 8 * hq.k); }
-  c.fill(); drawCount++;
-}
 
 /* ══════════════════════════════════════════════════════════════════════════════
    Shared anchors. The static layer and the live layer must agree on these, and
@@ -6124,7 +6623,8 @@ function drawLife(c, DW, DH, gy, now, seed, phase) {
 
   /* ── z .10–.15 · THE GRANDSTAND · three at the rail, one waving ──── */
   (function () {
-    var rail = [[-0.130, 0.096], [0.018, 0.094], [0.148, 0.096]].map(function (q) { return [q[0] + W22_STAND_DX, q[1]]; });
+    /* T75 · the terrace dropped to z 0.084–0.128 and narrowed, so the rail moved with it. */
+    var rail = [[-0.140, 0.090], [-0.108, 0.090], [0.132, 0.090]].map(function (q) { return [q[0] + W22_STAND_DX, q[1]]; });
     for (i = 0; i < 3; i++) {
       g = P(rail[i][0], rail[i][1]);
       var arm = flight ? 'up' : (i === 1 ? 'wave' : 'watch');
