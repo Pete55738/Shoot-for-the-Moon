@@ -1000,6 +1000,12 @@ const BELLY_ANG = 1.57;   // flat to the airstream, belly down
    three quarters of a circuit. A low-orbit flight has nowhere to go, so it takes a full lap and a
    half round to the lower left (ORBIT_LEO_TO) and brakes there. */
 const ORBIT_FROM = Math.PI / 4;
+/* T80 · A Moon mission is not doing laps — it is leaving. It used to run the same π/4 start as the
+   low-orbit flight all the way round to the transfer corner: 4.82 rad in 0.9–1.2 s, which is up to
+   310°/s of tangent, and the ship read as spinning rather than flying. It now emerges at the left
+   limb and sweeps one graceful arc round the BOTTOM of the Earth to the corner the burn is aimed
+   from — 2.46 rad, and the phase is long enough that it turns at about 64°/s. */
+const ORBIT_TLI_FROM = Math.PI;
 const ORBIT_TLI_TO = Math.PI * 2 - 0.68;
 const ORBIT_LEO_TO = ORBIT_FROM + Math.PI * 3;
 /* How much of the orbit phase is the lap; the rest is the ship stopping, turning end-for-end and
@@ -1011,10 +1017,10 @@ function maxQHeat(km) { return km <= 2 || km >= 30 ? 0 : Math.pow(Math.sin(Math.
 const FLIGHT_PLAN = {
   0: [['ascent', 3.0], ['coast', 2.2], ['descent', 4.2]],   /* T53 · the flip and the catch live in here */
   1: [['ascent', 2.2], ['pitch', 1.8], ['orbit', 5.0], ['reentry', 1.4], ['descent', 2.6]],   /* T59 · a full lap and a half, then the braking burn */
-  2: [['ascent', 2.0], ['pitch', 1.6], ['orbit', 1.2], ['transfer', 4.4], ['back', 1.8], ['reentry', 1.1], ['descent', 2.2]],
-  3: [['ascent', 1.8], ['pitch', 1.5], ['orbit', 1.0], ['transfer', 4.0], ['moonorbit', 3.4], ['back', 2.2], ['reentry', 1.1], ['descent', 2.0]],
-  4: [['ascent', 1.8], ['pitch', 1.5], ['orbit', 0.9], ['transfer', 3.6], ['moonorbit', 2.0], ['land', 3.6], ['back', 1.8], ['reentry', 1.0], ['descent', 1.9]],
-  5: [['ascent', 1.7], ['pitch', 1.4], ['orbit', 0.9], ['transfer', 4.0], ['moonorbit', 1.7], ['cargo', 5.4], ['back', 2.5], ['reentry', 1.1], ['descent', 1.9]],
+  2: [['ascent', 2.0], ['pitch', 1.6], ['orbit', 2.2], ['transfer', 4.4], ['back', 1.8], ['reentry', 1.1], ['descent', 2.2]],
+  3: [['ascent', 1.8], ['pitch', 1.5], ['orbit', 2.0], ['transfer', 4.0], ['moonorbit', 3.4], ['back', 2.2], ['reentry', 1.1], ['descent', 2.0]],
+  4: [['ascent', 1.8], ['pitch', 1.5], ['orbit', 1.9], ['transfer', 3.6], ['moonorbit', 2.0], ['land', 3.6], ['back', 1.8], ['reentry', 1.0], ['descent', 1.9]],
+  5: [['ascent', 1.7], ['pitch', 1.4], ['orbit', 1.9], ['transfer', 4.0], ['moonorbit', 1.7], ['cargo', 5.4], ['back', 2.5], ['reentry', 1.1], ['descent', 1.9]],
 };
 const FADE_S = 0.45;                // cross-fade between camera views; reads as a zoom-out
 /* T17 · once the base passes RAILGUN_POP it fires one cargo shipment home per turnaround.
@@ -1355,6 +1361,8 @@ const view = { km: 0, v: 0, fuel: 1, t: 0, burning: false, para: 0, apogeeKm: 0,
   scene: 'pad', p: 0, ang: 0, flaps: 0, retro: 0, drift: 0, zoom: 0, cargo: 0, fadeFrom: null, fadeK: 0, mission: 0 };
 let anim = null;
 const easeOut = x => 1 - Math.pow(1 - x, 3);
+/* T80 · symmetric ease — a sweep that leaves and arrives at the same unhurried rate. */
+const easeInOut = x => x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
 function runFlight(f, onApogee, onLanded, mission) {
   phase = 'flight'; view.mission = mission || 0; paintLaunch(); hideChecklist(); paintWindows();
   rail.fired = false; rail.charge = 0; rail.fire = -1; rail.arc = -1;   // one shipment per Moon visit
@@ -1446,9 +1454,13 @@ function runFlight(f, onApogee, onLanded, mission) {
          is not stopping — it runs its shorter staging lap to the transfer corner and keeps its nose
          where it is, so `retro` stays 0 for it. */
       const to = view.mission >= 2 ? ORBIT_TLI_TO : ORBIT_LEO_TO;
+      const from = view.mission >= 2 ? ORBIT_TLI_FROM : ORBIT_FROM;
       if (ph.name === 'orbit') {
         const lap = view.mission >= 2 ? 1 : ORBIT_COAST;
-        view.ang = lerp(ORBIT_FROM, to, easeOut(clamp(p / lap, 0, 1)));
+        /* A Moon mission eases only out of the corner it leaves on, so the arc round the bottom is
+           an even sweep rather than a lunge; the low-orbit lap keeps its easeOut. */
+        const e = view.mission >= 2 ? easeInOut(clamp(p / lap, 0, 1)) : easeOut(clamp(p / lap, 0, 1));
+        view.ang = lerp(from, to, e);
         view.retro = view.mission >= 2 ? 0 : clamp((p - ORBIT_COAST) / (1 - ORBIT_COAST), 0, 1);
       }
       /* Coming home is the same ring onward: a Moon mission intercepts at the top of the Earth,

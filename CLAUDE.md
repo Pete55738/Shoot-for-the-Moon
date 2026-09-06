@@ -55,8 +55,10 @@ and `skills/orchestrate.md` for how workers are split, heartbeat and report.
   not along it, so `orbitRing` projects a tall ellipse whose **top half is the far side** and runs
   behind the globe. `a` increases counter-clockwise (0 right, π/2 top). The lap starts at
   `ORBIT_FROM` (π/4, top right — behind the globe, so the ship leaves behind the Earth and comes
-  round to the front). A Moon mission runs three quarters of a lap to `ORBIT_TLI_TO` (lower right),
-  the corner the transfer burn is aimed from. A low-orbit flight has nowhere to go: it takes a full
+  round to the front). **T80:** a Moon mission is leaving, not doing laps — it runs from
+  `ORBIT_TLI_FROM` (π, the left limb) round the **bottom** of the Earth to `ORBIT_TLI_TO` (lower
+  right), the corner the transfer burn is aimed from: 141°, symmetric ease, never a full lap. It
+  used to share the low-orbit start and sweep 277° in about a second, which read as spinning. A low-orbit flight has nowhere to go: it takes a full
   lap and a half to `ORBIT_LEO_TO` (lower left), then over the last `1 − ORBIT_COAST` of the phase it
   holds station while `view.retro` turns it end-for-end and lights the engine retrograde. The Moon
   gets two full laps. Coming home, `reentry` is the same ring onward — in at the top, round
