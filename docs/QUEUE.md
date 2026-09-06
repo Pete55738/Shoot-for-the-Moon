@@ -78,6 +78,9 @@ below with its run number.
 
 - [x] T56 · found while building T53: the W1 rocket block was in the file twice and the later copy won, so drawRocket's `opts` (heat, cargo bay, flaps) had never run · **built:** the duplicate worker fragment deleted, one definition left · quick · built #27
 
+- [x] T57 · "remove the foggy clouds layer right as the rocket is landing — I want to see the rocket landing clearly" · said 09-06 · **built:** on the way down the clouds thin from 13 km and are gone by 10, so the flip, the burn and the catch play against clear sky; the climb keeps them · quick · built #28
+- [x] T58 · "rocket and equipment should have small dots indicating how many items can be upgraded, like AI Racer" · said 09-06 · **built:** one green dot per unlocked, affordable upgrade on each shop tab, recounted every repaint · quick · built #28
+
 ## Shipped
 
 <!-- ~~T0 · … · built #N~~ · run 1 · YYYY-MM-DD -->

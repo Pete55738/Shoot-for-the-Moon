@@ -591,6 +591,12 @@ body {
   .vwbtn .badge { display: inline-block; margin-left: .3rem; min-width: .9rem; height: .9rem; line-height: .9rem; border-radius: 999px;
                   background: var(--h-accent); color: var(--h-on-accent); font-size: var(--text-3xs); font-weight: 700; padding: 0 .2rem; }
   .vwbtn .badge[hidden] { display: none; }
+  /* T58 · one dot per thing you could buy right now, on the tab that holds it. The count is the
+     point, not the number: a glance at the two tabs says where the money can go. */
+  .vwbtn .dots { display: inline-flex; gap: .16rem; margin-left: .34rem; vertical-align: middle; }
+  .vwbtn .dots i { width: .3rem; height: .3rem; border-radius: 999px; background: var(--h-positive); }
+  @media (prefers-reduced-motion: no-preference) { .vwbtn .dots i { animation: dotpulse 2.4s ease-in-out infinite; } }
+  @keyframes dotpulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
   .hint { font-family: var(--wa-font-family-heading); font-size: var(--text-3xs); letter-spacing: .06em; text-transform: uppercase;
           color: var(--h-warning); line-height: 1.4; padding: 0 .2rem; }
   .hint.ok { color: var(--h-positive); }
@@ -763,8 +769,8 @@ body {
       <aside class="shop" id="shop">
         <div class="money" title="What your flights have earned and not yet spent"><span class="k">Funds</span><span class="v" id="money">$0</span></div>
         <div class="shoptabs" role="tablist" aria-label="Shop">
-          <button class="vwbtn act" data-shop="rocket" title="Engine, tank, aero, hull, payload — ten tiers each">Rocket</button>
-          <button class="vwbtn" data-shop="equipment" title="Two pieces per mission; both are needed to fly it">Equipment</button>
+          <button class="vwbtn act" data-shop="rocket" title="Engine, tank, aero, hull, payload — ten tiers each">Rocket<span class="dots" id="sd-rocket"></span></button>
+          <button class="vwbtn" data-shop="equipment" title="Two pieces per mission; both are needed to fly it">Equipment<span class="dots" id="sd-equipment"></span></button>
         </div>
         <div class="hint" id="shop-hint"></div>
         <div id="ups"></div>
@@ -1743,8 +1749,10 @@ function drawPadScene(c, now) {
   } else if (far > 0.3 && !moonScene) {
     drawEarth(c, DW, DH, far);
   }
-  // clouds and the things you pass on the way up (W3)
-  drawClouds(c, DW, DH, km, now);
+  /* Clouds and the things you pass on the way up (W3). T57 · on the way *down* they thin out and
+     are gone by 10 km, so the flip, the burn and the catch happen against clear sky — the recovery
+     is the one part of the flight worth watching and a fog bank sat right on top of it. */
+  drawClouds(c, DW, DH, km, now, phase === 'descent' ? clamp((km - 10) / 3, 0, 1) : 1);
   if ((phase === 'flight' || phase === 'descent') && !moonScene) drawSkyExtras(c, DW, DH, km, now, S.launches);
   if (!moonScene && phase !== 'ready' && phase !== 'turnaround') drawSunAndEarthshine(c, DW, DH, km, far, now);
   if (phase === 'descent' && view.heat > 0) drawReentry(c, DW, DH, km, view.v, now);
@@ -2282,11 +2290,11 @@ function w3_cloud(c, x, y, s, alpha) {
   c.fillStyle = 'rgba(70,100,140,.16)'; c.beginPath(); c.ellipse(x, y + s * 0.42, s * 1.55, s * 0.28, 0, 0, w3_TAU); c.fill(); drawCount++;
   c.restore();
 }
-function drawClouds(c, DW, DH, km, now) {
+function drawClouds(c, DW, DH, km, now, clear) {
   if (km <= 0.3 || km >= 14) return;
   // same fade envelope as the old scene: peak around 5 km, gone by 14 km
-  const A = clamp(1 - Math.abs(Math.log10(km + 1) - 0.8) / 0.6, 0, 0.92);
-  if (A <= 0) return;
+  const A = clamp(1 - Math.abs(Math.log10(km + 1) - 0.8) / 0.6, 0, 0.92) * (clear == null ? 1 : clear);
+  if (A <= 0.01) return;
   const layers = [[0.45, 22, 0.55, 4], [0.75, 34, 0.8, 4], [1.15, 50, 1.0, 3]]; // [parallax, size, alpha, count]
   for (let L = 0; L < layers.length; L++) {
     const [par, sz, la, n] = layers[L];
@@ -6647,9 +6655,25 @@ function shopHint() {
 
   return { text: 'Upgrade the rocket — more Δv', ok: false };
 }
+/* T58 · how many things on each tab the player could buy this second: unlocked, not maxed, and
+   affordable. Being mid-flight does not count against it — the money is still there when it lands. */
+function buyableNow() {
+  let rocket = 0, equipment = 0;
+  for (const k of TRACKS) { const tier = S.tiers[k];
+    if (tier < TIERS && !lockReason(k, S.tiers, S.mission) && S.money >= costOf(k, tier + 1)) rocket++; }
+  for (const id of Object.keys(EQUIPMENT))
+    if (!equipLock(id, S.equipment, S.mission) && S.money >= equipCost(id)) equipment++;
+  return { rocket, equipment };
+}
 function paintShop() {
   if (!plan) replan();
   document.querySelectorAll('[data-shop]').forEach(b => b.classList.toggle('act', b.dataset.shop === shopTab));
+  const buyable = buyableNow();
+  for (const key of ['rocket', 'equipment']) {
+    const el = $('sd-' + key); el.textContent = '';
+    for (let i = 0; i < buyable[key]; i++) el.appendChild(document.createElement('i'));
+    el.title = buyable[key] === 1 ? '1 upgrade you can afford' : buyable[key] + ' upgrades you can afford';
+  }
   const h = shopHint(); $('shop-hint').textContent = h.text; $('shop-hint').classList.toggle('ok', h.ok);
   const box = $('ups'); box.textContent = '';
   const inFlight = phase === 'flight' || phase === 'descent';
