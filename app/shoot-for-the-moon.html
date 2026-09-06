@@ -955,11 +955,11 @@ const MILESTONES = [
    tier 4 + kick clears TLI; tier 6 + capture clears lunar orbit; tier 8 clears landing. Later tiers turn excess Δv into cargo. */
 const MISSIONS = [
   null,
-  { id: 1, name: 'Earth low orbit',          short: 'LEO',   dvReq: 9300,  equip: ['stage2', 'guidance'],     flight: 'Launch a satellite',        bonus: 500,    orbitKm: 200,     reward: 200 },
-  { id: 2, name: 'Lunar-injection orbit',    short: 'TLI',   dvReq: 12500, equip: ['kick', 'comms'],          flight: 'Launch the injection probe', bonus: 3000,   orbitKm: 400,     reward: 1000 },
-  { id: 3, name: 'Lunar orbit',              short: 'LLO',   dvReq: 13400, equip: ['capture', 'startracker'], flight: 'Launch the lunar orbiter',   bonus: 15000,  orbitKm: MOON_KM, reward: 7000 }   /* T45 · 4500 → 7000: tonnes at LLO-era tiers are smaller than the old payload multiplier, which left a mid-game drought — the priciest strategy sat 33 launches dry. At 7000 its worst streak is 18. */,
-  { id: 4, name: 'Lunar base established',   short: 'LAND',  dvReq: 15300, equip: ['legs', 'radar'],          flight: 'Land the first module',      bonus: 80000,  orbitKm: MOON_KM, reward: 12000 },
-  { id: 5, name: 'Moon base built',          short: 'BASE',  dvReq: 15300, equip: ['cargobay', 'lifesupport'], flight: 'Deliver cargo',             bonus: 250000, orbitKm: MOON_KM, reward: 30000, population: 10000 },
+  { id: 1, name: 'Earth low orbit',          short: 'LEO',   full: 'low earth orbit',   dvReq: 9300,  equip: ['stage2', 'guidance'],     flight: 'Launch a satellite',        bonus: 500,    orbitKm: 200,     reward: 200 },
+  { id: 2, name: 'Lunar-injection orbit',    short: 'TLI',   full: 'lunar injection',   dvReq: 12500, equip: ['kick', 'comms'],          flight: 'Launch the injection probe', bonus: 3000,   orbitKm: 400,     reward: 1000 },
+  { id: 3, name: 'Lunar orbit',              short: 'LLO',   full: 'low lunar orbit',   dvReq: 13400, equip: ['capture', 'startracker'], flight: 'Launch the lunar orbiter',   bonus: 15000,  orbitKm: MOON_KM, reward: 7000 }   /* T45 · 4500 → 7000: tonnes at LLO-era tiers are smaller than the old payload multiplier, which left a mid-game drought — the priciest strategy sat 33 launches dry. At 7000 its worst streak is 18. */,
+  { id: 4, name: 'Lunar base established',   short: 'LAND',  full: 'lunar base',  dvReq: 15300, equip: ['legs', 'radar'],          flight: 'Land the first module',      bonus: 80000,  orbitKm: MOON_KM, reward: 12000 },
+  { id: 5, name: 'Moon base built',          short: 'BASE',  full: 'moon base',  dvReq: 15300, equip: ['cargobay', 'lifesupport'], flight: 'Deliver cargo',             bonus: 250000, orbitKm: MOON_KM, reward: 30000, population: 10000 },
 ];
 const EQUIPMENT = {
   stage2:      { name: 'Second stage',        mission: 1, what: 'A lighter upper stage lit after staging. Most of the way to orbit is here.' },
@@ -987,7 +987,7 @@ const BALLISTIC_TOP = 1.45;
 /* T53 · the recovery, in altitudes. Above RECOV_KM the ship is still falling like a stone; below
    it the flaps are out and it belly-flops down, flips to vertical at FLIP_KM and lights the engine
    at BURN_KM for the last few seconds into the chopsticks. There is no parachute anywhere in it. */
-const RECOV_KM = 14, FLIP_KM = 9, FLIP_END_KM = 4, BURN_KM = 7;
+const RECOV_KM = 14, FLIP_KM = 9, FLIP_END_KM = 4, BURN_KM = 7, CATCH_KM = 3;
 const BELLY_ANG = 1.57;   // flat to the airstream, belly down
 /* Just under a full lap: the ship leaves the atmosphere at the right-hand limb (angle 0, the Moon
    side), goes the long way round the back, and ends at the lower right ready to burn for the Moon. */
@@ -1303,7 +1303,11 @@ function launch() {
   if (record) S.bestKm = f.apogeeKm;
   if (f.maxV > S.bestV) S.bestV = f.maxV;
   let module = null, cargo = 0, override = null;
-  if (milestone) { r += MISSIONS[flightMission].bonus; S.mission = flightMission;
+  /* T62 · the bonus is banked at apogee with the rest of the money, but S.mission — which is what
+     the to-do box and the ladder read — is not credited until the ship is home. Advancing it at
+     the press swapped the checklist to the next mission while the milestone flight was still
+     climbing, so you never got to see the one you had just earned tick over. */
+  if (milestone) { r += MISSIONS[flightMission].bonus;
     override = { big: 'MILESTONE ' + flightMission + ' · ' + MISSIONS[flightMission].name.toUpperCase(),
                  sub: MISSIONS[flightMission].flight + ' ✓' + (flightMission < 5 ? ' · tiers to T' + capOf(flightMission) + ' unlocked' : ' · now grow the base') };
     if (flightMission === 4) { module = BASE_MODULES[0]; S.modules = 1; } }
@@ -1324,7 +1328,10 @@ function launch() {
     S.money += r; S.earned += r; save();
     replan(); paintMoney(); paintShop(); paintBadge(); paintLog();
     showFlash(f, r, record, hit, module, override, payloadT);
-  }, () => startTurnaround(), flightMission);
+  }, () => { if (milestone && S.mission < flightMission) {   /* T62 · credited on touchdown */
+               S.mission = flightMission; replan(); save();
+               paintWindows(); paintShop(); paintBadge(); paintLaunch(); drawLadder(); }
+             startTurnaround(); }, flightMission);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -1475,8 +1482,12 @@ function runFlight(f, onApogee, onLanded, mission) {
          the flaps are out and the ship decelerates, which leaves real screen time for the flip and
          the catch. One curve made the whole recovery flash past in a few frames. */
       view.scene = 'pad'; view.cargo = 0;
-      view.km = p < 0.40 ? lerp(fromKm, RECOV_KM, easeOut(p / 0.40))
-                         : RECOV_KM * (1 - Math.pow((p - 0.40) / 0.60, 0.72));
+      /* T64 · three rates, not two. The catch used to be whatever was left over — about 0.7 s — and
+         the chopsticks closed before you could see them do it. It now owns the last 38% of the
+         phase outright, so the arms come in, take the ship and set it down where you can watch. */
+      view.km = p < 0.34 ? lerp(fromKm, RECOV_KM, easeOut(p / 0.34))
+              : p < 0.62 ? lerp(RECOV_KM, CATCH_KM, (p - 0.34) / 0.28)
+                         : CATCH_KM * (1 - (p - 0.62) / 0.38);
       /* The lean carried it left on the way up; the fall brings it back over the site, and it is
          lined up on the tower well before the flip. */
       view.drift = lerp(-74, 0, easeOut(clamp(p * 1.5, 0, 1)));
@@ -1788,10 +1799,10 @@ function drawPadScene(c, now) {
   const rocketK = moonScene ? 1 : onGround ? padK : lerp(padK, 1, climb);
   /* A6 · below 3 km the tower takes over: drogue, relight, arms closing, grip, ride down, clamps.
      drawCatch paints the booster itself, so the ordinary ship draw stands down for that stretch. */
-  const catchOn = !moonScene && phase === 'descent' && km < 3 && groundY < DH + 40 && typeof drawCatch === 'function';
+  const catchOn = !moonScene && phase === 'descent' && km < CATCH_KM && groundY < DH + 40 && typeof drawCatch === 'function';
   if (catchOn) {
     c.save(); c.translate(0, siteSlide);
-    drawCatch(c, DW, DH, SITE_GY, clamp((3 - km) / 3, 0, 1), S.tiers, now, drawRocket, rocketDims);
+    drawCatch(c, DW, DH, SITE_GY, clamp((CATCH_KM - km) / CATCH_KM, 0, 1), S.tiers, now, drawRocket, rocketDims);
     c.restore();
   } else {
   c.save(); c.translate(DW / 2 + (view.drift || 0), rocketBase); c.scale(rocketK, rocketK);
@@ -3909,7 +3920,12 @@ function jrnyFree(DW, DH, z) {
   const at = (u) => {
     const t = Math.PI + u * 6.283185307;
     const si = Math.sin(t), co = Math.cos(t), den = 1 + si * si;
-    const a = co >= 0 ? aM : aE, b = co >= 0 ? bM : bE;
+    /* T60 · the two lobes are different sizes, and the parameters used to SWITCH at the crossing.
+       Position stayed continuous there but the tangent did not, so the path visibly kinked at the
+       node. Blending them on cos t instead means both halves agree exactly at the crossing
+       (w = 0.5 from either side) while each lobe still reaches its own size at its far end. */
+    const w = 0.5 + 0.5 * co;
+    const a = lerp(aE, aM, w), b = lerp(bE, bM, w);
     const S1 = a * co / den, N1 = b * si * co / den;
     return [cx + ux * S1 + vx * N1, cy + uy * S1 + vy * N1];
   };
@@ -6568,6 +6584,9 @@ function drawLadder() {
   const cs = getComputedStyle(document.documentElement), col = k => cs.getPropertyValue(k).trim();
   const horiz = W > H * 1.25;
   const stops = ['PAD', MISSIONS[1].short, MISSIONS[2].short, MISSIONS[3].short, MISSIONS[4].short, MISSIONS[5].short];
+  /* T61 · nobody arrives knowing what LLO stands for. The code stays the label — it is what fits —
+     and the plain-English name goes under it, small and muted. */
+  const fulls = ['', MISSIONS[1].full, MISSIONS[2].full, MISSIONS[3].full, MISSIONS[4].full, MISSIONS[5].full];
   const P = ladderProgress(), [caps, capOk] = ladderCaption();
   const now = performance.now();
 
@@ -6617,6 +6636,18 @@ function drawLadder() {
     c.fillStyle = done ? col('--h-text') : next ? col('--h-warning') : col('--h-text-muted');
     if (horiz) c.fillText(stops[i], x, y + r + 4);
     else c.fillText(stops[i], x + r + 6, y);
+    if (fulls[i]) {
+      const codeW = c.measureText(stops[i]).width;     // measured at the 8 px label font, before the switch
+      c.save();
+      c.font = '600 6px ' + col('--wa-font-family-heading');
+      c.fillStyle = col('--h-text-muted'); c.globalAlpha = 0.85;
+      /* centred under the code, but nudged in at the ends so the outer two do not run off the edge */
+      if (horiz) { const half = c.measureText(fulls[i].toUpperCase()).width / 2;
+                   c.fillText(fulls[i].toUpperCase(), clamp(x, half + 1, W - half - 1), y + r + 14); }
+      else c.fillText(fulls[i].toUpperCase(), x + r + 10 + codeW, y);
+      c.restore();
+      c.font = '700 8px ' + col('--wa-font-family-heading');
+    }
   }
 
   /* one caption: the number that means something right now */
@@ -6681,9 +6712,10 @@ function shopHint() {
   const next = S.mission + 1;
   if (S.mission >= 5) return { text: 'Base at ' + S.population.toLocaleString('en-US') + ' / 10,000 · every launch lands cargo', ok: true };
   const am = armedMission(); if (am) return { text: 'READY: press LAUNCH to ' + MISSIONS[am].flight.toLowerCase(), ok: true };
-  const M = MISSIONS[next], missing = M.equip.filter(id => !S.equipment[id]);
-  if (missing.length) return { text: 'Buy the ' + missing.length + ' item' + (missing.length > 1 ? 's' : '') + ' below', ok: false };
-
+  /* T63 · no "buy the two items below". The cards are directly under this line and the to-do box
+     already lists them by name; a third copy of the same instruction was noise. When equipment is
+     the only thing missing there is nothing useful left to say, so the line goes quiet. */
+  if (MISSIONS[next].equip.some(id => !S.equipment[id])) return { text: '', ok: false };
   return { text: 'Upgrade the rocket — more Δv', ok: false };
 }
 /* T58 · how many things on each tab the player could buy this second: unlocked, not maxed, and
