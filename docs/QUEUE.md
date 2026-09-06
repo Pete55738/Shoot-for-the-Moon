@@ -81,6 +81,8 @@ below with its run number.
 - [x] T57 · "remove the foggy clouds layer right as the rocket is landing — I want to see the rocket landing clearly" · said 09-06 · **built:** on the way down the clouds thin from 13 km and are gone by 10, so the flip, the burn and the catch play against clear sky; the climb keeps them · quick · built #28
 - [x] T58 · "rocket and equipment should have small dots indicating how many items can be upgraded, like AI Racer" · said 09-06 · **built:** one green dot per unlocked, affordable upgrade on each shop tab, recounted every repaint · quick · built #28
 
+- [x] T59 · "the orbit view should be more top-down; the rocket takes off behind the earth and comes around to the front. Counterclockwise from the top right round to the bottom left. Then it stops, slowly flips around, and starts its deceleration burn. If it's just low earth orbit it should go around once, then decelerate" · said 09-06 · **built:** the ring is a near-top-down ellipse whose top half runs behind the globe; the lap runs counter-clockwise from the top right; a low-orbit flight makes a full lap and a half to the lower left, holds station, turns end-for-end and burns retrograde; a Moon mission keeps its shorter staging lap to the transfer corner · quick · built #29
+
 ## Shipped
 
 <!-- ~~T0 · … · built #N~~ · run 1 · YYYY-MM-DD -->
