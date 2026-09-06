@@ -1,0 +1,6 @@
+# Worker fragments are scratch. A worker writes one, the integrator splices it into
+# app/shoot-for-the-moon.html and deletes it — the app file is the only copy that ships,
+# and a stray fragment left lying around is exactly how T56 happened (two definitions of
+# the rocket block, the later one silently winning for weeks). The reports beside them,
+# workers/*.md, ARE tracked: they are the record of what each worker built and measured.
+workers/*.js
