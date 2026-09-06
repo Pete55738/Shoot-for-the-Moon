@@ -232,11 +232,11 @@ function w23_vab(c, L, o, st, now) {
   c.stroke(); drawCount++;
 
   // back wall furniture: a tall flag stripe over the bay, a vent bank, a clock
-  const fq = L(xm - (x1 - x0) * 0.10, z1), bw = (B1.x - B0.x), fw = bw * 0.085, fgh = (B1.y - Br) * 0.30;
+  const fq = L(xm + (x1 - x0) * 0.055, z1), bw = (B1.x - B0.x), fw = bw * 0.085, fgh = (B1.y - Br) * 0.30;
   c.fillStyle = '#B23E2B'; c.beginPath(); c.rect(fq.x - fw / 2, Br + (B1.y - Br) * 0.08, fw, fgh); c.fill(); drawCount++;
   c.fillStyle = 'rgba(243,244,246,.92)'; c.beginPath();                            // the stripes on it, and a wall clock
   for (let i = 0; i < 3; i++) c.rect(fq.x - fw / 2, Br + (B1.y - Br) * 0.08 + fgh * (0.18 + i * 0.28), fw, fgh * 0.12);
-  c.arc(fq.x + bw * 0.10, Br + (B1.y - Br) * 0.16, 3.2 * B0.s, 0, 7); c.fill(); drawCount++;
+  c.arc(fq.x + bw * 0.055, Br + (B1.y - Br) * 0.16, 3.2 * B0.s, 0, 7); c.fill(); drawCount++;
   c.strokeStyle = 'rgba(20,24,30,.45)'; c.lineWidth = 0.8; c.beginPath();           // roof trusses over the bay
   for (let i = 0; i <= 6; i++) { const f = i / 6, ax = w23_lerp(F0.x, F1.x, f), bx2 = w23_lerp(B0.x, B1.x, f);
     c.moveTo(ax, w23_lerp(Ff, Fr, f)); c.lineTo(bx2, w23_lerp(Bl, Br, f)); }
@@ -244,7 +244,7 @@ function w23_vab(c, L, o, st, now) {
   c.stroke(); drawCount++;
 
   // the bay's own back wall: panel lines and a lit strip, so the deep end is not a flat grey
-  c.strokeStyle = 'rgba(20,24,30,.40)'; c.lineWidth = 0.8; c.beginPath();
+  c.strokeStyle = 'rgba(20,24,30,.24)'; c.lineWidth = 0.8; c.beginPath();
   { const a0 = L(xm, z1), a1 = L(x1, z1);
     for (let i = 0; i <= 6; i++) { const f = i / 6, px = w23_lerp(a0.x, a1.x, f);
       c.moveTo(px, w23_lerp(a0.y, a1.y, f)); c.lineTo(px, w23_lerp(w23_up(a0, h), w23_up(a1, h), f)); } }
@@ -253,6 +253,12 @@ function w23_vab(c, L, o, st, now) {
   { const a0 = L(xm, z1 - 0.006), a1 = L(x1, z1 - 0.006);
     for (let i = 0; i < 4; i++) { const hh = h * (0.20 + i * 0.22);
       c.rect(a0.x, w23_lerp(w23_up(a0, hh), w23_up(a1, hh), 0) - 1.5, (a1.x - a0.x), 2.5 * a0.s); } }
+  c.fill(); drawCount++;
+
+  c.fillStyle = '#4E5862'; c.beginPath();                                          // cable reel and a tool cart on the bay floor
+  { const r1 = L(x1 - 0.03, z1 - 0.014), r2 = L(xm + 0.035, z1 - 0.02);
+    c.moveTo(r1.x + 7 * r1.s, r1.y - 6 * r1.s); c.ellipse(r1.x, r1.y - 6 * r1.s, 7 * r1.s, 7 * r1.s, 0, 0, 7);
+    c.rect(r2.x - 6 * r2.s, r2.y - 9 * r2.s, 12 * r2.s, 9 * r2.s); }
   c.fill(); drawCount++;
 
   // ── the service floors, left share ──

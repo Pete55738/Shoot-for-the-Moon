@@ -615,6 +615,17 @@ function w16_antennas(c, P) {
     c.fillStyle = 'rgba(120,132,146,.5)'; c.beginPath(); c.ellipse(p.sx + R * 0.25, p.sy - h - R * 0.4, R * 0.55, R * 0.5, -0.5, 0, 7); c.fill(); drawCount++;
   }
   w16_box(c, P, -0.40, -0.34, 0.240, 0.266, 22, '#5F6B78', '#C3CDD6', '#93A0AD');
+  /* the ground-support yard east of the dishes: two generator trailers, cable drums, a spares cage */
+  c.fillStyle = 'rgba(58,67,77,.34)'; c.beginPath(); w16_quad(c, P, 0.19, 0.37, 0.238, 0.284); c.fill(); drawCount++;
+  for (var t2 = 0; t2 < 2; t2++) { var tq = P(0.225 + t2 * 0.085, 0.252 + t2 * 0.016), tw = 22 * tq.k, th = 13 * tq.k;
+    c.fillStyle = 'rgba(0,0,0,.18)'; c.fillRect(tq.sx - tw / 2 + 2, tq.sy - 2, tw, 4); drawCount++;
+    c.fillStyle = t2 ? '#D9A441' : '#8AC46A'; c.fillRect(tq.sx - tw / 2, tq.sy - th, tw, th); drawCount++;
+    c.fillStyle = 'rgba(255,255,255,.22)'; c.fillRect(tq.sx - tw / 2, tq.sy - th, tw, th * 0.2); drawCount++; }
+  c.strokeStyle = '#6B4A2E'; c.lineWidth = 1.2; c.beginPath();
+  for (t2 = 0; t2 < 3; t2++) { var dq = P(0.205 + t2 * 0.035, 0.276); c.moveTo(dq.sx + 6 * dq.k, dq.sy - 6 * dq.k); c.arc(dq.sx, dq.sy - 6 * dq.k, 6 * dq.k, 0, 7); }
+  c.stroke(); drawCount++;
+  /* three lighting columns along the perimeter road */
+  w16_lamp(c, P(-0.34, 0.226), 40); w16_lamp(c, P(0.16, 0.226), 40); w16_lamp(c, P(0.66, 0.226), 40);
   /* the fire station: an appliance bay with two doors and two pumps parked out */
   var fb = w16_box(c, P, -0.955, -0.78, 0.298, 0.334, 32, '#8D99A6', '#C24E42', '#8F3129');
   c.fillStyle = '#F2C230';
