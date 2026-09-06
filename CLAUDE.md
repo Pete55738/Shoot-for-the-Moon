@@ -49,6 +49,14 @@ and `skills/orchestrate.md` for how workers are split, heartbeat and report.
   and `siteInvalidate()` on resize, DPR change and theme change** or the scene keeps a stale layer. Anything that animates (crew, cows, windsock, beacons, pond, glows) still draws live.
 - **Camera:** `FLIGHT_PLAN` in the balance block gives each mission its phase list and seconds. `runFlight` is a phase machine; `view.scene` picks the camera view (`pad` / `orbit` / `transfer` / `moonorbit` / `cargo`) and `view.fadeFrom` cross-fades between them. The views are whole frames — they paint their own background; the pad scene is `drawPadScene`.
 - **Missions:** five, in `MISSIONS` in the balance block. A flight reaches mission *n* when delivered Δv clears `dvReq` AND both `equip` items are owned AND mission *n−1* is achieved. `capOf(missions)` caps every track at 2×(missions+1). `plan`/`replan()` cache the flight; **anything that changes tiers or equipment must call `replan()`** or the hint and the gold LAUNCH go stale.
+- **Payload is the economy (T45).** Below a mission's Δv requirement the ship carries the bare
+  capsule (`PAY_MIN`) and every upgrade goes into reaching the target at all. Once it is cleared,
+  the surplus stops being spare Δv and becomes mass: `payloadOf()` binary-searches the heaviest
+  payload that still makes `dvReq`, using the closed-form `dvOf()` (the full integration is far
+  too slow to call in a loop). Money and Moon cargo both follow the tonnes, so a better rocket
+  earns more instead of just flying higher. The payload *track* sets what a tonne is worth
+  (`payValueOf`), not how many you can carry — if the bay were the only gate, a player who never
+  bought payload would be pinned at the capsule for the whole game.
 - **Balance:** the numbers live in one block between `/*BAL-START*/` and `/*BAL-END*/` in the app.
   `node scripts/sim.mjs` evals that exact block — there is no second copy. Change a number, run the sim, paste the measurement into the comment beside it.
 - **Critic camera:** `node scripts/shot.mjs --all` → `docs/studies/round-<n>/` PNGs + JSON (console errors, fps, draw count, sim gate).

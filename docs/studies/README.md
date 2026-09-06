@@ -117,6 +117,32 @@ Identity unchanged: steel-blue, starfield, altitude ladder. Art direction is now
     the trajectory overlay share, because the old overlay held its own copy of
     the maths and that is exactly how two drawings of one path drift apart.
 
+13. Round twenty-one, payload becomes the economy (T45). The user asked that
+    every upgrade first buy the fuel to reach the target, and then — once the
+    target is reachable — buy payload instead, so the Moon cargo drops earn
+    more. That is exactly what a real launch provider trades, and the game had
+    been faking it: payload was an abstract ×1.3 per tier and the ship always
+    carried a nominal one tonne.
+
+    Now the payload is the heaviest mass that still makes the mission's Δv
+    requirement, found by binary search on the closed-form staged rocket
+    equation. Below the requirement the ship carries the bare capsule and every
+    upgrade goes into getting there at all; above it, the surplus is in the hold
+    rather than the tank. Measured, that runs 1.5 t at tier 5 to 24.9 t at tier
+    10 for a Moon run — a finished rocket lands seventeen times the cargo of one
+    that has only just arrived.
+
+    Two things were got wrong first and fixed by measuring. Making the bay the
+    only gate pinned a player who never bought payload at one tonne for the whole
+    game — the sim found it as a 500-launch run — so the bay went generous and
+    the payload track now sets what a tonne is worth instead of how many fit.
+    And tonnes at the lunar-orbit tiers are smaller than the old multiplier, which
+    left a mid-game drought where the priciest strategy sat 33 launches dry; the
+    LLO reward went 4500 → 7000 and the worst streak is 18.
+
+    Re-tuned to pass every gate: POP_PER_TONNE 0.95 → 5 (cargo is now real tonnes,
+    not a formula), and a typical run lands at 113 launches.
+
 ## What to decide in the design cycle
 
 - **Art direction**, shown as pictures: keep hi-res vector, or move to rendered 2D (blur halos, glow, multiply shadows) for warmth. The brain dump said "goofy, fun graphics" — the vector look is clean but not yet goofy.
