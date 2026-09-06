@@ -1021,9 +1021,16 @@ const FADE_S = 0.45;                // cross-fade between camera views; reads as
    Worth a slice of what the base produces, so it grows with the colony but never replaces launching. */
 const RAILGUN_POP = 1000;
 const RAILGUN_PER_PERSON = 0.9;     // $ per resident per shipment — at 10,000 people a shipment is ~$9k, roughly a fifth of a cargo run
-const POP_PER_TONNE = 5;           // T45 · people per tonne landed. Cargo is now the payload the ship actually
-                                   // carried (~1.5 t at tier 5 to ~25 t at tier 10), not a formula, so this fell
-                                   // from 0.95: 11 finished in 78 launches, 4 in 134, 5 lands at 113.         // T14 · the last stretch is ~35 cargo runs, not 27         // tier 5: population added per tonne of cargo landed (10,000 people ≈ 40 tier-10 flights)
+/* T78 · the endgame is a cargo goal, not a population grind. The base is finished when the tonnage
+   is landed, and the population is just what that tonnage reads as — one number drives both, so the
+   goal on screen and the people in the base can never disagree.
+   250 t is ten runs of a maxed ship (payloadOf at tier 10 = 24.9 t). It is deliberately expressed in
+   tonnes and never in launches: the player should be watching the cargo bar fill, not counting.
+   Before this the target was population at 5 people/tonne, which is 81 launches at tier 10 and 236
+   at tier 8 — the last two thirds of the game were the grind nobody finished. Measured after: see
+   the sim rows in the commit. */
+const BASE_CARGO_T = 250;
+const POP_PER_TONNE = MISSIONS[5].population / BASE_CARGO_T;   // 40 · derived, so the two can't drift
 function costOf(track, tier) { return Math.round(BASE_COST[track] * Math.pow(COST_GROWTH, tier - 1)); }
 function equipCost(id) { return Math.round(EQUIP_BASE_COST * Math.pow(COST_GROWTH, 2 * (EQUIPMENT[id].mission - 1))); }
 function statsOf(t) {
@@ -1154,14 +1161,15 @@ function equipLock(id, eq, achieved) {
 /* Headless play-through with equipment, milestone flights and the tier-5 population run. */
 function simulate(strategy, maxLaunches) {
   const t = { engine: 1, tank: 1, aero: 1, hull: 1, payload: 1 }, eq = {};
-  let money = 0, launches = 0, dry = 0, maxDry = 0, buys = 0, achieved = 0, population = 0; const seen = new Set(), at = {};
+  let money = 0, launches = 0, dry = 0, maxDry = 0, buys = 0, achieved = 0, population = 0, cargoT = 0; const seen = new Set(), at = {};
   while (launches < (maxLaunches || 800)) {
     const { m, f, payloadT } = missionReached(t, eq, achieved); launches++;
     const flightMission = Math.min(m, achieved + 1);
     let r = rewardOf(f.apogeeKm, t, flightMission, payloadT);
     for (const ms of MILESTONES) if (f.apogeeKm >= ms.km && !seen.has(ms.km)) { seen.add(ms.km); r += ms.bonus; }
     if (flightMission > achieved) { achieved = flightMission; r += MISSIONS[achieved].bonus; at['m' + achieved] = launches; }
-    if (achieved >= 5) { population += cargoOf(payloadT) * POP_PER_TONNE; if (population >= MISSIONS[5].population) { at.done = launches; return { launches, maxDry: Math.max(maxDry, dry), buys, reached: true, at }; } }
+    if (achieved >= 5) { cargoT += cargoOf(payloadT); population = cargoT * POP_PER_TONNE;    /* T78 · the cargo goal */
+      if (cargoT >= BASE_CARGO_T) { at.done = launches; return { launches, maxDry: Math.max(maxDry, dry), buys, reached: true, at }; } }
     r += railgunPay(Math.floor(population));   // the railgun fires during the turnaround that follows
     money += r;
     let bought = false;
@@ -1316,7 +1324,8 @@ function launch() {
     if (flightMission === 4) { module = BASE_MODULES[0]; S.modules = 1; } }
   else if (flightMission >= 1) override = { big: MISSIONS[flightMission].short === 'LEO' ? 'LOW EARTH ORBIT · ' + fmtMi(200) + ' MI' : MISSIONS[flightMission].name.toUpperCase(), sub: '' };
   if (S.mission >= 5 && !milestone) { cargo = cargoOf(payloadT); S.cargoT = Math.round((S.cargoT + cargo) * 10) / 10;
-    const before = S.population; S.population = Math.min(MISSIONS[5].population, Math.round(S.population + cargo * POP_PER_TONNE));
+    /* T78 · population is a reading of the tonnage, not a second running total. */
+    const before = S.population; S.population = Math.min(MISSIONS[5].population, Math.round(S.cargoT * POP_PER_TONNE));
     S.modules = Math.min(BASE_MODULES.length, 1 + Math.floor(S.population / 2500));
     if (S.modules > 1 + Math.floor(before / 2500)) module = BASE_MODULES[S.modules - 1];
     const shipPay = railgunPay(S.population);
@@ -1662,7 +1671,10 @@ function paintGoal() {
     const ol = $('gw-todo'); ol.textContent = '';
     for (const [text, on] of [['Base established', true], ['Grow to 10,000 people', S.population >= 10000], ['Keep landing cargo', false]]) {
       const li = document.createElement('li'); li.className = on ? 'on' : ''; li.textContent = text; ol.appendChild(li); }
-    $('gw-dv').textContent = S.population.toLocaleString('en-US') + ' people · ' + S.cargoT + ' t landed';
+    /* T78 · the cargo goal leads, because that is the thing the player is filling; the population is
+       what it means. Neither line says how many launches are left — the bar does the telling. */
+    $('gw-dv').textContent = S.cargoT + ' of ' + BASE_CARGO_T + ' t landed · '
+                           + S.population.toLocaleString('en-US') + ' people';
     $('gw-bar').style.width = (S.population / MISSIONS[5].population * 100) + '%';
     return;
   }
@@ -8852,7 +8864,9 @@ document.querySelectorAll('[data-shop]').forEach(b => b.addEventListener('click'
 /* What to buy next, in one line. The equipment for the next mission first, then the tiers that the cap allows. */
 function shopHint() {
   const next = S.mission + 1;
-  if (S.mission >= 5) return { text: 'Base at ' + S.population.toLocaleString('en-US') + ' / 10,000 · every launch lands cargo', ok: true };
+  if (S.mission >= 5) { const raw = Math.max(0, BASE_CARGO_T - S.cargoT);
+    const left = raw >= 10 ? Math.round(raw) : Math.round(raw * 10) / 10;   /* whole tonnes until the last run or two */
+    return { text: left ? 'The base needs ' + left + ' more tonnes' : 'The base is built', ok: true }; }
   const am = armedMission(); if (am) return { text: 'READY: press LAUNCH to ' + MISSIONS[am].flight.toLowerCase(), ok: true };
   /* T63 · no "buy the two items below". The cards are directly under this line and the to-do box
      already lists them by name; a third copy of the same instruction was noise. When equipment is
@@ -8952,7 +8966,7 @@ function paintLog() {
   const rows = [['Best altitude', S.bestKm >= MOON_KM ? 'THE MOON' : fmtMi(S.bestKm) + ' mi'], ['Top velocity', fmtV(S.bestV)],
                 ['Launches', S.launches.toLocaleString('en-US')], ['Earned, all time', fmtMoney(S.earned)],
                 ['Mission', S.mission ? S.mission + ' · ' + MISSIONS[S.mission].name : 'sub-orbital'],
-                ['Moon base', S.mission >= 4 ? S.population.toLocaleString('en-US') + ' people · ' + S.cargoT + ' t landed' : 'not yet'],
+                ['Moon base', S.mission >= 4 ? S.cargoT + ' of ' + BASE_CARGO_T + ' t landed · ' + S.population.toLocaleString('en-US') + ' people' : 'not yet'],
                 ['Railgun', S.shipments ? S.shipments.toLocaleString('en-US') + (S.shipments === 1 ? ' shipment home' : ' shipments home') : railgunPay(S.population) ? 'ready' : 'needs 1,000 people']];
   for (const [k, v] of rows) { const d = document.createElement('div'); d.className = 'stat';
     d.innerHTML = '<div class="k"></div><div class="v"></div>'; d.children[0].textContent = k; d.children[1].textContent = v; st.appendChild(d); }
