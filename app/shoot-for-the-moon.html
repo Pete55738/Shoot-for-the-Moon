@@ -1274,7 +1274,10 @@ function buy(track) {
   const c = costOf(track, S.tiers[track] + 1);
   if (S.money < c) return false;
   S.money -= c; S.tiers[track]++; replan();
-  save(); paintShop(); paintMoney(); paintBadge(); paintLaunch(); paintDataWin(); drawScene();
+  /* T68 · paintGauges is what owns PAYLOAD and REVENUE, and it was missing here — buying a tier
+     re-planned the flight but never repainted the two numbers the plan is for, so the tonnes and
+     the money you would earn only caught up after the next launch. */
+  save(); paintShop(); paintMoney(); paintBadge(); paintLaunch(); paintGauges(); paintDataWin(); drawScene();
   return true;
 }
 function buyEquip(id) {
@@ -1282,7 +1285,7 @@ function buyEquip(id) {
   if (equipLock(id, S.equipment, S.mission)) return false;
   const c = equipCost(id); if (S.money < c) return false;
   S.money -= c; S.equipment[id] = true; replan();
-  save(); paintShop(); paintMoney(); paintBadge(); paintLaunch(); paintDataWin(); drawScene();
+  save(); paintShop(); paintMoney(); paintBadge(); paintLaunch(); paintGauges(); paintDataWin(); drawScene();   /* T68 */
   return true;
 }
 /* The mission the next LAUNCH would newly achieve, or 0. Cached with the flight plan — flyRocket is thousands of steps. */
@@ -5990,16 +5993,23 @@ function drawLife(c, DW, DH, gy, now, seed, phase) {
 
   /* ── z .30–.40 · THE CONCOURSE · staff to and from ADMIN ─────────── */
   (function () {
-    var routes = [[[0.600, 0.298], [0.700, 0.386], 27, '#4FD9E6'],
-                  [[0.430, 0.306], [0.672, 0.384], 33, '#E0523A'],
-                  [[0.355, 0.344], [0.688, 0.380], 39, '#FFC24D'],
-                  [[0.760, 0.318], [0.712, 0.382], 24, '#8AC46A']];
+    /* T70 · "they seem weird, they're not moving" — and they were not, to any eye. The legs ran
+       0.05–0.10 of the site over 24–39 s and were smoothstepped end to end, so the middle of the
+       walk was about a pixel a second and both ends were a standstill. They now walk a real
+       journey — the car park across the concourse to the admin doors — in 12–20 s, at a constant
+       pace with only a short ease off the mark. */
+    var routes = [[[0.455, 0.252], [0.640, 0.400], 14, '#4FD9E6'],
+                  [[0.762, 0.258], [0.700, 0.398], 17, '#E0523A'],
+                  [[0.345, 0.298], [0.618, 0.398], 20, '#FFC24D'],
+                  [[0.560, 0.244], [0.682, 0.396], 12, '#8AC46A']];
+    /* a walker's pace: linear in the middle, eased over the first and last tenth */
+    var pace = function (u) { return u < 0.1 ? u * u * 5 : u > 0.9 ? 1 - (1 - u) * (1 - u) * 5 : u; };
     for (i = 0; i < routes.length; i++) {
       var r = routes[i], pp = w17_cyc(now, r[2], w17_rnd(S + 40 + i * 3));
       var a = r[0], b = r[1], walk = now / 105, arm = 'swing';
-      if (pp < 0.40) { u = w17_ease(pp / 0.40); x = lerp(a[0], b[0], u); z = lerp(a[1], b[1], u); }
+      if (pp < 0.40) { u = pace(pp / 0.40); x = lerp(a[0], b[0], u); z = lerp(a[1], b[1], u); }
       else if (pp < 0.48) { continue; }                                   /* inside the building */
-      else if (pp < 0.88) { u = w17_ease((pp - 0.48) / 0.40); x = lerp(b[0], a[0], u); z = lerp(b[1], a[1], u); }
+      else if (pp < 0.88) { u = pace((pp - 0.48) / 0.40); x = lerp(b[0], a[0], u); z = lerp(b[1], a[1], u); }
       else { x = a[0]; z = a[1]; walk = 0; arm = flight ? 'up' : 'watch'; }
       g = P(x, z);
       w17_person(c, g.sx, g.sy, g.k, { shirt: r[3], hat: null, arm: arm, walk: walk });

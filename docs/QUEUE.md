@@ -93,6 +93,15 @@ below with its run number.
 
 - [x] T67 · "the orbit around the moon should be circular and it currently isn't" · said 09-06 · **built:** `jrnyLunar` was a squashed, tipped oval (rx 1.46 R, ry 0.50 R, tilt −0.30) — a circular orbit seen edge-on, which on screen just read as an ellipse. The camera looks straight down on the plane now: a true circle, same radius every way round, concentric with the Moon, no tilt. Found and fixed alongside it: the ladder caption read "MOON MI OF MOON TO THE MOON" because `fmtMi` prints the word MOON at lunar distance · quick · built #31
 
+- [x] T68 · "every time I click a rocket or equipment upgrade, my revenue per flight should automatically update — I'm carrying more payload" · said 09-06 · **built:** `paintGauges` was missing from both buy paths — buying re-planned the flight but never repainted the two numbers the plan exists for. Payload and revenue now move on every rocket tier and every equipment purchase · quick · built #33
+- [ ] T69 · "the rocket should go straight into the assembly building — the main door is between the launch pad and the building, so it goes straight in, not that weird looping path. And there should be some sort of refuelling mechanism in the building as well" · said 09-06 · quick
+- [x] T70 · "the people walking around the administration building seem weird, they're not moving" · said 09-06 · **built:** they were not moving, to any eye — the legs ran 0.05–0.10 of the site over 24–39 s and were smoothstepped end to end, so the ends were a standstill and the middle was 3.7 px/s. They now walk the car park to the admin doors in 12–20 s at a constant pace: 7.6–15.2 px/s · quick · built #33
+- [ ] T71 · "the satellite dishes in front of the rocket don't really look like satellite dishes — we need to up that a lot" · said 09-06 · long
+- [ ] T72 · "upgrade what the warehouse looks like" · said 09-06 · long
+- [ ] T73 · "make the assembly building way more detailed" · said 09-06 · long
+- [ ] T74 · "I don't know what the blue-green things in the bottom left are — move them farther bottom left and define them more, so it's easier to understand what it is" · said 09-06 · quick
+- [ ] T75 · "move the fan seating down lower in the middle, and it shouldn't overlap the road" · said 09-06 · quick
+
 ## Shipped
 
 <!-- ~~T0 · … · built #N~~ · run 1 · YYYY-MM-DD -->
