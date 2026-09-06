@@ -1,22 +1,22 @@
 {
   "envelope": 1,
   "kind": "usage",
-  "at": "2026-09-06T18:30:05Z",
+  "at": "2026-09-06T18:56:38Z",
   "payload": {
     "sessions": [
       {
         "session": "b96ab016-08df-5bb3-b62a-a8b9f13665c3",
         "remoteSession": "cse_01HnChUnhHG3F9fSAsHdUbbo",
         "from": "2026-09-05T13:04:17Z",
-        "to": "2026-09-06T18:29:26Z",
-        "activeHours": 7.31,
-        "turns": 2651,
-        "toolCalls": 1550,
+        "to": "2026-09-06T18:56:34Z",
+        "activeHours": 7.76,
+        "turns": 2834,
+        "toolCalls": 1656,
         "tokens": {
-          "input": 20012,
-          "cacheWrite": 23490395,
-          "cacheRead": 812371449,
-          "output": 2704510
+          "input": 20378,
+          "cacheWrite": 24504892,
+          "cacheRead": 849387067,
+          "output": 2834328
         },
         "byModel": {
           "claude-fable-5-1": {
@@ -27,14 +27,14 @@
             "turns": 603
           },
           "claude-opus-5": {
-            "input": 4096,
-            "cacheWrite": 13422994,
-            "cacheRead": 670881340,
-            "output": 1535945,
-            "turns": 2048
+            "input": 4462,
+            "cacheWrite": 14437491,
+            "cacheRead": 707896958,
+            "output": 1665763,
+            "turns": 2231
           }
         },
-        "commits": 58,
+        "commits": 60,
         "transcripts": 26,
         "rateCard": 1
       }
