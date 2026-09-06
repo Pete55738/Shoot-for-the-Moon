@@ -56,6 +56,13 @@ and `skills/orchestrate.md` for how workers are split, heartbeat and report.
   corner the burn for the Moon is aimed from. The Moon gets two full laps. Coming home, `reentry` is
   the same ring the other way — in at the top of the Earth, round to the near side — and every Moon
   mission has one before `descent`.
+- **Nothing pushes a spent rocket (T52).** After burnout the sub-orbital flight keeps its attitude and
+  goes on falling over — `coast` carries `view.ang` from the burnout lean to `BALLISTIC_TOP`, `descent`
+  on past it to `BALLISTIC_DOWN`, nose-down. `descent` uses **two rates**: free fall down to `CHUTE_KM`
+  in the first 40 % of the phase, then a slow canopy crawl — one curve made the whole chute stretch
+  flash past. Under the canopy `view.hang` rises and the scene pivots the ship about the riser above
+  it instead of its own base, so it hangs as weight on a line. Attitude lives in `view.ang` alone so
+  the pitch instrument and the scene agree; **never rotate the ship in the draw layer.**
 - **Camera:** `FLIGHT_PLAN` in the balance block gives each mission its phase list and seconds. `runFlight` is a phase machine; `view.scene` picks the camera view (`pad` / `orbit` / `transfer` / `moonorbit` / `cargo`) and `view.fadeFrom` cross-fades between them. The views are whole frames — they paint their own background; the pad scene is `drawPadScene`.
 - **Missions:** five, in `MISSIONS` in the balance block. A flight reaches mission *n* when delivered Δv clears `dvReq` AND both `equip` items are owned AND mission *n−1* is achieved. `capOf(missions)` caps every track at 2×(missions+1). `plan`/`replan()` cache the flight; **anything that changes tiers or equipment must call `replan()`** or the hint and the gold LAUNCH go stale.
 - **Payload is the economy (T45).** Below a mission's Δv requirement the ship carries the bare

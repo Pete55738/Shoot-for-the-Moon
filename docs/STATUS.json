@@ -1,15 +1,15 @@
 {
   "envelope": 1,
   "kind": "status",
-  "at": "2026-09-06T02:00:00Z",
+  "at": "2026-09-06T04:30:00Z",
   "payload": {
-    "reference": "docs/studies/round-19/sheet.png + freereturn-*.png (provisional \u2014 built from the brain dumps, not user-picked)",
+    "reference": "docs/studies/round-20/sheet.png (provisional — built from the brain dumps, not user-picked)",
     "gates": {
       "score": 9.0,
       "consoleErrors": 0,
       "simClean": true
     },
-    "rounds": 27,
+    "rounds": 28,
     "subsystems": {
       "chrome": {
         "score": 9.0,
@@ -39,14 +39,14 @@
       "descent": {
         "score": 9.0,
         "open": [
-          "re-entry sheath hugs the nose while the ship falls tail-first",
-          "the gimbal HUD covers the grandstand during the catch on a phone"
+          "the gimbal HUD covers the grandstand during the catch on a phone",
+          "the recovery still ends in the chopstick catch under 3 km; the canopy stretch above it is where the hang reads"
         ]
       },
       "moon": {
         "score": 9.5,
         "open": [
-          "the cargo scene runs 46 fps headless (every other scene 61) \u2014 fill rate, not draw count: any one large translucent element removed puts it back over 60"
+          "the cargo scene runs 46 fps headless (every other scene 61) — fill rate, not draw count: any one large translucent element removed puts it back over 60"
         ]
       },
       "shop": {
@@ -68,7 +68,7 @@
       "balance": {
         "score": 9.5,
         "open": [
-          "the priciest strategy still waits 18 launches at its worst \u2014 the longest hold in the game, down from 33 mid-tune"
+          "the priciest strategy still waits 18 launches at its worst — the longest hold in the game, down from 33 mid-tune"
         ]
       },
       "turnaround": {
@@ -90,7 +90,7 @@
       "missions": {
         "score": 9.0,
         "open": [
-          "flight is 10\u201321 s per mission; the hour-long game is T14"
+          "flight is 10–21 s per mission; the hour-long game is T14"
         ]
       },
       "orbit": {
@@ -126,7 +126,7 @@
       "trajectory": {
         "score": 9.5,
         "open": [
-          "the 'ascent' curve is invented \u2014 no pad-scene ship position lines up with it yet, so it is unused"
+          "the 'ascent' curve is invented — no pad-scene ship position lines up with it yet, so it is unused"
         ]
       },
       "moonorbit": {
@@ -136,12 +136,12 @@
       "economy": {
         "score": 9.5,
         "open": [
-          "a player who never buys payload finishes 27 launches later (141 vs 114) \u2014 intended, but it is the widest strategy spread in the game"
+          "a player who never buys payload finishes 27 launches later (141 vs 114) — intended, but it is the widest strategy spread in the game"
         ]
       }
     },
     "weakest": "moonview",
-    "note": "Pitch-over and the camera ladder (T13c/T15/T16/T30/T31). A flight is now a phase machine: ascent (physics replay) \u2192 gravity turn \u2192 Earth orbit \u2192 dotted transfer arc \u2192 lunar orbit \u2192 cargo drop \u2192 return \u2192 parachute, cross-fading between camera views so each mission zooms out one step and the Moon zooms back in. Budgets per mission: 10 s at mission 1, 21 s for the full Moon round trip, under the 30 s cap. The ladder re-scales: altitude, then distance to the Moon, then population toward 10,000. Zero console errors, 60\u201361 fps, sim PASS. T33/T34/T24: the readiness window owns the top-left on the ground and becomes a go/no-go board when idle; mission control and the gimbal take over the moment the flight starts. Task pool is 36 jokey items grouped into six assembly stages, read as live commentary. T35 optimization: static farm and pad layers cached to offscreen canvases, fills batched, off-screen ground culled. Pad 150 draws to 49, turnaround 232 to 140, desktop turnaround 55 fps to 61. Verified identical with the clock frozen: 0.06% of pixels differ, none by more than 64/255, all on cached-layer antialiasing seams. T14 retune: cost growth 2.55, equipment priced above the tier it unlocks, population 0.95 per tonne. A player who buys what they can afford reaches low Earth orbit on launch 14 and finishes in about an hour. T17 railgun: fires during the Moon cargo phase where the camera actually is, pays about 90 cents per resident, grows with the colony. T36\u2013T39 + A1/A2: ten mishaps, the upper-right checklist, a square LAUNCH with its own clock, the rocket lifting off the pad, and one canonical journey geometry \u2014 Earth lower-left, counter-clockwise orbit, a lunar orbit at the Moon. T40 then moved the figure eight to where Apollo puts it: it spans the whole Earth-Moon path \u2014 a long lobe past the Earth, a tight hook round the far side of the Moon, crossing between them \u2014 while the Moon itself gets a circular orbit, and the return leg runs forward round the second half instead of rewinding the first.",
-    "at": "2026-09-06T02:00:00Z"
+    "note": "Pitch-over and the camera ladder (T13c/T15/T16/T30/T31). A flight is now a phase machine: ascent (physics replay) → gravity turn → Earth orbit → dotted transfer arc → lunar orbit → cargo drop → return → parachute, cross-fading between camera views so each mission zooms out one step and the Moon zooms back in. Budgets per mission: 10 s at mission 1, 21 s for the full Moon round trip, under the 30 s cap. The ladder re-scales: altitude, then distance to the Moon, then population toward 10,000. Zero console errors, 60–61 fps, sim PASS. T33/T34/T24: the readiness window owns the top-left on the ground and becomes a go/no-go board when idle; mission control and the gimbal take over the moment the flight starts. Task pool is 36 jokey items grouped into six assembly stages, read as live commentary. T35 optimization: static farm and pad layers cached to offscreen canvases, fills batched, off-screen ground culled. Pad 150 draws to 49, turnaround 232 to 140, desktop turnaround 55 fps to 61. Verified identical with the clock frozen: 0.06% of pixels differ, none by more than 64/255, all on cached-layer antialiasing seams. T14 retune: cost growth 2.55, equipment priced above the tier it unlocks, population 0.95 per tonne. A player who buys what they can afford reaches low Earth orbit on launch 14 and finishes in about an hour. T17 railgun: fires during the Moon cargo phase where the camera actually is, pays about 90 cents per resident, grows with the colony. T36–T39 + A1/A2: ten mishaps, the upper-right checklist, a square LAUNCH with its own clock, the rocket lifting off the pad, and one canonical journey geometry — Earth lower-left, counter-clockwise orbit, a lunar orbit at the Moon. T40 then moved the figure eight to where Apollo puts it: it spans the whole Earth-Moon path — a long lobe past the Earth, a tight hook round the far side of the Moon, crossing between them — while the Moon itself gets a circular orbit, and the return leg runs forward round the second half instead of rewinding the first. T52 fixed the one thing a ballistic object cannot do: the ship used to snap upright the instant the engine quit. It now carries its burnout lean on round the arc — horizontal at the top, nose-down on the way back — and the descent splits into two rates so the canopy has time to read. Under the chute the ship turns about the riser above it rather than its own base, so it hangs as weight on a line and its swing damps out; the pitch instrument reads the same attitude the player can see.",
+    "at": "2026-09-06T04:30:00Z"
   }
 }
