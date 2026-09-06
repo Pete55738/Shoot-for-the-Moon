@@ -460,10 +460,6 @@ body {
   .bar { height: 6px; background: var(--h-bg); border: 1px solid var(--h-border); border-radius: 999px;
          overflow: hidden; margin-top: .35rem; }
   .bar i { display: block; height: 100%; width: 0%; background: var(--h-accent); transition: width .15s linear; }
-  .bar.fuel i { background: var(--h-warning); }
-  .bar.pay i { background: var(--h-accent); }
-  .bar.rev i { background: var(--h-positive); }
-  .bar.spd i { background: var(--h-info); }
 
   /* Signature element — mechanism D: the altitude ladder, log scale from the pad to the Moon. */
   .ladder { flex: 1 1 auto; min-height: 12rem; position: relative; }
@@ -527,7 +523,7 @@ body {
   .goalwin.go .bar i { background: var(--h-positive); }
   @media (max-width: 860px) { .goalwin { width: min(10rem, 46%); font-size: var(--text-3xs); }
     .checklist { width: min(11.5rem, 46%); }
-    #ups { height: 18rem; } }
+    #ups { flex: 0 0 auto; } }   /* on a phone the page scrolls, so let the list be its own height */
   /* T24 · the gimbal, bottom-left, only once the pad is clear */
   .gimbal { position: absolute; left: .6rem; bottom: .6rem; width: 13.4rem;
             background: var(--h-surface-glass); border: 1px solid var(--h-border); border-radius: var(--radius);
@@ -582,7 +578,7 @@ body {
   @media (max-width: 860px) { #launch { width: 9rem; font-size: .95rem; padding: .5rem .6rem; } }
 
   /* Shop — one visible track per thing; tier bundles its stat gains. */
-  .shop { display: flex; flex-direction: column; gap: .5rem; }
+  .shop { display: flex; flex-direction: column; gap: .5rem; min-height: 0; }
   .shop h3 { margin: 0 0 .1rem; }
   .money { background: var(--h-surface-glass); border: 1px solid var(--h-border); border-radius: var(--radius-lg);
            padding: .5rem .7rem; display: flex; justify-content: space-between; align-items: baseline; }
@@ -602,14 +598,19 @@ body {
   .hint.ok { color: var(--h-positive); }
   /* The shop is always the same height whichever tab you are on, and it scrolls inside itself,
      so the page never grows and the two tabs never jump. */
-  #ups { height: 23.5rem; overflow-y: auto; display: flex; flex-direction: column; gap: .5rem; padding-right: .15rem; }
-  #ups::-webkit-scrollbar { width: 5px; }
-  #ups::-webkit-scrollbar-thumb { background: var(--h-border); border-radius: 999px; }
+  /* The shop fills the column down to the bottom of the scene. The list used to be a fixed
+     23.5rem box with its own scrollbar; the rocket tab is five cards and the equipment tab
+     now shows only what is in play, so both fit and neither scrolls. Dead space under the
+     five rocket cards is deliberate — a static page beats a moving one. */
+  #ups { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: .5rem; padding-right: .15rem; }
   .up { background: var(--h-surface-glass); border: 1px solid var(--h-border); border-radius: var(--radius-lg);
         padding: .5rem .6rem; display: grid; grid-template-columns: 1fr auto; gap: .15rem .6rem; align-items: center;
         flex: none; }
   /* Bought: a third of the height, no description, no pips — it is done, it just needs to be listed. */
   .up.done { padding: .28rem .6rem; opacity: .72; }
+  .locknote { border: 1px dashed var(--h-border); border-radius: var(--radius-lg); padding: .45rem .6rem;
+              color: var(--h-text-muted); font-family: var(--wa-font-family-heading);
+              font-size: var(--text-3xs); letter-spacing: .06em; text-transform: uppercase; text-align: center; }
   .up.done .d, .up.done .pips { display: none; }
   .up.done .n { font-size: var(--text-3xs); }
   .up.done .buy { padding: .18rem .45rem; font-size: var(--text-3xs); }
@@ -720,15 +721,15 @@ body {
     <div class="stage">
       <aside class="hud" id="hud">
         <div class="gauge" title="How high the last (or current) flight got, in miles"><div class="k">Altitude</div>
-          <div class="v" id="g-alt">0<small>mi</small></div><div class="bar"><i id="b-alt"></i></div></div>
+          <div class="v" id="g-alt">0<small>mi</small></div></div>
         <div class="gauge" title="Velocity right now, in miles per hour"><div class="k">Velocity</div>
-          <div class="v" id="g-spd">0<small>mph</small></div><div class="bar spd"><i id="b-spd"></i></div></div>
+          <div class="v" id="g-spd">0<small>mph</small></div></div>
         <div class="gauge" title="Fuel left in the tank"><div class="k">Fuel</div>
-          <div class="v" id="g-fuel">100<small>%</small></div><div class="bar fuel"><i id="b-fuel"></i></div></div>
+          <div class="v" id="g-fuel">100<small>%</small></div></div>
         <div class="gauge" id="gauge-pay" title="What this flight carries. Below the mission's Δv requirement the ship carries the bare capsule and every upgrade goes into reaching the target at all; once it is cleared, the surplus becomes payload instead of spare fuel."><div class="k">Payload</div>
-          <div class="v" id="g-pay">1.0<small>t</small></div><div class="bar pay"><i id="b-pay"></i></div></div>
+          <div class="v" id="g-pay">1.0<small>t</small></div></div>
         <div class="gauge" id="gauge-rev" title="What the next flight is expected to pay: the mission rate times the tonnes it carries, times what your payload bay makes a tonne worth."><div class="k">Revenue</div>
-          <div class="v" id="g-rev">$0<small>/flight</small></div><div class="bar rev"><i id="b-rev"></i></div></div>
+          <div class="v" id="g-rev">$0<small>/flight</small></div></div>
         <div class="gauge ladder" id="ladder-box" title="The journey: six stations from the pad to a Moon base of 10,000. Filled as far as you have come; the amber dot is the ship in flight.">
           <canvas id="ladder"></canvas></div>
       </aside>
@@ -6778,11 +6779,8 @@ function drawLadder() {
 function paintGauges() {
   const s = statsOf(S.tiers);
   $('g-alt').innerHTML = fmtMi(view.km) + '<small>' + (view.km >= MOON_KM ? '' : 'mi') + '</small>';
-  $('b-alt').style.width = (clamp(Math.log10(view.km + 1) / Math.log10(MOON_KM + 1), 0, 1) * 100) + '%';
   { const mph = view.v * MS_TO_MPH; $('g-spd').innerHTML = (mph >= 10000 ? (mph / 1000).toFixed(1) + '<small>k mph</small>' : Math.round(mph).toLocaleString('en-US') + '<small>mph</small>'); }
-  $('b-spd').style.width = clamp(view.v / 12000, 0, 1) * 100 + '%';
   $('g-fuel').innerHTML = Math.round(view.fuel * 100) + '<small>% · ' + s.fuel.toFixed(0) + 't</small>';
-  $('b-fuel').style.width = view.fuel * 100 + '%';
   /* T46 · payload and what it is expected to pay. Both come from the plan, so they update the
      moment you buy something rather than waiting for the next flight to prove it. */
   { const p = plan || replan();
@@ -6790,9 +6788,7 @@ function paintGauges() {
     const tonnes = p.payloadT == null ? PAY_MIN : p.payloadT;
     const rev = rewardOf(flying >= 1 ? MISSIONS[flying].orbitKm : p.f.apogeeKm, S.tiers, flying, tonnes);
     $('g-pay').innerHTML = (tonnes < 10 ? tonnes.toFixed(1) : Math.round(tonnes)) + '<small>t</small>';
-    $('b-pay').style.width = clamp(Math.log10(tonnes) / Math.log10(120), 0, 1) * 100 + '%';
-    $('g-rev').innerHTML = fmtMoney(rev) + '<small>/flight</small>';
-    $('b-rev').style.width = clamp(Math.log10(rev + 1) / Math.log10(1e6), 0, 1) * 100 + '%'; }
+    $('g-rev').innerHTML = fmtMoney(rev) + '<small>/flight</small>'; }
   drawLadder(); paintDataWin(); paintWindows();
 }
 function paintMoney() { $('money').textContent = fmtMoney(S.money); }
@@ -6866,21 +6862,39 @@ function paintShop() {
     d.appendChild(desc);
     box.appendChild(d);
   }
-  else for (const id of Object.keys(EQUIPMENT).sort((a, b) => (S.equipment[a] ? 1 : 0) - (S.equipment[b] ? 1 : 0)
-      || EQUIPMENT[a].mission - EQUIPMENT[b].mission)) {
-    const E = EQUIPMENT[id], lock = equipLock(id, S.equipment, S.mission), c = equipCost(id);
-    const d = document.createElement('div'); d.className = 'up' + (lock === 'owned' ? ' done' : ''); d.dataset.equip = id; d.title = E.what;
-    const n = document.createElement('div'); n.className = 'n'; n.textContent = E.name + ' · M' + E.mission; d.appendChild(n);
-    const b = document.createElement('button'); b.className = 'buy';
-    if (lock === 'owned') { b.textContent = 'OWNED ✓'; b.disabled = true; b.classList.add('max'); }
-    else if (lock) { b.textContent = fmtMoney(c); b.disabled = true; b.classList.add('locked'); b.title = 'Locked: ' + lock; }
-    else { b.textContent = fmtMoney(c); b.disabled = S.money < c || inFlight; b.title = (S.money < c ? 'Need ' + fmtMoney(c - S.money) + ' more' : 'Buy') + ' — ' + E.what; }
-    b.addEventListener('click', () => { if (buyEquip(id)) flashText(b, 'BOUGHT ✓'); });
-    d.appendChild(b);
-    const desc = document.createElement('div'); desc.className = 'd';
-    desc.textContent = 'For ' + MISSIONS[E.mission].name.toLowerCase() + (lock && lock !== 'owned' ? ' · ' + lock : ' · ' + E.what);
-    d.appendChild(desc);
-    box.appendChild(d);
+  else {
+    /* Only what is actually in play. Ten cards at full size overflowed the column and needed a
+       scrollbar; almost all of it was either already bought or not reachable for another hour.
+       So: everything owned collapses to a single line, the two pieces for the mission you are
+       working toward stay full size, and the rest of the catalogue is one line saying what to
+       reach for. The list grows as you do. */
+    const next = Math.min(5, S.mission + 1);
+    const shown = Object.keys(EQUIPMENT).filter(id => S.equipment[id] || EQUIPMENT[id].mission <= next)
+      .sort((a, b) => (S.equipment[b] ? 1 : 0) - (S.equipment[a] ? 1 : 0) || EQUIPMENT[a].mission - EQUIPMENT[b].mission);
+    for (const id of shown) {
+      const E = EQUIPMENT[id], lock = equipLock(id, S.equipment, S.mission), c = equipCost(id);
+      const owned = lock === 'owned';
+      const d = document.createElement('div'); d.className = 'up' + (owned ? ' done' : ''); d.dataset.equip = id; d.title = E.what;
+      const n = document.createElement('div'); n.className = 'n'; n.textContent = E.name; d.appendChild(n);
+      const b = document.createElement('button'); b.className = 'buy';
+      if (owned) { b.textContent = 'DEPLOYED'; b.disabled = true; b.classList.add('max'); b.title = E.what; }
+      else if (lock) { b.textContent = fmtMoney(c); b.disabled = true; b.classList.add('locked'); b.title = 'Locked: ' + lock; }
+      else { b.textContent = fmtMoney(c); b.disabled = S.money < c || inFlight; b.title = (S.money < c ? 'Need ' + fmtMoney(c - S.money) + ' more' : 'Buy') + ' — ' + E.what; }
+      b.addEventListener('click', () => { if (buyEquip(id)) flashText(b, 'BOUGHT ✓'); });
+      d.appendChild(b);
+      if (!owned) {   /* an owned piece is one line: the name and that it is on the ship */
+        const desc = document.createElement('div'); desc.className = 'd';
+        desc.textContent = 'For ' + MISSIONS[E.mission].name.toLowerCase() + (lock ? ' · ' + lock : ' · ' + E.what);
+        d.appendChild(desc);
+      }
+      box.appendChild(d);
+    }
+    if (shown.length < Object.keys(EQUIPMENT).length) {
+      const note = document.createElement('div'); note.className = 'locknote';
+      note.textContent = 'Reach ' + MISSIONS[next].name.toLowerCase() + ' for more equipment';
+      note.title = 'The next two pieces appear once this mission is achieved.';
+      box.appendChild(note);
+    }
   }
 }
 function flashText(el, msg) { const idle = el.textContent; el.textContent = msg; setTimeout(() => { if (el.isConnected) paintShop(); }, 700); }
