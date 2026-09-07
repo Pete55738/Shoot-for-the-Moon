@@ -1006,6 +1006,9 @@ const ORBIT_FROM = Math.PI / 4;
    310°/s of tangent, and the ship read as spinning rather than flying. It now emerges at the left
    limb and sweeps one graceful arc round the BOTTOM of the Earth to the corner the burn is aimed
    from — 2.46 rad, and the phase is long enough that it turns at about 64°/s. */
+/* T87 · where a ship coming home turns round to brake: the bottom left of the Earth, 225° on the
+   ring, and it takes RETRO_TURN of the arc to do it. */
+const RETRO_AT = Math.PI * 1.25, RETRO_TURN = 0.18;
 const ORBIT_TLI_FROM = Math.PI;
 const ORBIT_TLI_TO = Math.PI * 2 - 0.68;
 const ORBIT_LEO_TO = ORBIT_FROM + Math.PI * 3;
@@ -2245,10 +2248,21 @@ function w26_journeyState(v, name, p, DW, DH) {
        side, round, and out on the near side, which is the side the pad is on. */
     const e = easeInOut(p);
     v.jt = 4 + e; v.jcam = 1; v.zoom = 1;
-    /* a low-orbit flight turned end-for-end to brake and STAYS that way down — it used to snap its
-       nose back round the instant the phase changed, which is a 180 deg flip in one frame */
-    v.retro = m >= 2 ? 0 : 1;
     v.ang = lerp(AR.home[0], AR.home[1], e);
+    /* T87 · a Moon mission brakes too, and it brakes where a returning ship would: at the bottom
+       left of the Earth, part way round the arc home. The angle is derived, not tuned — the return
+       runs 152° to 301°, so the bottom left (225°) is a real point on it and `eBL` is where the
+       sweep reaches it. The ship turns end-for-end over RETRO_TURN of the arc from there and stays
+       that way down, exactly as the low-orbit flight does.
+       A low-orbit flight already flipped at the end of its lap, so it arrives here holding it —
+       `retro` stays 1 for the whole phase or it would snap its nose back in one frame. */
+    if (m >= 2) {
+      const a0 = AR.home[0], a1 = AR.home[1], span = a1 - a0;
+      let eBL = 0.5;
+      for (const k of [-1, 0, 1]) { const f = (RETRO_AT + k * 2 * Math.PI - a0) / span;
+        if (f >= 0 && f <= 1) { eBL = f; break; } }
+      v.retro = clamp((e - eBL) / RETRO_TURN, 0, 1);
+    } else v.retro = 1;
     /* T81 · the mirror of the join above: over the last J_DIVE the ship eases onto the pad
        camera's station and grows to its pad scale, so `descent` picks it up where it is. */
     v.jmix = easeInOut(clamp((p - (1 - J_DIVE)) / J_DIVE, 0, 1));
