@@ -505,6 +505,9 @@ body {
              font-size: var(--text-3xs); letter-spacing: .06em; text-transform: uppercase; color: var(--h-text-muted);
              text-shadow: 0 1px 2px rgb(0 0 0 / .5); }
   .goalwin[hidden] { display: none; }
+  /* T84/T85 · minimized: no rows, and the number on one line whatever the width. */
+  .goalwin.mini .todo { display: none; }
+  .goalwin .dv { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .goalwin .t { display: flex; justify-content: space-between; color: var(--h-accent); font-weight: 700; margin-bottom: .2rem; }
   .goalwin .t #gw-tag { color: var(--h-warning); }
   .goalwin.go .t #gw-tag { color: var(--h-positive); }
@@ -748,12 +751,10 @@ body {
           <div class="checklist" id="checklist" hidden>
             <div class="t"><span id="cl-title">Readiness</span><span id="cl-t">T−15s</span></div>
             <ol id="cl-list"></ol>
-            <div class="bar"><i id="cl-bar"></i></div>
           </div>
           <div class="goalwin" id="goalwin" hidden aria-label="Next mission">
             <div class="t"><span id="gw-title">Next</span><span id="gw-tag"></span></div>
             <ol class="todo" id="gw-todo"></ol>
-            <div class="bar"><i id="gw-bar"></i></div>
             <div class="dv" id="gw-dv"></div>
           </div>
           <div class="gimbal" id="gimbal" hidden aria-label="Ship attitude and engines">
@@ -1592,12 +1593,27 @@ function tickTurnaround() {
   const el = turnElapsed();
   const left = Math.max(0, turn.total - el);
   $('cl-t').textContent = 'T−' + Math.ceil(left) + 's';
-  $('cl-bar').style.width = Math.min(100, el / turn.total * 100) + '%';
   const items = $('cl-list').children;
-  let cur = null;
+  /* T83 · the crew still work through all six or seven jobs; the window shows two of them.
+     The one in hand and the one after it, plus the one just finished for a moment so you see it
+     get ticked before it drops out. Everything else is behind the window, and the assembly
+     building is behind the window. */
+  let cur = null, curIdx = turn.tasks.findIndex(tk => el < tk.start + tk.dur);
+  if (curIdx < 0) curIdx = turn.tasks.length - 1;
+  const LINGER = 0.45;                                   // seconds a finished job stays up, ticked
   turn.tasks.forEach((tk, i) => { const li = items[i]; if (!li) return;
     const st = el >= tk.start + tk.dur ? 'done' : el >= tk.start ? 'doing' : '';
-    li.className = (li.dataset.mishap ? 'mishap ' : '') + st; if (st === 'doing') cur = tk; });
+    li.className = (li.dataset.mishap ? 'mishap ' : '') + st; if (st === 'doing') cur = tk;
+    li.hidden = !(i === curIdx || i === curIdx + 1);
+  });
+  /* Exactly two rows, always. While the job just finished is still ticked on screen it takes the
+     second slot back off the one after it — otherwise the linger makes a third line, which is the
+     thing this was supposed to stop. */
+  const prev = turn.tasks[curIdx - 1];
+  if (prev && el < prev.start + prev.dur + LINGER && items[curIdx - 1]) {
+    items[curIdx - 1].hidden = false;
+    if (items[curIdx + 1]) items[curIdx + 1].hidden = true;
+  }
   $('cl-title').textContent = cur ? (STAGE_LABEL[cur.stage] || 'Readiness') : 'Readiness';
   $('launch-sub').textContent = 'ready in ' + Math.ceil(left) + 's';
   drawScene(); if (Math.floor(el * 4) !== Math.floor((el - 0.05) * 4)) { paintDataWin(); paintWindows(); }
@@ -1646,11 +1662,12 @@ function paintReady() {
     /* T51 · just the destination. The Δv it needs is already spelled out in the goal window. */
     [S.mission >= 5 ? 'Cargo bay loaded' : next.name, S.mission >= 5 || !!am],
   ];
+  /* T83 · two rows, not five. The first three never say anything but yes; the pair that moves is
+     the Δv and the destination, and everything behind this window is worth more than the rest. */
   const ol = $('cl-list'); ol.textContent = '';
-  for (const [text, ok] of rows) { const li = document.createElement('li'); li.className = ok ? 'done' : ''; li.textContent = text; ol.appendChild(li); }
+  for (const [text, ok] of rows.slice(-2)) { const li = document.createElement('li'); li.className = ok ? 'done' : ''; li.textContent = text; ol.appendChild(li); }
   $('cl-title').textContent = am ? 'Go for ' + MISSIONS[am].short : 'Readiness';
   $('cl-t').textContent = am ? 'GO' : S.mission >= 5 ? 'CARGO' : 'HOLD';
-  $('cl-bar').style.width = (rows.filter(r => r[1]).length / rows.length * 100) + '%';
   $('checklist').hidden = false;
 }
 /* T37 · the goal panel: the mission you are working toward and what it still needs. */
@@ -1658,15 +1675,16 @@ function paintGoal() {
   const g = $('goalwin');
   if (S.mission >= 5) {
     g.hidden = false; g.classList.add('go');
-    $('gw-title').textContent = 'Moon base'; $('gw-tag').textContent = 'BUILDING';
-    const ol = $('gw-todo'); ol.textContent = '';
-    for (const [text, on] of [['Base established', true], ['Grow to 10,000 people', S.population >= 10000], ['Keep landing cargo', false]]) {
-      const li = document.createElement('li'); li.className = on ? 'on' : ''; li.textContent = text; ol.appendChild(li); }
-    /* T78 · the cargo goal leads, because that is the thing the player is filling; the population is
-       what it means. Neither line says how many launches are left — the bar does the telling. */
-    $('gw-dv').textContent = S.cargoT + ' of ' + BASE_CARGO_T + ' t landed · '
-                           + S.population.toLocaleString('en-US') + ' people';
-    $('gw-bar').style.width = (S.population / MISSIONS[5].population * 100) + '%';
+    /* T85 · the population moves to the tag slot, where there is room beside the title. Kept on the
+       stat line it ran past the window's 13rem and got ellipsised, which is not "one line". */
+    $('gw-title').textContent = 'Moon base';
+    $('gw-tag').textContent = S.population.toLocaleString('en-US') + ' people';
+    /* T84 · once the base is the goal the checklist never changes again — "base established, grow to
+       10,000, keep landing cargo" is three rows of decoration. They are gone; the window is its title
+       and the one number that moves.
+       T85 · that number on ONE line, tenths, and the unit against the target it belongs to. */
+    $('gw-todo').textContent = '';
+    $('gw-dv').textContent = S.cargoT.toFixed(1) + ' / ' + BASE_CARGO_T + ' T';
     return;
   }
   const next = MISSIONS[S.mission + 1], p = plan || replan(), am = armedMission();
@@ -1683,11 +1701,13 @@ function paintGoal() {
   rows.forEach((r, i) => { const li = document.createElement('li');
     li.className = r.on ? 'on' : i === first ? 'now' : ''; li.textContent = r.text; ol.appendChild(li); });
   $('gw-dv').textContent = next.name;
-  $('gw-bar').style.width = clamp(p.f.dv / next.dvReq, 0, 1) * 100 + '%';
 }
 /* T33 · which window owns which corner, by phase. */
 function paintWindows() {
   paintGoal();
+  /* T84 · in flight there is nothing to do about the to-do list, and the scene behind it is the
+     thing worth looking at. The window keeps its title and its number and drops the rows. */
+  $('goalwin').classList.toggle('mini', phase === 'flight' || phase === 'descent');
   const flying = phase === 'flight' || phase === 'descent';
   $('datawin').hidden = !flying;
   if (!flying && phase === 'ready') paintReady();
