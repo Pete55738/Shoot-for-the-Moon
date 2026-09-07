@@ -2764,12 +2764,61 @@ function rocketDims(t) {
   return { bodyH, bodyW, noseH, totalH: bodyH + noseH + 8 }; // tier 1: 77.5 · tier 10: 169
 }
 
-/* hull material scheme */
+/* T95 · hull scheme — white or silver at every tier; the progression is in the trim.
+   era 0 (1-3) riveted white  · era 1 (4-6) panelled white + service livery
+   era 2 (7-8) white over brushed silver + tiles · era 3 (9-10) pearl + light.
+   `kind` stays 'steel' at every tier so the VAB copy of the ship (w18_*) keeps grey fins
+   and a plain white body without a second set of edits. */
 function w1_scheme(h) {
-  if (h <= 3) return { lo: '#7F8891', hi: '#CBD2D8', accent: '#4A5561', noseLo: '#6E777F', noseHi: '#AEB6BD', kind: 'steel' };
-  if (h <= 6) return { lo: ART.rocketDk, hi: ART.rocket, accent: ART.nose, noseLo: '#B23E2B', noseHi: '#F07A62', kind: 'paint' };
-  if (h <= 8) return { lo: '#B27F26', hi: '#F6D97F', accent: '#2B2F36', noseLo: ART.rocketDk, noseHi: ART.rocket, kind: 'foil' };
-  return { lo: '#111417', hi: '#3E464F', accent: ART.nose, noseLo: '#111417', noseHi: '#3E464F', kind: 'carbon' };
+  const t = clamp(Math.round(h || 1), 1, 10);
+  if (t <= 3) return {                                    // plain little rocket
+    lo: '#9BA5AE', hi: '#F6F9FC', noseLo: '#96A0A9', noseHi: '#EDF1F5',
+    accent: '#4A5561', fin: '#8A949E', trim: '#5B646D', band: '#6E777F',
+    glow: null, era: 0, tier: t, kind: 'steel' };
+  if (t <= 6) return {                                    // panelled, liveried
+    lo: '#A8B2BB', hi: '#FFFFFF', noseLo: '#9EA8B1', noseHi: '#F4F7FA',
+    accent: '#39424C', fin: '#5B646D', trim: '#4A5561', band: '#39424C',
+    glow: null, era: 1, tier: t, kind: 'steel' };
+  if (t <= 8) return {                                    // white over silver
+    lo: '#A2ACB6', hi: '#FFFFFF', noseLo: '#B4BEC7', noseHi: '#FFFFFF',
+    accent: '#2E353D', fin: '#6E777F', trim: '#5B646D', band: '#2E353D',
+    glow: null, era: 2, tier: t, kind: 'steel' };
+  return {                                                // pearl + light
+    lo: '#BFCEDA', hi: '#FFFFFF', noseLo: '#C6D4DF', noseHi: '#FFFFFF',
+    accent: '#22384A', fin: '#AEBCC8', trim: '#8FA6B8', band: '#5E7285',
+    glow: '#5FE0FF', era: 3, tier: t, kind: 'steel' };
+}
+
+/* the flag — LOD'd on the drawn size, so it reads at 35 px and at 110 px.
+   k = device pixels per local unit, taken from the live ctx transform. */
+function w1_flag(c, cx, cy, w, h, k) {
+  const x0 = cx - w / 2, y0 = cy - h / 2, dh = h * k;      // drawn height, px
+  const stripes = dh >= 10 ? 13 : dh >= 5 ? 7 : 3;
+  const sh = h / stripes;
+  c.fillStyle = '#F4F7FA'; c.fillRect(x0, y0, w, h); drawCount++;
+  c.fillStyle = '#C41F30'; c.beginPath();                  // every red stripe, one fill
+  for (let i = 0; i < stripes; i += 2) c.rect(x0, y0 + i * sh, w, sh);
+  c.fill(); drawCount++;
+  const cw = w * 0.42, ch = sh * Math.max(1, Math.round(stripes * 7 / 13));
+  c.fillStyle = '#182F6E'; c.fillRect(x0, y0, cw, ch); drawCount++;
+  if (dh >= 7) {                                           // stars, only when they can land
+    const cols = dh >= 11 ? 4 : 3, rows = dh >= 11 ? 3 : 2, r = Math.max(0.3, Math.min(cw / (cols * 4), ch / (rows * 4)));
+    c.fillStyle = 'rgba(255,255,255,.95)'; c.beginPath();
+    for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) {
+      const sx = x0 + cw * (i + 0.5) / cols, sy = y0 + ch * (j + 0.5) / rows;
+      c.moveTo(sx + r, sy); c.arc(sx, sy, r, 0, 7); }
+    c.fill(); drawCount++;
+  }
+  c.strokeStyle = 'rgba(24,32,40,.55)';                    // frame: white stripes on a white hull
+  c.lineWidth = clamp(0.9 / Math.max(k, 0.05), 0.5, h * 0.14);
+  c.strokeRect(x0, y0, w, h); drawCount++;
+}
+
+/* a soft glow bar without a canvas filter: three stacked, fading rects */
+function w1_glowbar(c, x0, y0, w, h, col, a) {
+  c.globalAlpha = a * 0.30; c.fillStyle = col; c.fillRect(x0 - w * 0.06, y0 - h * 1.1, w * 1.12, h * 3.2);
+  c.globalAlpha = a; c.fillStyle = '#FFFFFF'; c.fillRect(x0, y0, w, h);
+  c.globalAlpha = 1; drawCount += 2;
 }
 function w1_grad(c, x0, x1, lo, hi) {
   const g = c.createLinearGradient(x0, 0, x1, 0);
@@ -2864,19 +2913,30 @@ function drawRocket(c, x, baseY, t, flame, burning, now, opts) {
   const hw = bodyW / 2, top = baseY - bodyH;
   const S = w1_scheme(t.hull);
   const E = w1_engine(t.engine, bodyW);
+  const era = S.era, ht = S.tier;
   const fx = i => x + (i - (E.front - 1) / 2) * E.pitch;
   const bx = i => x + (i - (E.back - 1) / 2) * E.pitch;
+  /* device pixels per local unit — drives the flag's level of detail */
+  let k = 1;
+  if (c.getTransform) { const M = c.getTransform(); k = Math.hypot(M.a, M.b) || 1; }
   c.save(); c.lineWidth = 1;
 
-  /* ── exhaust ── */
+  /* ── exhaust ── (T95: no c.filter — the blur halved the frame rate) */
   if (flame > 0) {
-    const k = (t.engine - 1) / 9;                              // 0 orange .. 1 blue-white
-    const outer = mixHex('#FF7A1A', '#5FA8FF', k), mid = mixHex('#FFB347', '#BFE3FF', k), core = mixHex('#FFF4C2', '#FFFFFF', k);
+    const ek = (t.engine - 1) / 9;                             // 0 orange .. 1 blue-white
+    const outer = mixHex('#FF7A1A', '#5FA8FF', ek), mid = mixHex('#FFB347', '#BFE3FF', ek), core = mixHex('#FFF4C2', '#FFFFFF', ek);
     const Lbase = (burning ? 58 + t.engine * 6.5 : 26) * flame;
     const fl = i => 1 + Math.sin(now / 37 + i * 1.7) * .07 + Math.sin(now / 21 + i) * .05;
     const plume = (w, lenK, y0) => { c.beginPath(); for (let i = 0; i < E.front; i++) { const nx = fx(i), L = Lbase * fl(i) * lenK, bw = E.bw * w;
       c.moveTo(nx - bw, baseY + y0); c.quadraticCurveTo(nx - bw * 1.35, baseY + L * .42, nx, baseY + L); c.quadraticCurveTo(nx + bw * 1.35, baseY + L * .42, nx + bw, baseY + y0); } c.fill(); drawCount++; };
-    c.save(); c.filter = 'blur(4px)'; c.globalAlpha = .75 * flame; c.fillStyle = outer; plume(1.35, 1.08, 2); c.restore();
+    /* the soft halo, pre-softened: three widening skirts under one vertical
+       fade, instead of one blur(4px) pass */
+    const hg = c.createLinearGradient(0, baseY, 0, baseY + Lbase * 1.25);
+    hg.addColorStop(0, outer); hg.addColorStop(.42, outer); hg.addColorStop(1, 'rgba(255,120,26,0)');
+    c.fillStyle = hg;
+    c.globalAlpha = .11 * flame; plume(1.80, 1.14, 1);
+    c.globalAlpha = .15 * flame; plume(1.52, 1.11, 2);
+    c.globalAlpha = .26 * flame; plume(1.28, 1.07, 2);
     c.globalAlpha = .9 * flame; c.fillStyle = mid; plume(.85, .82, 4);
     c.globalAlpha = flame; c.fillStyle = core; plume(.42, .5, 4);
     if (t.engine >= 7) { // shock diamonds — 3..5 per plume, a soft halo then a hot white core
@@ -2885,20 +2945,19 @@ function drawRocket(c, x, baseY, t, flame, burning, now, opts) {
         for (let i = 0; i < E.front; i++) for (let d = 1; d <= nd; d++) { const nx = fx(i), y = baseY + y0 + Lbase * fl(i) * (.12 * d + .05), w = spread * (.95 - d * .1) * scale, h = w * 1.9;
           c.moveTo(nx, y - h); c.lineTo(nx + w, y); c.lineTo(nx, y + h); c.lineTo(nx - w, y); }
         c.fill(); drawCount++; };
-      c.globalAlpha = .55 * flame; c.fillStyle = mixHex('#FFD68A', '#BFE3FF', k); dia(1.35, 1);   // halo
+      c.globalAlpha = .55 * flame; c.fillStyle = mixHex('#FFD68A', '#BFE3FF', ek); dia(1.35, 1);   // halo
       c.globalAlpha = flame; c.fillStyle = '#FFFFFF'; dia(.7, 0);                                   // core
     }
     c.globalAlpha = 1;
   }
 
   /* ── fins (behind the body) ── */
-  const finCol = S.kind === 'steel' ? '#6E777F' : S.kind === 'carbon' ? '#2A3038' : ART.fin;
+  const finCol = S.fin;
   /* T53 · recovery flaps. Every ship has them whatever its aero tier, because they are not an
-     upgrade — they are how it comes home: they swing out for the belly-flop and steer the fall.
-     Drawn before the tier fins so they sit behind the body like the rest of the aero. */
+     upgrade — they are how it comes home: they swing out for the belly-flop and steer the fall. */
   const flaps = clamp(opts.flaps || 0, 0, 1);
   if (flaps > 0.01) {
-    const flapCol = S.kind === 'carbon' ? '#242A31' : S.kind === 'foil' ? '#8E6A20' : '#5B646D';
+    const flapCol = S.trim;
     const flap = (hy, len, wid, side) => {
       const L = len * flaps;
       c.fillStyle = flapCol; c.beginPath();
@@ -2907,13 +2966,13 @@ function drawRocket(c, x, baseY, t, flame, burning, now, opts) {
       c.lineTo(x + side * (hw + L), hy + wid * 0.5);
       c.lineTo(x + side * hw, hy + wid * 0.5);
       c.closePath(); c.fill(); drawCount++;
-      c.fillStyle = 'rgba(255,255,255,.22)'; c.fillRect(x + side * hw, hy - wid * 0.5, side * L, 1.4); drawCount++;
+      c.fillStyle = era === 3 ? 'rgba(255,255,255,.42)' : 'rgba(255,255,255,.22)'; c.fillRect(x + side * hw, hy - wid * 0.5, side * L, 1.4); drawCount++;
+      if (era === 3) { c.fillStyle = S.glow; c.globalAlpha = .55 + .25 * Math.sin(now / 420); c.fillRect(x + side * (hw + L * .55), hy - wid * 0.5 + 1.4, side * L * .45, 1.1); c.globalAlpha = 1; drawCount++; }
       c.fillStyle = '#2A2F36'; c.fillRect(x + side * (hw - 1.5), hy - wid * 0.5 - 1, side * 3, wid + 2); drawCount++;   // hinge fairing
     };
     const fwdY = top + bodyH * 0.13, aftY = baseY - bodyH * 0.20;
     for (const side of [-1, 1]) { flap(fwdY, 9 + bodyW * 0.30, bodyH * 0.16, side); flap(aftY, 13 + bodyW * 0.42, bodyH * 0.22, side); }
   }
-  const finEdge = S.kind === 'carbon' ? ART.nose : 'rgba(0,0,0,.18)';
   if (t.aero >= 2 && t.aero <= 3) { const fw = 7 + t.aero * 1.5, fh = 12 + t.aero * 2; // stubby
     c.fillStyle = finCol; c.beginPath();
     c.moveTo(x - hw, baseY - fh); c.lineTo(x - hw - fw, baseY - fh * .35); c.lineTo(x - hw - fw, baseY + 1); c.lineTo(x - hw, baseY + 1);
@@ -2923,67 +2982,114 @@ function drawRocket(c, x, baseY, t, flame, burning, now, opts) {
     c.moveTo(x - hw, baseY - fh); c.quadraticCurveTo(x - hw - fw * .45, baseY - fh * .35, x - hw - fw, baseY + 3); c.lineTo(x - hw - fw * .55, baseY + 3); c.lineTo(x - hw, baseY - 1);
     c.moveTo(x + hw, baseY - fh); c.quadraticCurveTo(x + hw + fw * .45, baseY - fh * .35, x + hw + fw, baseY + 3); c.lineTo(x + hw + fw * .55, baseY + 3); c.lineTo(x + hw, baseY - 1); c.fill();
     c.fillStyle = 'rgba(0,0,0,.18)'; c.beginPath(); c.moveTo(x + hw, baseY - fh); c.quadraticCurveTo(x + hw + fw * .45, baseY - fh * .35, x + hw + fw, baseY + 3); c.lineTo(x + hw + fw * .55, baseY + 3); c.lineTo(x + hw, baseY - 1); c.fill(); drawCount += 2;
-    if (S.kind === 'carbon') { c.strokeStyle = finEdge; c.lineWidth = 1.5; c.beginPath(); c.moveTo(x - hw, baseY - fh); c.quadraticCurveTo(x - hw - fw * .45, baseY - fh * .35, x - hw - fw, baseY + 3); c.moveTo(x + hw, baseY - fh); c.quadraticCurveTo(x + hw + fw * .45, baseY - fh * .35, x + hw + fw, baseY + 3); c.stroke(); drawCount++; }
+    if (era === 3) { // lit leading edges
+      c.strokeStyle = S.glow; c.globalAlpha = .55 + .25 * Math.sin(now / 380); c.lineWidth = 1.4; c.beginPath();
+      c.moveTo(x - hw, baseY - fh); c.quadraticCurveTo(x - hw - fw * .45, baseY - fh * .35, x - hw - fw, baseY + 3);
+      c.moveTo(x + hw, baseY - fh); c.quadraticCurveTo(x + hw + fw * .45, baseY - fh * .35, x + hw + fw, baseY + 3); c.stroke(); c.globalAlpha = 1; drawCount++; }
   }
   if (t.aero >= 8) { // grid fins high on the body
     const gw = 9 + (t.aero - 8) * 1.5, gh = 6, gy0 = top + bodyH * .36;
-    c.fillStyle = '#5B646D'; c.fillRect(x - hw - gw, gy0, gw, gh); c.fillRect(x + hw, gy0, gw, gh);
+    c.fillStyle = era === 3 ? '#8FA6B8' : '#5B646D'; c.fillRect(x - hw - gw, gy0, gw, gh); c.fillRect(x + hw, gy0, gw, gh);
     c.strokeStyle = 'rgba(255,255,255,.55)'; c.lineWidth = .8; c.beginPath();
     for (let i = 1; i < 4; i++) { const yy = gy0 + gh * i / 4; c.moveTo(x - hw - gw, yy); c.lineTo(x - hw, yy); c.moveTo(x + hw, yy); c.lineTo(x + hw + gw, yy); }
     for (let i = 1; i < 4; i++) { const dx = gw * i / 4; c.moveTo(x - hw - dx, gy0); c.lineTo(x - hw - dx, gy0 + gh); c.moveTo(x + hw + dx, gy0); c.lineTo(x + hw + dx, gy0 + gh); }
     c.stroke(); drawCount += 3;
   }
   if (t.aero >= 10) { // canards near the nose
-    c.fillStyle = S.kind === 'carbon' ? ART.nose : finCol; c.beginPath();
+    c.fillStyle = finCol; c.beginPath();
     c.moveTo(x - hw + 1, top - 3); c.lineTo(x - hw - 9, top + 7); c.lineTo(x - hw + 1, top + 9);
     c.moveTo(x + hw - 1, top - 3); c.lineTo(x + hw + 9, top + 7); c.lineTo(x + hw - 1, top + 9); c.fill(); drawCount++;
   }
 
   /* ── engine skirt + bells ── */
-  c.fillStyle = '#3A434D'; c.fillRect(x - hw - 1, baseY - 7, bodyW + 2, 5); drawCount++;
+  c.fillStyle = era === 3 ? '#46525E' : '#3A434D'; c.fillRect(x - hw - 1, baseY - 7, bodyW + 2, 5); drawCount++;
   for (let i = 0; i < E.back; i++) { const nx = bx(i), bw = E.bw * .8; // back row of the cluster, darker
     c.fillStyle = '#2E353D'; c.beginPath(); c.moveTo(nx - bw * .55, baseY - 4); c.lineTo(nx + bw * .55, baseY - 4); c.lineTo(nx + bw, baseY + 3); c.lineTo(nx - bw, baseY + 3); c.fill(); drawCount++; }
   for (let i = 0; i < E.front; i++) { const nx = fx(i), bw = E.bw;
-    c.fillStyle = w1_grad(c, nx - bw, nx + bw, '#3A434D', '#8A949E'); c.beginPath(); c.moveTo(nx - bw * .55, baseY - 3); c.lineTo(nx + bw * .55, baseY - 3); c.lineTo(nx + bw, baseY + 6); c.lineTo(nx - bw, baseY + 6); c.fill();
-    c.fillStyle = '#242A30'; c.fillRect(nx - bw, baseY + 5, bw * 2, 1.2); drawCount += 2; }
+    c.fillStyle = w1_grad(c, nx - bw, nx + bw, era === 3 ? '#5A6874' : '#3A434D', era === 3 ? '#C3D0DA' : '#8A949E'); c.beginPath(); c.moveTo(nx - bw * .55, baseY - 3); c.lineTo(nx + bw * .55, baseY - 3); c.lineTo(nx + bw, baseY + 6); c.lineTo(nx - bw, baseY + 6); c.fill();
+    c.fillStyle = era === 3 ? '#1A2C3A' : '#242A30'; c.fillRect(nx - bw, baseY + 5, bw * 2, 1.2); drawCount += 2; }
 
   /* ── body ── */
   c.fillStyle = w1_grad(c, x - hw, x + hw, S.lo, S.hi); c.fillRect(x - hw, top, bodyW, bodyH); drawCount++;
-  // material detail
-  if (S.kind === 'steel') { // rivet rows
-    c.fillStyle = 'rgba(0,0,0,.28)'; c.beginPath();
-    const rows = t.hull + 1; for (let r = 0; r <= rows; r++) { const yy = top + 6 + (bodyH - 12) * r / rows; for (let rx = x - hw + 3; rx <= x + hw - 3; rx += 4) { c.moveTo(rx, yy); c.arc(rx, yy, .8, 0, 7); } }
+
+  if (era === 0) {                                   /* 1-3 · riveted white shell */
+    c.fillStyle = 'rgba(0,0,0,.22)'; c.beginPath();
+    const rows = ht + 1; for (let r = 0; r <= rows; r++) { const yy = top + 6 + (bodyH - 12) * r / rows; for (let rx = x - hw + 3; rx <= x + hw - 3; rx += 4) { c.moveTo(rx, yy); c.arc(rx, yy, .8, 0, 7); } }
     for (let yy = top + 6; yy < baseY - 8; yy += 4) { c.moveTo(x - hw + 2, yy); c.arc(x - hw + 2, yy, .8, 0, 7); c.moveTo(x + hw - 2, yy); c.arc(x + hw - 2, yy, .8, 0, 7); }
     c.fill(); drawCount++;
-    if (t.hull >= 2) { c.fillStyle = 'rgba(0,0,0,.12)'; c.fillRect(x - hw, top + bodyH * .45, bodyW, bodyH * .1); drawCount++; }
-  } else if (S.kind === 'paint') {
-    c.fillStyle = ART.nose; c.fillRect(x - hw, baseY - 7 - bodyH * .12, bodyW, bodyH * .12); drawCount++;   // red skirt band
-    if (t.hull >= 5) { c.fillRect(x - hw, top + 2, bodyW, 4); drawCount++; }                              // top ring
-    if (t.hull >= 6) { const cy = top + bodyH * .5, cs = bodyW / 4; c.fillStyle = '#23272C';                   // roll-pattern checker
-      for (let i = 0; i < 4; i++) for (let j = 0; j < 2; j++) if ((i + j) % 2 === 0) c.fillRect(x - hw + i * cs, cy + j * cs, cs, cs); drawCount++; }
-  } else if (S.kind === 'foil') { // upper white, lower gold foil
-    const split = top + bodyH * .36;
-    c.fillStyle = w1_grad(c, x - hw, x + hw, ART.rocketDk, ART.rocket); c.fillRect(x - hw, top, bodyW, split - top); drawCount++;
-    c.strokeStyle = 'rgba(120,80,10,.45)'; c.lineWidth = .8; c.beginPath();
-    for (let yy = split + 3; yy < baseY - 10; yy += 5) { const j = ((yy * 7) % 5) - 2; c.moveTo(x - hw, yy); c.lineTo(x - hw * .3, yy + j); c.lineTo(x + hw * .35, yy - j); c.lineTo(x + hw, yy + j * .5); }
+    c.fillStyle = S.band; c.fillRect(x - hw, baseY - 7 - bodyH * .09, bodyW, bodyH * .09); drawCount++;      // grey skirt band
+    if (ht >= 2) { c.fillStyle = 'rgba(0,0,0,.12)'; c.fillRect(x - hw, top + bodyH * .45, bodyW, bodyH * .08); drawCount++; }
+    if (ht >= 3) { c.fillStyle = S.band; c.fillRect(x - hw, top + 3, bodyW, 3); drawCount++; }               // shoulder ring
+  } else if (era === 1) {                            /* 4-6 · panelled + service livery */
+    c.strokeStyle = 'rgba(70,84,98,.38)'; c.lineWidth = .8; c.beginPath();                                   // vertical panel lines
+    for (const f of [-.55, -.18, .18, .55]) { const px = x + hw * f; c.moveTo(px, top + 4); c.lineTo(px, baseY - 9); }
     c.stroke(); drawCount++;
-    if (t.hull >= 8) { const th = bodyH * .14, ty = baseY - 7 - th; c.fillStyle = '#23272C'; c.fillRect(x - hw, ty, bodyW, th);                     // heat tiles
-      c.strokeStyle = 'rgba(255,255,255,.22)'; c.lineWidth = .7; c.beginPath(); for (let tx = x - hw + 4; tx < x + hw; tx += 4) { c.moveTo(tx, ty); c.lineTo(tx, ty + th); } c.moveTo(x - hw, ty + th / 2); c.lineTo(x + hw, ty + th / 2); c.stroke(); drawCount += 2; }
-  } else { // carbon: racing stripes + gloss
-    const sw = Math.max(2.5, bodyW * .12);
-    c.fillStyle = ART.nose; c.fillRect(x - sw * .2, top + 4, sw, bodyH - 12);
-    c.fillStyle = '#E9EEF3'; c.fillRect(x + sw * 1.1, top + 4, sw * .5, bodyH - 12); drawCount += 2;
-    if (t.hull >= 10) { c.fillStyle = ART.nose; c.fillRect(x - sw * 1.9, top + 4, sw * .5, bodyH - 12); c.fillStyle = '#FFD46A'; c.fillRect(x + sw * 1.9, top + 4, sw * .4, bodyH - 12); drawCount += 2; }
-    c.fillStyle = 'rgba(255,255,255,.14)'; c.fillRect(x - hw + 2, top, 2.5, bodyH); drawCount++;
+    c.fillStyle = S.band; c.fillRect(x - hw, baseY - 7 - bodyH * .11, bodyW, bodyH * .11); drawCount++;      // dark skirt band
+    c.fillStyle = 'rgba(255,255,255,.5)'; c.fillRect(x - hw, baseY - 7 - bodyH * .11, bodyW, 1); drawCount++;
+    if (ht >= 5) { c.fillStyle = S.band; c.fillRect(x - hw, top + 2, bodyW, 3.5); drawCount++;               // top ring
+      c.fillStyle = 'rgba(50,60,72,.75)'; c.beginPath();                                                     // "UNITED STATES" tick block
+      for (let i = 0; i < 5; i++) c.rect(x - hw * .5 + i * bodyW * .17, top + bodyH * .30, bodyW * .10, 2.2);
+      c.fill(); drawCount++; }
+    if (ht >= 6) { const cy = top + bodyH * .46, cs = Math.max(2.5, bodyW / 5); c.fillStyle = '#23272C';     // roll pattern
+      for (let i = 0; i < 5; i++) for (let j = 0; j < 2; j++) if ((i + j) % 2 === 0) c.fillRect(x - hw + i * cs, cy + j * cs, cs, cs); drawCount++; }
+  } else if (era === 2) {                            /* 7-8 · white over brushed silver, tiles */
+    const split = top + bodyH * .40;
+    c.fillStyle = w1_grad(c, x - hw, x + hw, '#7E8993', '#E4EAEF'); c.fillRect(x - hw, split, bodyW, baseY - 7 - split); drawCount++;
+    c.strokeStyle = 'rgba(255,255,255,.30)'; c.lineWidth = .7; c.beginPath();                                // stringers on the silver
+    for (let yy = split + 4; yy < baseY - 12; yy += 5) { c.moveTo(x - hw, yy); c.lineTo(x + hw, yy); }
+    c.stroke(); drawCount++;
+    c.fillStyle = 'rgba(30,38,46,.55)'; c.fillRect(x - hw, split - 1.5, bodyW, 3); drawCount++;              // the join
+    const th = bodyH * (ht >= 8 ? .17 : .12), ty = baseY - 7 - th;                                           // heat tiles
+    c.fillStyle = '#23272C'; c.fillRect(x - hw, ty, bodyW, th);
+    c.strokeStyle = 'rgba(255,255,255,.20)'; c.lineWidth = .7; c.beginPath();
+    for (let tx = x - hw + 4; tx < x + hw; tx += 4) { c.moveTo(tx, ty); c.lineTo(tx, ty + th); }
+    c.moveTo(x - hw, ty + th / 2); c.lineTo(x + hw, ty + th / 2); c.stroke(); drawCount += 2;
+    if (ht >= 8) { c.fillStyle = S.trim; c.fillRect(x - hw, top + 3, bodyW, 3); drawCount++; }               // shoulder trim
+  } else {                                           /* 9-10 · pearl hull, lit trim */
+    const pulse = .55 + .25 * Math.sin(now / 420);
+    c.fillStyle = 'rgba(255,255,255,.45)'; c.fillRect(x - hw + 1.5, top + 4, Math.max(1.6, bodyW * .09), bodyH - 14); drawCount++;  // pearl sheen
+    const sw = Math.max(2.2, bodyW * .11), sy0 = top + bodyH * .10, sy1 = baseY - 9;                          // strakes / nacelle rails
+    for (const side of [-1, 1]) {
+      const sx = x + side * hw * .60 - sw / 2;
+      c.fillStyle = w1_grad(c, sx, sx + sw, '#8FA1B0', '#F2F7FB'); c.fillRect(sx, sy0, sw, sy1 - sy0); drawCount++;
+      c.globalAlpha = pulse; c.fillStyle = S.glow; c.fillRect(sx + sw * .3, sy0 + 3, sw * .4, sy1 - sy0 - 6); c.globalAlpha = 1; drawCount++;
+    }
+    c.fillStyle = S.trim; c.fillRect(x - hw, top + 2, bodyW, 4); drawCount++;                                 // collar
+    c.fillStyle = 'rgba(255,255,255,.55)'; c.fillRect(x - hw, top + 2, bodyW, 1); drawCount++;
+    w1_glowbar(c, x - hw + 1, baseY - 11, bodyW - 2, 1.6, S.glow, pulse);                                     // impulse ring above the skirt
+    if (ht >= 10) {
+      w1_glowbar(c, x - hw + 1, top + bodyH * .62, bodyW - 2, 1.4, S.glow, pulse * .85);                      // second ring
+      const sw2 = hw * 1.34, sy2 = top + bodyH * .11;                                                         // saucer collar, proud of the hull
+      c.fillStyle = w1_grad(c, x - sw2, x + sw2, '#8FA1B0', '#FFFFFF');
+      c.beginPath(); c.ellipse(x, sy2, sw2, Math.max(2.4, bodyH * .035), 0, 0, 7); c.fill(); drawCount++;
+      c.fillStyle = 'rgba(34,56,74,.35)'; c.fillRect(x - sw2, sy2 + Math.max(1.2, bodyH * .016), sw2 * 2, 1); drawCount++;
+      c.globalAlpha = pulse; c.fillStyle = S.glow;
+      c.fillRect(x - sw2 * .92, sy2 - Math.max(1, bodyH * .012), sw2 * 1.84, 1.1); c.globalAlpha = 1; drawCount++;
+      c.globalAlpha = .40 + .18 * Math.sin(now / 380); c.fillStyle = S.glow;                                  // cyan rim light down both edges
+      c.beginPath(); c.rect(x - hw, top + 6, 1.2, bodyH - 16); c.rect(x + hw - 1.2, top + 6, 1.2, bodyH - 16); c.fill(); c.globalAlpha = 1; drawCount++;
+    }
   }
-  // tank seams
-  const seams = Math.ceil(t.tank / 2);
-  c.fillStyle = 'rgba(0,0,0,.18)'; for (let i = 1; i <= seams; i++) c.fillRect(x - hw, top + (bodyH - 8) * i / (seams + 1), bodyW, 1.5); drawCount++;
+
+  /* tank seams — era 3 is seamless by design */
+  if (era < 3) {
+    const seams = Math.ceil(t.tank / 2);
+    c.fillStyle = 'rgba(0,0,0,.18)'; for (let i = 1; i <= seams; i++) c.fillRect(x - hw, top + (bodyH - 8) * i / (seams + 1), bodyW, 1.5); drawCount++;
+  }
   if (t.tank >= 6) { const sy = top + bodyH * .62; // second-stage interstage
-    c.fillStyle = '#2E353D'; c.fillRect(x - hw, sy, bodyW, 5); c.fillStyle = 'rgba(255,255,255,.35)'; c.fillRect(x - hw, sy, bodyW, 1); drawCount += 2;
-    if (t.tank >= 9) { c.fillStyle = '#8A949E'; for (let sx = x - hw + 3; sx < x + hw - 2; sx += 6) c.fillRect(sx, sy + 1, 2, 3); drawCount++; }
+    c.fillStyle = era === 3 ? '#5E7285' : '#2E353D'; c.fillRect(x - hw, sy, bodyW, 5); c.fillStyle = 'rgba(255,255,255,.35)'; c.fillRect(x - hw, sy, bodyW, 1); drawCount += 2;
+    if (t.tank >= 9) { c.fillStyle = era === 3 ? '#C3D0DA' : '#8A949E'; for (let sx = x - hw + 3; sx < x + hw - 2; sx += 6) c.fillRect(sx, sy + 1, 2, 3); drawCount++; }
   }
-  // lit edge
+
+  /* ── the flag ── lower third, left of centre, clear of the bay door hinge.
+     Height tracks bodyH so it grows with the ship; LOD tracks the drawn size. */
+  {
+    const fh = clamp(bodyH * .13, 6.5, 15), fw = Math.min(fh * 1.6, bodyW * .60);
+    const fcx = x - hw + fw * .62 + bodyW * .06;
+    const fcy = baseY - 7 - (era === 2 ? bodyH * (ht >= 8 ? .17 : .12) : bodyH * .11) - fh * .72;
+    w1_flag(c, fcx, fcy, fw, fh, k);
+  }
+
+  /* lit edge */
   c.fillStyle = 'rgba(0,0,0,.18)'; c.fillRect(x + hw - 2, top, 2, bodyH); drawCount++;
 
   /* ── nose ── */
@@ -2993,12 +3099,20 @@ function drawRocket(c, x, baseY, t, flame, burning, now, opts) {
   else if (t.aero <= 8) { c.quadraticCurveTo(x - hw * .8, top - noseH * .7, x, top - noseH); c.quadraticCurveTo(x + hw * .8, top - noseH * .7, x + hw, top); } // ogive
   else { const nh = noseH - 8; c.quadraticCurveTo(x - hw * .8, top - nh * .75, x - 1.2, top - nh); c.lineTo(x, top - noseH); c.lineTo(x + 1.2, top - nh); c.quadraticCurveTo(x + hw * .8, top - nh * .75, x + hw, top); } // needle
   c.closePath(); c.fill(); drawCount++;
-  if (S.kind === 'foil' || S.kind === 'paint') { c.fillStyle = 'rgba(0,0,0,.18)'; c.fillRect(x - hw, top - 1, bodyW, 2); drawCount++; } // nose join ring
-  if (t.aero >= 9) { c.fillStyle = '#FFD46A'; c.globalAlpha = .6 + .4 * Math.sin(now / 250); c.beginPath(); c.arc(x, top - noseH + 1.5, 1.6, 0, 7); c.fill(); c.globalAlpha = 1; drawCount++; } // tip beacon
+  if (era === 1 || era === 2) { c.fillStyle = 'rgba(0,0,0,.18)'; c.fillRect(x - hw, top - 1, bodyW, 2); drawCount++; }   // nose join ring
+  if (era === 3) {                                                    // lit nose band + deflector
+    const pulse = .5 + .25 * Math.sin(now / 420);
+    c.fillStyle = S.trim; c.fillRect(x - hw * .82, top - noseH * .30, hw * 1.64, 2.2); drawCount++;
+    c.globalAlpha = pulse; c.fillStyle = S.glow; c.fillRect(x - hw * .82, top - noseH * .30, hw * 1.64, 1); c.globalAlpha = 1; drawCount++;
+    if (ht >= 10) { c.globalAlpha = .30 + .18 * Math.sin(now / 300); c.strokeStyle = S.glow; c.lineWidth = 1.2;
+      c.beginPath(); c.ellipse(x, top - noseH * .58, hw * .46, noseH * .10, 0, 0, 7); c.stroke(); c.globalAlpha = 1; drawCount++; }
+  }
+  if (t.aero >= 9) { c.fillStyle = era === 3 ? S.glow : '#FFD46A'; c.globalAlpha = .6 + .4 * Math.sin(now / 250); c.beginPath(); c.arc(x, top - noseH + 1.5, 1.6, 0, 7); c.fill(); c.globalAlpha = 1; drawCount++; } // tip beacon
 
   /* ── payload window ── */
   const wr = clamp(bodyW * .3, 5.5, 9), wy = top + Math.max(12, bodyW * .5);
   w1_window(c, x, wy, wr, t.payload, S.accent, now);
+  if (era === 3) { c.strokeStyle = S.glow; c.globalAlpha = .5 + .2 * Math.sin(now / 420); c.lineWidth = 1; c.beginPath(); c.arc(x, wy, wr + 2.8, 0, 7); c.stroke(); c.globalAlpha = 1; drawCount++; }
 
   /* ── payload bay (opts.bayOpen): a hull panel slides aside to show the cargo ── */
   if (bayOpen > 0) w1_bay(c, x, top, bodyW, bodyH, wy + wr, S, t.payload, bayOpen, now);
