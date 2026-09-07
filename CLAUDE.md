@@ -90,6 +90,20 @@ and `skills/orchestrate.md` for how workers are split, heartbeat and report.
   earns more instead of just flying higher. The payload *track* sets what a tonne is worth
   (`payValueOf`), not how many you can carry — if the bay were the only gate, a player who never
   bought payload would be pinned at the capsule for the whole game.
+- **The endgame is the BASE tab (T98/T99).** The Moon base wants `BASE_CARGO_T` = 1,000 t and the
+  win, the ladder and the flash all read `S.cargoT` — population is only what that tonnage houses
+  (`popPerTonne`), never a second running total. Three tracks in `BASE_TRACKS` (bay, logistics,
+  habitat, eight levels each) multiply tonnes a run, $ a tonne and people a tonne, and they are the
+  only thing left to buy once the rocket is maxed — which is exactly when `baseLock` unlocks them.
+  **That gate is load-bearing:** without it a player who buys the expensive thing every time
+  starves the rocket and shuttles 8 t a run for 158 cargo runs; with it every sim strategy lands
+  the 1,000 t in 14–16. Anything touching these steps or costs must re-run `scripts/sim.mjs`.
+- **The rocket is white or silver at every tier (T95).** `w1_scheme` has four *eras*, not four
+  materials — the progression is trim, panelling and light, and there is an American flag on the
+  tank at every tier. `kind` stays `'steel'` for all ten so the VAB copy of the ship (`w18_*`)
+  needs no parallel edit. **Never put `c.filter` back in `drawRocket`** — a `blur(4px)` on the
+  exhaust halved the frame rate the instant a flame lit (T91); the soft plume is stacked
+  gradient-faded skirts.
 - **Balance:** the numbers live in one block between `/*BAL-START*/` and `/*BAL-END*/` in the app.
   `node scripts/sim.mjs` evals that exact block — there is no second copy. Change a number, run the sim, paste the measurement into the comment beside it.
 - **Critic camera:** `node scripts/shot.mjs --all` → `docs/studies/round-<n>/` PNGs + JSON (console errors, fps, draw count, sim gate).
