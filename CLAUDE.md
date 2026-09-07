@@ -47,7 +47,7 @@ and `skills/orchestrate.md` for how workers are split, heartbeat and report.
 - **Static layers are cached.** The farm, the pad, the tilted site and the lunar ground render
   once into offscreen canvases keyed by size, ground line and theme. **Call `w12_invalidate()`
   and `siteInvalidate()` on resize, DPR change and theme change** or the scene keeps a stale layer. Anything that animates (crew, cows, windsock, beacons, pond, glows) still draws live.
-- **The journey is one world, one camera, one path (T82).** The gravity turn starts at the
+- **The journey is one world, one camera, one path, one speed (T82/T96).** The gravity turn starts at the
   tower — `ascent` eases `view.ang` to `-ASCENT_ANG` and `pitch` carries it on to −1.52
   (horizontal), leaning **left**; `maxQHeat(km)` warms the nose low down, peaking near 12 km.
   Once the ship leaves the pad the whole trip is **one path through one world**: `jcam` says where
@@ -57,8 +57,15 @@ and `skills/orchestrate.md` for how workers are split, heartbeat and report.
   and **owns `jt`, `jcam`, `jmix`, `ang`, `zoom` and `retro` — no phase branch may set them**, or
   the ship teleports at that boundary again (it used to move 288 px at `orbit`→`transfer`).
   `orbitRing` is still the single definition of the ring; `drawOrbitView`, `drawTransferView` and
-  `drawMoonApproach` are all `drawJourney`. The retro flip is **mission 1 only** — the flight that
-  is actually landing back on Earth. Read `docs/JOURNEY.md` before touching any of it.
+  `drawMoonApproach` are all `drawJourney`. **`jt` is paced by `w29_pacing` against arc length with
+  the camera frozen**, so the ship holds one speed across a whole run and nothing eases at a phase
+  boundary — a phase boundary is not an event. Read `docs/JOURNEY.md` before touching any of it.
+- **There is no atmosphere on the journey (T97).** `drawJourney` ignores `st.heat` entirely; the
+  way home gets a **lit engine**, not a nose glow — round the back side coasting, flip at the
+  bottom left, deceleration burn, then `descent` takes over. `w1_heat` puts the sheath on the
+  **windward face**, so max Q glows the nose on the way up and the belly glows on the way down.
+  `descent` runs on **four rates**: the plasma band (105→45 km) owns a quarter of the phase on its
+  own, because under one free-fall curve the whole Starship re-entry crossed it in 6 frames.
 - **The recovery is propulsive — there is no parachute anywhere (T52/T53).** After burnout the ship
   keeps its attitude and goes on falling over: `coast` carries `view.ang` from the burnout lean to
   `BALLISTIC_TOP` (horizontal at the top of the arc). Then it is the Starship routine, in altitudes —

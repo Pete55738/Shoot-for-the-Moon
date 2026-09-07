@@ -994,7 +994,10 @@ const BALLISTIC_TOP = 1.45;
 /* T53 · the recovery, in altitudes. Above RECOV_KM the ship is still falling like a stone; below
    it the flaps are out and it belly-flops down, flips to vertical at FLIP_KM and lights the engine
    at BURN_KM for the last few seconds into the chopsticks. There is no parachute anywhere in it. */
-const RECOV_KM = 14, FLIP_KM = 9, FLIP_END_KM = 4, BURN_KM = 7, CATCH_KM = 3;
+const RECOV_KM = 14, FLIP_KM = 14, FLIP_END_KM = 5, BURN_KM = 7, CATCH_KM = 3;
+/* T97 · the plasma band. view.heat is a window centred on 80 km, so these bracket it: the ship
+   drops to ENTRY_KM quickly and then crosses to PLASMA_END_KM slowly, which is the whole beat. */
+const ENTRY_KM = 105, PLASMA_END_KM = 45;
 const BELLY_ANG = 1.57;   // flat to the airstream, belly down
 /* Just under a full lap: the ship leaves the atmosphere at the right-hand limb (angle 0, the Moon
    side), goes the long way round the back, and ends at the lower right ready to burn for the Moon. */
@@ -1025,13 +1028,20 @@ const ORBIT_COAST = 0.68;
    peaks low: warm from ~4 km, hottest near 12, gone by 30. Used for the nose glow on the way up. */
 function maxQHeat(km) { return km <= 2 || km >= 30 ? 0 : Math.pow(Math.sin(Math.PI * clamp((km - 2) / 28, 0, 1)), 1.6) * 0.55; }
 /* T82 · phase seconds only — the journey is one path now and needs room to fly it. */
+/* T96 · constant speed decides how long each ARC takes; these seconds only decide where the
+   phase labels fall. Re-cut in the measured proportions of each run's arc length at 390×844, so
+   every boundary lands within 0.08 s of the jt integer it names. Every RUN TOTAL is unchanged —
+   mission 5 is still 24.8 s of flight; only the boundaries inside a run moved.
+   T97 · `descent` is the exception, and deliberately: it is not part of a journey run (it is on
+   the pad camera), and at 1.9–2.6 s it had to fit the plasma pass, the flip, the landing burn and
+   the catch. It is 3.2 s on every mission now, which is what gives the Starship beat room. */
 const FLIGHT_PLAN = {
   0: [['ascent', 3.0], ['coast', 2.2], ['descent', 4.2]],
-  1: [['ascent', 2.2], ['pitch', 1.8], ['orbit', 5.0], ['reentry', 2.0], ['descent', 2.6]],
-  2: [['ascent', 2.0], ['pitch', 1.6], ['orbit', 2.6], ['transfer', 4.4], ['back', 2.6], ['reentry', 2.0], ['descent', 2.2]],
-  3: [['ascent', 1.8], ['pitch', 1.5], ['orbit', 2.6], ['transfer', 4.0], ['moonorbit', 3.4], ['back', 3.0], ['reentry', 2.0], ['descent', 2.0]],
-  4: [['ascent', 1.8], ['pitch', 1.5], ['orbit', 2.6], ['transfer', 3.6], ['moonorbit', 3.4], ['land', 3.6], ['back', 2.8], ['reentry', 2.0], ['descent', 1.9]],
-  5: [['ascent', 1.7], ['pitch', 1.4], ['orbit', 2.6], ['transfer', 4.0], ['moonorbit', 3.4], ['cargo', 5.4], ['back', 3.2], ['reentry', 2.0], ['descent', 1.9]],
+  1: [['ascent', 2.2], ['pitch', 1.8], ['orbit', 5.0], ['reentry', 2.0], ['descent', 3.2]],
+  2: [['ascent', 2.0], ['pitch', 1.6], ['orbit', 2.5], ['transfer', 3.0], ['back', 3.2], ['reentry', 2.9], ['descent', 3.2]],
+  3: [['ascent', 1.8], ['pitch', 1.5], ['orbit', 2.2], ['transfer', 2.5], ['moonorbit', 4.1], ['back', 3.5], ['reentry', 2.7], ['descent', 3.2]],
+  4: [['ascent', 1.8], ['pitch', 1.5], ['orbit', 2.2], ['transfer', 2.5], ['moonorbit', 4.9], ['land', 3.6], ['back', 2.9], ['reentry', 1.9], ['descent', 3.2]],
+  5: [['ascent', 1.7], ['pitch', 1.4], ['orbit', 2.3], ['transfer', 2.6], ['moonorbit', 5.1], ['cargo', 5.4], ['back', 3.2], ['reentry', 2.0], ['descent', 3.2]],
 };
 const FADE_S = 0.45;                // cross-fade between camera views; reads as a zoom-out
 /* T17 · once the base passes RAILGUN_POP it fires one cargo shipment home per turnaround.
@@ -1510,7 +1520,7 @@ function runFlight(f, onApogee, onLanded, mission) {
     } else if (ph.name === 'orbit' || ph.name === 'reentry') {
       view.km = orbitKm >= MOON_KM ? 400 : orbitKm; view.v = 7800; view.burning = false; view.flame = 0;
       /* T82 · the ring angle, the retro flip and the zoom belong to w26_journeyState now. */
-      view.heat = ph.name === 'reentry' ? Math.sin(p * Math.PI) : 0;
+      view.heat = 0;   /* T97 · no atmosphere out there; the way home gets a lit engine, not a nose glow */
       view.forces = forcesAt(S.tiers, view.km * 1000, view.v, 0);
       if (!paid && view.mission === 1 && ph.name === 'orbit' && p > 0.5) { paid = true; view.apogeeKm = orbitKm; onApogee(); }
     } else if (ph.name === 'transfer' || ph.name === 'back') {
@@ -1544,11 +1554,18 @@ function runFlight(f, onApogee, onLanded, mission) {
          the catch. One curve made the whole recovery flash past in a few frames. */
       view.scene = 'pad'; view.cargo = 0;
       /* T64 · three rates, not two. The catch used to be whatever was left over — about 0.7 s — and
-         the chopsticks closed before you could see them do it. It now owns the last 38% of the
-         phase outright, so the arms come in, take the ship and set it down where you can watch. */
-      view.km = p < 0.34 ? lerp(fromKm, RECOV_KM, easeOut(p / 0.34))
-              : p < 0.62 ? lerp(RECOV_KM, CATCH_KM, (p - 0.34) / 0.28)
-                         : CATCH_KM * (1 - (p - 0.62) / 0.38);
+         the chopsticks closed before you could see them do it. It now owns the last third of the
+         phase outright, so the arms come in, take the ship and set it down where you can watch.
+         T97 · four rates, because the plasma pass had the same problem the catch used to have.
+         Heat only exists between 105 and 45 km, and under the old single free-fall curve the ship
+         crossed that band in 6 frames — 0.12 s of the Starship re-entry the whole beat is for.
+         So the band gets its own rate and a quarter of the phase, and only then does the fall
+         resume. Measured after: 0.72 s above heat 0.3, against 0.12 s before. */
+      view.km = p < 0.10 ? lerp(fromKm, ENTRY_KM, easeOut(p / 0.10))
+              : p < 0.34 ? lerp(ENTRY_KM, PLASMA_END_KM, (p - 0.10) / 0.24)
+              : p < 0.50 ? lerp(PLASMA_END_KM, RECOV_KM, easeOut((p - 0.34) / 0.16))
+              : p < 0.72 ? lerp(RECOV_KM, CATCH_KM, (p - 0.50) / 0.22)
+                         : CATCH_KM * (1 - (p - 0.72) / 0.28);
       /* The lean carried it left on the way up; the fall brings it back over the site, and it is
          lined up on the tower well before the flip. */
       view.drift = lerp(-74, 0, easeOut(clamp(p * 1.5, 0, 1)));
@@ -1556,10 +1573,14 @@ function runFlight(f, onApogee, onLanded, mission) {
       /* T53 · the flaps swing out as it hits thick air, and from there it is the Starship routine:
          belly-flop flat to the airstream, then flip to vertical and light the engine for the last
          few seconds. No parachute — the chopsticks take it under 3 km (drawCatch). */
-      view.flaps = clamp((60 - view.km) / 25, 0, 1);
+      /* T97 · out before the plasma, not during it — the sideways silhouette the user is meant to
+         watch burn is the flapped one, and heat peaks at 80 km. */
+      view.flaps = clamp((140 - view.km) / 30, 0, 1);
       const flip = clamp((FLIP_KM - view.km) / (FLIP_KM - FLIP_END_KM), 0, 1);
       const belly = lerp(-BALLISTIC_TOP, -BELLY_ANG, clamp(p * 2.5, 0, 1)) + Math.sin(t * 1.3) * 0.05 * (1 - flip);
-      view.ang = lerp(belly, 0, easeOut(flip));
+      /* T97 · easeInOut, not easeOut. easeOut front-loaded the pivot into its first few frames and
+         then crept the last few degrees, so what should read as a deliberate turn was a snap. */
+      view.ang = lerp(belly, 0, easeInOut(flip));
       view.flame = clamp((BURN_KM - view.km) / 3, 0, 1) * 0.9;
       view.burning = view.flame > 0.15;   /* the landing burn gets a real plume, not an idle glow */
       view.v = Math.min(7000, Math.sqrt(2 * 9.81 * view.km * 1000)) * (view.flaps > 0 ? 1 - view.flaps * 0.55 : 1) * (1 - flip * 0.6);
@@ -1886,9 +1907,9 @@ const J_LR = J_RM * 1.42;                           // the lunar circle — T67'
 const J_D  = 820;                                   // Earth → Moon
 const J_RE_SWEEP = 2.6;                             // radians of ring the return flies before it lands (T82: "loops around")
 const J_BACK_ARC = 0.26;                            // fraction of `back` spent coming round the corner in lunar orbit
-const J_JOIN = 0.22;                                // fraction of `orbit` spent easing off the pad camera's ship station
-const J_DIVE = 0.34;                                // fraction of `reentry` spent easing back onto it
-const J_LIFT = 0.26;                                // fraction of `moonorbit` / `back` spent on the surface join
+/* T96 · the old J_JOIN / J_DIVE / J_LIFT are gone. The joins are measured in jt now
+   (JT_JOIN, JT_DIVE, JT_LAND, JT_LIFT beside w29_pacing), because a fraction of an eased
+   phase was never a fixed amount of path. */
 const J_TOKEN = 0.085;                              // the ship's height in space, as a fraction of min(DW,DH)
 
 /* The layout, per viewport. aIn / aOut / aRe are the three tangency angles that make the
@@ -2422,10 +2443,11 @@ function w26_body(c, kind, x, y, R, now, alpha) {
    drawOrbitView / drawTransferView / drawMoonApproach are all this function now, which is
    why the cross-fade at a scene change has nothing left to hide: both sides of it paint
    the same world with the same camera value. */
+/* ── one frame of the journey ───────────────────────────────────────────────────────────
+   drawOrbitView / drawTransferView / drawMoonApproach are all this function. */
 function drawJourney(c, DW, DH, st, drawRocketFn, rocketDimsFn) {
   const now = st.now || 0, mission = st.mission || 0;
   const jt = clamp(st.jt || 0, 0, 5), k = clamp(st.jcam || 0, 0, 3);
-  const heat = clamp(st.heat || 0, 0, 1);
   const t = st.tiers || S.tiers;
   const cam = jcam(DW, DH, k), G = jgeom(DW, DH), AR = j_arcs(DW, DH, mission);
   const U = Math.min(DW, DH) / 360;
@@ -2453,11 +2475,8 @@ function drawJourney(c, DW, DH, st, drawRocketFn, rocketDimsFn) {
   /* ---- the bodies ---- */
   const ES = to([0, 0]), MS = to([G.mx, G.my]);
   const ER = J_RE * cam.s, MR = J_RM * cam.s;
-  /* home never leaves the frame entirely: past the edge it clamps to a margin and holds a
-     minimum size, which is continuous — it slides out and sits there rather than vanishing. */
   const mg = 16 + Math.max(9, ER);
   w26_body(c, 'earth', clamp(ES[0], -mg + 26, DW + mg - 26), clamp(ES[1], -mg + 26, DH + mg - 26), Math.max(9, ER), now, 1);
-  /* the Moon fades rather than clamps — it is where you are going, not where you are from */
   const off = Math.max(0, -MS[0] - MR, MS[0] - DW - MR, -MS[1] - MR, MS[1] - DH - MR);
   w26_body(c, 'moon', MS[0], MS[1], MR, now, clamp(1 - off / (Math.min(DW, DH) * 0.45), 0, 1));
 
@@ -2469,43 +2488,44 @@ function drawJourney(c, DW, DH, st, drawRocketFn, rocketDimsFn) {
   c.stroke(); drawCount++;
   c.restore();
 
-  /* ---- the ship ---- */
+  /* ---- the ship ----
+     T97 · there is no atmosphere anywhere on this path, so the journey never draws re-entry
+     heat — `st.heat` is deliberately ignored here. What the way home gets instead is the
+     engine: the ship coasts round the back of the Earth dark and cold, turns end-for-end at
+     the bottom left, and lights up for the deceleration burn. `retro` is the turn (T87/T59)
+     and the burn starts as the last third of it completes, so the flame appears with the
+     ship already pointing retrograde. */
   const sh = jship(DW, DH, { jt, jcam: k, mission, tiers: t, retro: st.retro, jmix: st.jmix, jmixTo: st.jmixTo });
-  const burn = (st.retro || 0) > 0.62 ? clamp(((st.retro || 0) - 0.62) / 0.18, 0, 1) : 0;   // the braking burn, once it is round
+  const retro = clamp(st.retro || 0, 0, 1);
+  /* The burn dies away over the dive onto the pad station: by jt 5 the ship belongs to
+     `descent`, which lights its own engine for the landing. Without this the journey's ship —
+     still painted for FADE_S underneath the pad scene as the outgoing half of the cross-fade —
+     sits on top of the belly-flopping booster with a full braking plume out of its tail. */
+  const dive = jt > 5 - JT_DIVE ? clamp((jt - (5 - JT_DIVE)) / JT_DIVE, 0, 1) : 0;
+  const burn = (retro > 0.62 ? clamp((retro - 0.62) / 0.18, 0, 1) : 0) * (1 - dive);
+  const coasting = jt > 4 && burn <= 0;                         // homebound, engine off
+  const flame = burn > 0 ? 0.4 + 0.6 * burn : coasting ? 0 : 0.45 + 0.12 * Math.sin(now / 90);
   const dims = rocketDimsFn(t);
   c.save();
   if (sh.behind) c.globalAlpha = 0.38;
-  /* engine glow trailing back down the path */
-  if (heat <= 0) {
-    const b0 = to(jpath(DW, DH, Math.max(0, jt - 0.012), mission));
+  /* engine glow trailing back down the path — only when the engine is actually lit */
+  if (flame > 0) {
+    const b0 = to(jpath(DW, DH, Math.max(0, jt - 0.012 - 0.02 * burn), mission));
     const tg = c.createLinearGradient(sh.x, sh.y, b0[0], b0[1]);
-    tg.addColorStop(0, 'rgba(255,196,110,.8)'); tg.addColorStop(1, 'rgba(255,196,110,0)');
-    c.strokeStyle = tg; c.lineWidth = 3.4 * U; c.lineCap = 'round';
+    tg.addColorStop(0, 'rgba(255,196,110,' + (0.8 + 0.2 * burn).toFixed(2) + ')'); tg.addColorStop(1, 'rgba(255,196,110,0)');
+    c.strokeStyle = tg; c.lineWidth = (3.4 + 2.6 * burn) * U; c.lineCap = 'round';
     c.beginPath(); c.moveTo(sh.x, sh.y); c.lineTo(b0[0], b0[1]); c.stroke(); drawCount++;
   }
   c.translate(sh.x, sh.y); c.rotate(sh.rot); c.scale(sh.k, sh.k);
-  if (heat > 0) {
-    const L = dims.totalH * (2.4 + 3.2 * heat);
-    const pg = c.createLinearGradient(0, 0, 0, L);
-    pg.addColorStop(0, 'rgba(255,244,194,' + (0.85 * heat) + ')');
-    pg.addColorStop(0.35, 'rgba(255,140,60,' + (0.5 * heat) + ')');
-    pg.addColorStop(1, 'rgba(224,82,58,0)');
-    c.fillStyle = pg; c.beginPath();
-    c.moveTo(-dims.bodyW * 0.7, dims.bodyH * 0.2);
-    c.quadraticCurveTo(-dims.bodyW * 1.6, L * 0.6, 0, L);
-    c.quadraticCurveTo(dims.bodyW * 1.6, L * 0.6, dims.bodyW * 0.7, dims.bodyH * 0.2);
-    c.closePath(); c.fill(); drawCount++;
+  /* the braking burn gets a halo at the bells so it reads as a burn and not a brighter idle */
+  if (burn > 0) {
+    const by = dims.bodyH / 2, rg = c.createRadialGradient(0, by, 1, 0, by, dims.bodyW * (1.4 + 1.2 * burn));
+    rg.addColorStop(0, 'rgba(255,246,206,' + (0.5 * burn).toFixed(2) + ')');
+    rg.addColorStop(0.5, 'rgba(255,170,80,' + (0.26 * burn).toFixed(2) + ')');
+    rg.addColorStop(1, 'rgba(255,120,40,0)');
+    c.fillStyle = rg; c.beginPath(); c.arc(0, by, dims.bodyW * (1.4 + 1.2 * burn), 0, 6.2832); c.fill(); drawCount++;
   }
-  drawRocketFn(c, 0, sh.anchorH, t, heat > 0 ? 0 : burn > 0 ? 0.4 + 0.6 * burn : 0.45 + 0.12 * Math.sin(now / 90),
-               heat === 0, now, { heat: heat });
-  if (heat > 0) {
-    const ny = -dims.bodyH / 2 - dims.noseH;
-    const hg = c.createRadialGradient(0, ny, 1, 0, ny, dims.bodyW * 2.2);
-    hg.addColorStop(0, 'rgba(255,255,235,' + (0.95 * heat) + ')');
-    hg.addColorStop(0.45, 'rgba(255,170,70,' + (0.6 * heat) + ')');
-    hg.addColorStop(1, 'rgba(255,120,40,0)');
-    c.fillStyle = hg; c.beginPath(); c.arc(0, ny, dims.bodyW * 2.2, 0, 6.2832); c.fill(); drawCount++;
-  }
+  drawRocketFn(c, 0, sh.anchorH, t, flame, flame > 0, now, {});
   c.restore();
   c.restore();
 }
@@ -2562,102 +2582,234 @@ function drawView(name, c, now) {
      v.jmix  how much of the pad camera's own ship station is mixed in, with the drift and
              the angle that station is at — this is what joins the two ends to the pad.
    It also refreshes v.ang / v.zoom so the gauges and the compatibility wrappers agree with
-   it, which is why it must run before the phase branches, not after.
+   it, which is why it must run before the phase branches, not after.  Read docs/JOURNEY.md. */
 
-   INTEGRATOR — one line inside runFlight's frame(), immediately after
-       view.scene = SCENE_OF[ph.name] || 'pad'; view.p = p; view.phaseName = ph.name;
-   add
-       w26_journeyState(view, ph.name, p, DW, DH);
-   and delete, from the phase branches, only the lines that set view.ang / view.zoom /
-   view.retro-for-Moon-missions in `orbit`, `reentry`, `transfer`, `back` and `moonorbit`
-   (listed one by one in workers/w26-report.md §5). Everything else in those branches —
-   km, v, flame, heat, forces, the `paid` gates, the railgun — stays exactly as it is.
-   Add `jt: 0, jcam: 0, jmix: 0, jmixTo: null` to the `view` initialiser. */
-function w26_journeyState(v, name, p, DW, DH) {
-  p = clamp(p || 0, 0, 1);
-  const m = v.mission || 0, AR = j_arcs(DW, DH, m);
-  v.jmix = 0;
-  if (name === 'orbit') {
-    /* T80 · one graceful arc round the bottom of the Earth for a Moon mission; a low-orbit
-       flight still makes its lap and then brakes end-for-end. */
-    const lap = m >= 2 ? 1 : ORBIT_COAST;
-    const e = m >= 2 ? easeInOut(clamp(p / lap, 0, 1)) : easeOut(clamp(p / lap, 0, 1));
-    v.jt = e; v.jcam = easeOut(p); v.zoom = easeOut(p);
-    v.ang = lerp(AR.out[0], AR.out[1], e);
-    v.retro = m >= 2 ? 0 : clamp((p - ORBIT_COAST) / (1 - ORBIT_COAST), 0, 1);
-    /* T81 · the ship arrives from the pad camera, where it is big and centred. Hold it on the
-       pad's own station and ease it onto the ring over the first J_JOIN of the phase, so the
-       camera change has nothing left to hide and reads as a pull-back rather than a cut. */
-    v.jmix = 1 - easeInOut(clamp(p / J_JOIN, 0, 1));
-    v.jmixTo = w26_padStation(DW, DH, -140, -1.52, 0, 0);         // where `pitch` left it
-    /* The cross-fade paints the OUTGOING view too, with this frame's state, so the pad scene's own
-       ship has to be told to hold that station as well — otherwise the ghost of it swings round
-       with the ring angle while the real one flies straight. Only for as long as the mix lasts. */
-    v.ang = lerp(v.ang, -1.52, v.jmix);
-  } else if (name === 'reentry') {
-    /* Coming home is the same ring onward. A Moon mission joins it at aRe — the one angle whose
-       tangent is the return leg's own heading — and runs J_RE_SWEEP round it: in at the far
-       side, round, and out on the near side, which is the side the pad is on. */
-    const e = easeInOut(p);
-    v.jt = 4 + e; v.jcam = 1; v.zoom = 1;
-    v.ang = lerp(AR.home[0], AR.home[1], e);
-    /* T87 · a Moon mission brakes too, and it brakes where a returning ship would: at the bottom
-       left of the Earth, part way round the arc home. The angle is derived, not tuned — the return
-       runs 152° to 301°, so the bottom left (225°) is a real point on it and `eBL` is where the
-       sweep reaches it. The ship turns end-for-end over RETRO_TURN of the arc from there and stays
-       that way down, exactly as the low-orbit flight does.
-       A low-orbit flight already flipped at the end of its lap, so it arrives here holding it —
-       `retro` stays 1 for the whole phase or it would snap its nose back in one frame. */
-    if (m >= 2) {
-      const a0 = AR.home[0], a1 = AR.home[1], span = a1 - a0;
-      let eBL = 0.5;
-      for (const k of [-1, 0, 1]) { const f = (RETRO_AT + k * 2 * Math.PI - a0) / span;
-        if (f >= 0 && f <= 1) { eBL = f; break; } }
-      v.retro = clamp((e - eBL) / RETRO_TURN, 0, 1);
-    } else v.retro = 1;
-    /* T81 · the mirror of the join above: over the last J_DIVE the ship eases onto the pad
-       camera's station and grows to its pad scale, so `descent` picks it up where it is. */
-    v.jmix = easeInOut(clamp((p - (1 - J_DIVE)) / J_DIVE, 0, 1));
-    v.jmixTo = w26_padStation(DW, DH, -74, -BALLISTIC_TOP, 0, 5); // where `descent` starts it
-  } else if (name === 'transfer' || name === 'back') {
-    /* T82 · the outbound leg starts where the ring ends and the camera pulls back with it; the
-       return starts wherever the ship left off — close at the Moon if it has been in lunar
-       orbit, the wide two-body frame if it only swung past — and pushes back in to the Earth. */
-    const out = name === 'transfer', e = easeInOut(p);
-    v.jt = (out ? 1 : 3) + e;
-    v.jcam = out ? 1 + e : lerp(m >= 3 ? 3 : 2, 1, e);
-    v.zoom = out ? e : 1 - e; v.retro = 0;
-    v.jp = out ? p * 0.5 : 0.5 + p * 0.5;                        // legacy, for anything still reading it
-    /* A mission that landed leaves from the surface, so the return begins on the cargo scene's
-       own ship station and climbs off it into the orbit it is already on. */
-    if (!out && m >= 4) { v.jmix = 1 - easeInOut(clamp(p / J_LIFT, 0, 1)); v.jmixTo = w26_cargoStation(DW, DH, S.tiers, 1); }
-  } else if (name === 'moonorbit') {
-    const e = easeInOut(p);
-    v.jt = 2 + e;                                                /* T50 · two full laps */
-    v.jcam = 2 + easeOut(p); v.zoom = easeOut(p); v.retro = 0;
-    v.ang = jgeom(DW, DH).aIn + e * 4 * Math.PI;                 // legacy, for jrnyLunar callers
-    /* and, if this mission lands, the last of the phase is the descent onto the drop zone the
-       cargo scene puts the ship on, so that boundary is a join too. */
-    if (m >= 4) { v.jmix = easeInOut(clamp((p - (1 - J_LIFT)) / J_LIFT, 0, 1)); v.jmixTo = w26_cargoStation(DW, DH, S.tiers, 0); }
-  } else if (name === 'land' || name === 'cargo') {
-    /* the cargo scene owns the ship here; the journey view is only the outgoing half of the
-       cross-fade, so pin it to the same station rather than letting it snap back into orbit */
-    v.jt = 3; v.jcam = 3; v.jmix = 1; v.jmixTo = w26_cargoStation(DW, DH, S.tiers, v.cargo || 0);
-  } else if (name === 'descent') {
-    /* same again at the other end: `descent` belongs to the pad scene, and the orbit view fading
-       out behind it must keep the ship exactly where the pad scene has it. */
-    v.jt = 5; v.jcam = 1; v.jmix = 1;
-    v.jmixTo = w26_padStation(DW, DH, v.drift || 0, v.ang || 0, v.flaps, 5);
+const JT_JOIN = 0.05;   // jt spent easing off the pad's own ship station at the start of `orbit`
+const JT_DIVE = 0.16;   // jt spent easing back onto it at the end of `reentry`
+const JT_LAND = 0.15;   // jt spent easing onto the cargo scene's station (the landing)
+const JT_LIFT = 0.10;   // jt spent easing off it again (the liftoff)
+/* These are the old J_JOIN/J_DIVE/J_LIFT, converted: the old numbers were fractions of a
+   phase that was itself eased, so J_JOIN 0.22 of `orbit` was really easeInOut(0.22) = 0.043
+   of the ring. Measured in jt they are the same joins, and they no longer move when the
+   phase seconds change. */
+
+const W29_ARC_N = 16;        // first-pass arc samples per unit of jt; the walk refines from there
+const W29_ARC_PX = 5;        // and keeps subdividing until no sample is more than this far from the next
+const W29_RAMP_IN = 0.20, W29_RAMP_IN_MAX = 1.05;    // seconds of ramp, as a fraction of the run and a cap
+const W29_RAMP_OUT = 0.24, W29_RAMP_OUT_MAX = 1.25;  // arriving is allowed to take a little longer
+
+/* ── the camera, as a pure function of jt ──────────────────────────────────────────────
+   Same shape as the phase-by-phase version it replaces (and the same value at every join),
+   but it no longer needs to know which phase is running. */
+function w29_jcam(jt, m) {
+  if (jt <= 1) return easeOut(jt);
+  if (jt <= 2) return 1 + easeInOut(jt - 1);
+  if (jt <= 3) return m >= 3 ? 2 + easeOut(jt - 2) : 2;
+  if (jt <= 4) {
+    /* the way home crosses the wide two-body framing (k = 2), and `jcam` is only C0 at its
+       anchors — a camera moving fast through one is a visible kick. Two eased halves put the
+       camera momentarily at rest exactly there, so it settles into the wide shot for a beat
+       and then pushes in. The SHIP does not pause: jt is paced by arc length and knows
+       nothing about this. */
+    const u = jt - 3, top = m >= 3 ? 3 : 2;
+    return u <= 0.5 ? lerp(top, 2, easeInOut(u * 2)) : lerp(2, 1, easeInOut(u * 2 - 1));
   }
+  return 1;
+}
+/* ── the retro flip, as a pure function of jt ─────────────────────────────────────────
+   T87's derivation is unchanged: the return arc runs from aRe through J_RE_SWEEP, the
+   bottom left of the Earth (RETRO_AT, 225°) is a real point on it, and `eBL` is where the
+   sweep reaches it. A low-orbit flight still flips at the end of its lap and holds it. */
+function w29_retro(DW, DH, jt, m) {
+  if (m >= 2) {
+    if (jt <= 4) return 0;
+    const AR = j_arcs(DW, DH, m), a0 = AR.home[0], span = AR.home[1] - a0;
+    let eBL = 0.5;
+    for (const k of [-1, 0, 1]) { const f = (RETRO_AT + k * 2 * Math.PI - a0) / span; if (f >= 0 && f <= 1) { eBL = f; break; } }
+    return clamp(((jt - 4) - eBL) / RETRO_TURN, 0, 1);
+  }
+  /* A low-orbit flight turns end-for-end AT REST, after its lap: jt is pinned at 1 for the last
+     of the `orbit` phase while it does, so the turn cannot be a function of jt — w26_journeyState
+     ramps it on phase progress there, exactly as before. Here it is 0 on the lap, 1 ever after. */
+  return jt <= 1 ? 0 : 1;
+}
+/* ── the joins, as a pure function of jt ─────────────────────────────────────────────── */
+/* `side` disambiguates jt exactly 3, which is TWO places: the ship arrives there to land at
+   one end of the cargo flyover and leaves from the other, ~280 px apart at 390×844. −1 is the
+   arrival (`moonorbit`, `land`, `cargo`), +1 the departure (`back`). Without it the return run
+   opens with a 280 px step in its own arc table and the ship sits still for a second while the
+   pacing pays for a journey it never made. */
+function w29_mix(DW, DH, jt, m, side) {
+  side = side === undefined ? 1 : side;
+  if (jt <= JT_JOIN) return { mix: 1 - easeInOut(jt / JT_JOIN), to: w26_padStation(DW, DH, -140, -1.52, 0, 0) };
+  if (m >= 4) {
+    if (jt > 3 - JT_LAND && (jt < 3 || side < 0)) return { mix: easeInOut(1 - (3 - jt) / JT_LAND), to: w26_cargoStation(DW, DH, S.tiers, 0) };
+    if (jt >= 3 && jt < 3 + JT_LIFT && side > 0)  return { mix: 1 - easeInOut((jt - 3) / JT_LIFT),  to: w26_cargoStation(DW, DH, S.tiers, 1) };
+  }
+  if (jt >= 5 - JT_DIVE) return { mix: easeInOut((jt - (5 - JT_DIVE)) / JT_DIVE), to: w26_padStation(DW, DH, -74, -BALLISTIC_TOP, 0, 5) };
+  return { mix: 0, to: null };
+}
+/* ── where the ship is, for one jt and one FROZEN camera ─────────────────────────────── */
+function w29_shipXY(DW, DH, jt, m, k, side) {
+  const mx = w29_mix(DW, DH, jt, m, side);
+  const sh = jship(DW, DH, { jt: jt, jcam: k, mission: m, tiers: S.tiers,
+                             retro: w29_retro(DW, DH, jt, m), jmix: mx.mix, jmixTo: mx.to });
+  return [sh.x, sh.y];
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════════════
-   FLIGHT_PLAN — PATCH (phase seconds only). The joins and the longer ring arcs need room:
-   the pad join eats J_JOIN of `orbit`, the pad dive eats J_DIVE of `reentry`, and the
-   return now flies half a lap round the Moon before it leaves. At these lengths the Earth
-   ring sweeps at ~69 deg/s, which is T80's "graceful", and the reentry loop at ~74 deg/s.
-   Mission 5 goes from 21.6 s to 24.8 s of flight.
-   ═══════════════════════════════════════════════════════════════════════════════════ */
+/* ── the run plan: legs, runs and one arc-length table per run ────────────────────────── */
+const W29_CACHE = { key: '', val: null };
+/* ∫ of the speed shape (ramp up over A, flat, ramp down over B) from 0 to t. The ramps are
+   smoothstep, so acceleration is continuous at both ends and the mean of a ramp is exactly
+   half — which is why the whole thing closes in one line: total = T − A/2 − B/2. */
+function w29_sOf(t, T, A, B) {
+  if (t <= 0) return 0;
+  if (t >= T) return T - A / 2 - B / 2;
+  if (t < A)      { const u = t / A;       return A * (u * u * u - u * u * u * u / 2); }
+  if (t > T - B)  { const u = (T - t) / B; return A / 2 + (T - B - A) + B / 2 - B * (u * u * u - u * u * u * u / 2); }
+  return A / 2 + (t - A);
+}
+/* One interval of the arc table. It subdivides until every step is under W29_ARC_PX, because
+   the two ends of the journey are where the ship moves furthest per unit of jt — the pad and
+   surface joins cover a couple of hundred pixels inside a tenth of jt — and a table too coarse
+   to see that paces straight through it, which is a lurch. */
+function w29_walk(DW, DH, m, a, b, jts, cum, depth, side) {
+  const k = w29_jcam((a + b) / 2, m);
+  const A = w29_shipXY(DW, DH, a, m, k, side), B = w29_shipXY(DW, DH, b, m, k, side);
+  const d = Math.hypot(B[0] - A[0], B[1] - A[1]);
+  if (d > W29_ARC_PX && depth < 5) {
+    const mid = (a + b) / 2;
+    w29_walk(DW, DH, m, a, mid, jts, cum, depth + 1, side);
+    w29_walk(DW, DH, m, mid, b, jts, cum, depth + 1, side);
+    return;
+  }
+  jts.push(b); cum.push(cum[cum.length - 1] + d);
+}
+function w29_pacing(DW, DH, m) {
+  const key = DW + 'x' + DH + '|' + m + '|' + TRACKS.map(k => S.tiers[k]).join('.');
+  if (W29_CACHE.key === key && W29_CACHE.val) return W29_CACHE.val;
+  const plan = FLIGHT_PLAN[m] || FLIGHT_PLAN[0];
+  const SPAN = { orbit: [0, 1], transfer: [1, 2], moonorbit: [2, 3], back: [3, 4], reentry: [4, 5] };
+  const phase = {}, legs = [];
+  let t = 0;
+  for (const [name, d] of plan) {
+    const sp = SPAN[name];
+    if (sp) {
+      phase[name] = { t0: t, d: d };
+      /* A low-orbit flight is the one journey with a stop in the middle of a phase: it flies
+         its lap over the first ORBIT_COAST of `orbit` and then holds still to turn end-for-end
+         and brake. That stop is real, so it ends a run. */
+      const moveTo = (m < 2 && name === 'orbit') ? t + d * ORBIT_COAST : t + d;
+      legs.push({ name: name, t0: t, t1: moveTo, jt0: sp[0], jt1: sp[1] });
+    }
+    t += d;
+  }
+  /* group legs that touch in time into runs — a run is what the ship flies without stopping */
+  const runs = [];
+  for (const L of legs) {
+    const R = runs[runs.length - 1];
+    if (R && Math.abs(R.t1 - L.t0) < 1e-6) { R.t1 = L.t1; R.legs.push(L); }
+    else runs.push({ t0: L.t0, t1: L.t1, legs: [L] });
+  }
+  /* one arc-length table per run, in frozen-camera screen pixels */
+  for (const R of runs) {
+    const jts = [], cum = [0];
+    for (const L of R.legs) {
+      const n = Math.max(4, Math.round(W29_ARC_N * (L.jt1 - L.jt0)));
+      /* a leg boundary that jumps in jt (mission 2 skips the lunar laps, 2 → 3) is the SAME
+         point on the path, so it adds no length — hence the per-leg loop rather than one sweep */
+      if (!jts.length) jts.push(L.jt0);
+      else if (jts[jts.length - 1] !== L.jt0) { jts.push(L.jt0); cum.push(cum[cum.length - 1]); }
+      const side = L.jt0 >= 3 ? 1 : -1;
+      for (let i = 0; i < n; i++)
+        w29_walk(DW, DH, m, lerp(L.jt0, L.jt1, i / n), lerp(L.jt0, L.jt1, (i + 1) / n), jts, cum, 0, side);
+    }
+    R.jts = jts; R.cum = cum; R.L = cum[cum.length - 1];
+    R.T = R.t1 - R.t0;
+    R.A = Math.min(W29_RAMP_IN * R.T, W29_RAMP_IN_MAX);
+    R.B = Math.min(W29_RAMP_OUT * R.T, W29_RAMP_OUT_MAX);
+    if (R.A + R.B > R.T * 0.9) { const f = R.T * 0.9 / (R.A + R.B); R.A *= f; R.B *= f; }
+    R.V = R.L / Math.max(1e-6, R.T - R.A / 2 - R.B / 2);          // px/s — the run's cruise speed
+  }
+  const val = {
+    runs: runs, phase: phase,
+    /* jt for one moment of the flight. Inside a run it is the arc-length inverse; in the gap
+       after a run (mission 1's braking turn, the cargo drop) it holds the run's last jt. */
+    at: function (name, p) {
+      const ph = phase[name]; if (!ph) return null;
+      const tt = ph.t0 + clamp(p, 0, 1) * ph.d;
+      let last = null;
+      for (const R of runs) {
+        if (tt < R.t0) break;
+        if (tt <= R.t1) {
+          const s = R.V * w29_sOf(tt - R.t0, R.T, R.A, R.B);
+          let lo = 0, hi = R.cum.length - 1;
+          while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (R.cum[mid] <= s) lo = mid; else hi = mid; }
+          const d = R.cum[hi] - R.cum[lo];
+          return d > 1e-9 ? lerp(R.jts[lo], R.jts[hi], (s - R.cum[lo]) / d) : R.jts[hi];
+        }
+        last = R;
+      }
+      return last ? last.jts[last.jts.length - 1] : null;
+    }
+  };
+  W29_CACHE.key = key; W29_CACHE.val = val;
+  return val;
+}
+/* the table is keyed on size, mission and tiers, so a resize or a DPR change rebuilds it —
+   but call this from redrawEverything() alongside w12_invalidate() if anything else ever
+   moves the pad or the cargo station under it. */
+function w29_invalidate() { W29_CACHE.key = ''; W29_CACHE.val = null; }
+
+
+/* T96 · this owns jt, jcam, jmix, jmixTo, ang, zoom and retro, and it is the only thing
+   that may set them. jt is paced by w29_pacing so the ship holds one speed across a whole
+   run — no phase boundary eases any more, because a phase boundary is not an event. */
+function w26_journeyState(v, name, p, DW, DH) {
+  p = clamp(p || 0, 0, 1);
+  const m = v.mission || 0;
+  v.jmix = 0; v.jmixTo = null;
+  if (name === 'land' || name === 'cargo') {
+    /* the cargo scene owns the ship here; the journey view is only the outgoing half of the
+       cross-fade, so pin it to the same station rather than letting it snap back into orbit */
+    v.jt = 3; v.jcam = 3; v.zoom = 1; v.retro = 0; v.ang = 0;
+    v.jmix = 1; v.jmixTo = w26_cargoStation(DW, DH, S.tiers, v.cargo || 0);
+    return;
+  }
+  if (name === 'descent') {
+    /* same at the other end: `descent` belongs to the pad scene, and the orbit view fading out
+       behind it must keep the ship exactly where the pad scene has it. `descent` owns the
+       attitude from here down, so ang and retro are left alone. */
+    v.jt = 5; v.jcam = 1; v.zoom = 1; v.jmix = 1;
+    v.jmixTo = w26_padStation(DW, DH, v.drift || 0, v.ang || 0, v.flaps, 5);
+    return;
+  }
+  const P = w29_pacing(DW, DH, m), jt = P.at(name, p);
+  if (jt === null) return;                       // ascent / pitch / coast — not on the journey
+  const AR = j_arcs(DW, DH, m);
+  v.jt = jt;
+  v.jcam = w29_jcam(jt, m);
+  v.retro = w29_retro(DW, DH, jt, m);
+  /* T59 · the low-orbit brake: the lap ends at ORBIT_COAST and the rest of the phase is the ship
+     standing still and turning round. That is real time, not path, so it stays on p. */
+  if (m < 2 && name === 'orbit') v.retro = clamp((p - ORBIT_COAST) / (1 - ORBIT_COAST), 0, 1);
+  const mx = w29_mix(DW, DH, jt, m, (name === 'moonorbit' || name === 'land' || name === 'cargo') ? -1 : 1);
+  v.jmix = mx.mix; v.jmixTo = mx.to;
+  /* ── the legacy fields. zoom and ang are read by the old wrappers and the pitch gauge; they
+        are derived from jt now so they cannot disagree with the path. ── */
+  if (jt <= 1)      { v.zoom = jt;      v.ang = lerp(AR.out[0], AR.out[1], jt); }
+  else if (jt <= 2) { v.zoom = jt - 1;  v.ang = lerp(AR.out[0], AR.out[1], 1); }
+  else if (jt <= 3) { v.zoom = jt - 2;  v.ang = jgeom(DW, DH).aIn + (jt - 2) * 4 * Math.PI; }
+  else if (jt <= 4) { v.zoom = 4 - jt;  v.ang = jgeom(DW, DH).aIn + Math.PI; }
+  else              { v.zoom = 1;       v.ang = lerp(AR.home[0], AR.home[1], jt - 4); }
+  v.jp = clamp((jt - 1) / 3, 0, 1);              // legacy, for anything still reading it
+  /* The cross-fade paints the OUTGOING view too, with this frame's state, so while the ship is
+     still mixed onto the pad station the pad scene's own ship has to be told to hold it as
+     well — otherwise the ghost of it swings round with the ring angle while the real one flies
+     straight. Only for as long as the mix lasts, and only at the launch end. */
+  if (jt <= JT_JOIN) v.ang = lerp(v.ang, -1.52, v.jmix);
+}
+
 
 function drawScene() {
   if (!scene.width) sizeScene();
@@ -3147,40 +3299,82 @@ function w1_bay(c, x, top, bodyW, bodyH, belowY, S, payload, k, now) {
   c.restore();
 }
 
-/* re-entry sheath: orange-white plasma hugging the nose, glowing fin edges, and a trailing wake.
-   dir = −1: wake streams up past the nose (nose-first descent); +1: down past the bells. */
-function w1_heat(c, x, top, baseY, bodyW, noseH, t, k, now, dir) {
-  const hw = bodyW / 2, tip = top - noseH, flick = 1 + Math.sin(now / 43) * .06 + Math.sin(now / 17) * .04;
+
+/* ── the sheath on the hull itself ──────────────────────────────────────────────────────
+   `k` 0..1 is the heat. The old version glowed the nose whatever the ship was doing, which
+   is right on the way up (max Q, nose into the airstream) and wrong on the way down (a
+   Starship falls belly-first). It now works out which face is INTO the airstream and puts
+   the plasma there — nose on the climb, belly on the fall, base if it ever fell tail-first.
+
+   `dir` keeps its old meaning as the fallback (−1 nose-first) for any caller that has no
+   attitude to offer; `ang` overrides it. The live callers are the pad scene, so the ship's
+   attitude and its direction of travel are read from `view` and `phase`, the same globals
+   drawPadScene positions the ship from. No canvas filter: this used to cost a blur pass. */
+function w1_heat(c, x, top, baseY, bodyW, noseH, t, k, now, dir, ang) {
+  const hw = bodyW / 2, tip = top - noseH, flick = 1 + Math.sin(now / 43) * 0.06 + Math.sin(now / 17) * 0.04;
   const finR = t.aero >= 4 ? 8 + Math.min(t.aero, 7) * 1.9 : t.aero >= 2 ? 7 + t.aero * 1.5 : 0;
+  const a = ang !== undefined ? ang : (typeof view !== 'undefined' ? (view.ang || 0) : 0);
+  /* which way is it going? Falling on `descent`, climbing on everything else. In body
+     coordinates the airstream comes from  vy · (sin a, cos a). */
+  const vy = (typeof phase !== 'undefined' && phase === 'descent') ? 1 : (dir < 0 ? -1 : 1);
+  const wx = vy * Math.sin(a), wy = vy * Math.cos(a);       // unit: the windward direction, body space
+  const cy = (top + baseY) / 2, halfL = (baseY - tip) / 2;
+  const lat = Math.abs(wx), axi = Math.abs(wy);             // broadside vs nose/tail-on
+  const sx = wx >= 0 ? 1 : -1;
+
   c.save(); c.globalCompositeOperation = 'lighter';
-  // wake + sheath share the one blur pass
-  const wl = (70 + noseH) * k * flick, wy0 = dir < 0 ? tip : baseY;
-  c.save(); c.filter = 'blur(5px)';
-  const wg = c.createLinearGradient(0, wy0, 0, wy0 + dir * wl);
-  wg.addColorStop(0, 'rgba(255,220,150,' + (.8 * k) + ')'); wg.addColorStop(.35, 'rgba(255,140,50,' + (.5 * k) + ')'); wg.addColorStop(1, 'rgba(255,70,20,0)');
-  c.fillStyle = wg; c.beginPath();
-  c.moveTo(x - hw * .9, wy0 + dir * 2); c.quadraticCurveTo(x - hw * 1.1, wy0 + dir * wl * .45, x, wy0 + dir * wl);
-  c.quadraticCurveTo(x + hw * 1.1, wy0 + dir * wl * .45, x + hw * .9, wy0 + dir * 2); c.fill(); drawCount++;
-  // sheath: a radial bloom hugging the nose
-  const sy = tip + noseH * .4, sg = c.createRadialGradient(x, sy, 1, x, sy, hw + noseH * .6);
-  sg.addColorStop(0, 'rgba(255,255,235,' + (.95 * k) + ')'); sg.addColorStop(.5, 'rgba(255,170,60,' + (.65 * k) + ')'); sg.addColorStop(1, 'rgba(255,80,20,0)');
-  c.fillStyle = sg; c.beginPath(); c.ellipse(x, sy, hw + 5 * k, noseH * .7 + 6 * k, 0, 0, 7); c.fill(); drawCount++;
+  /* ── the plasma, standing off the windward face ── */
+  const dist = hw * 1.15 * lat + halfL * 0.92 * axi;          // how far off the skin the shock stands
+  const px = x + wx * dist, py = cy + wy * dist;
+  const rx = hw * (1.15 + 0.8 * k);                            // ACROSS the hull, either way up
+  const ry = axi * (noseH * 0.8 + 8 * k) + lat * halfL * 0.95; // ALONG it — the whole flank when broadside
+  const R = Math.max(rx, ry);
+  const pg = c.createRadialGradient(px, py, 1, px, py, R);
+  pg.addColorStop(0, 'rgba(255,255,235,' + (0.92 * k).toFixed(3) + ')');
+  pg.addColorStop(0.45, 'rgba(255,170,66,' + (0.6 * k).toFixed(3) + ')');
+  pg.addColorStop(1, 'rgba(255,90,26,0)');
+  /* the gradient rides the same transform as the shape, so scaling the circle to an ellipse
+     scales the falloff with it — an unscaled radial gradient in an ellipse cuts off square */
+  c.save(); c.translate(px, py); c.scale(rx / R, ry / R); c.translate(-px, -py);
+  c.fillStyle = pg; c.beginPath(); c.arc(px, py, R * flick, 0, 6.2832); c.fill(); drawCount++;
   c.restore();
-  // hot skin: nose outline + body edges + fin leading edges as glowing strokes
-  c.strokeStyle = 'rgba(255,235,180,' + (.9 * k) + ')'; c.lineWidth = 2.2 * flick; c.lineCap = 'round'; c.beginPath();
-  c.moveTo(x - hw, top + 6); c.quadraticCurveTo(x - hw, tip + 4, x, tip); c.quadraticCurveTo(x + hw, tip + 4, x + hw, top + 6);
-  if (finR) { const fh = t.aero >= 4 ? 18 + Math.min(t.aero, 7) * 3.2 : 12 + t.aero * 2;
-    c.moveTo(x - hw, baseY - fh); c.quadraticCurveTo(x - hw - finR * .45, baseY - fh * .35, x - hw - finR, baseY + 3);
-    c.moveTo(x + hw, baseY - fh); c.quadraticCurveTo(x + hw + finR * .45, baseY - fh * .35, x + hw + finR, baseY + 3); }
-  c.stroke(); drawCount++;
-  // body edge shimmer
-  c.strokeStyle = 'rgba(255,140,50,' + (.45 * k) + ')'; c.lineWidth = 1.5; c.beginPath();
-  c.moveTo(x - hw - .5, top); c.lineTo(x - hw - .5, baseY - 8); c.moveTo(x + hw + .5, top); c.lineTo(x + hw + .5, baseY - 8); c.stroke(); drawCount++;
-  // embers peeling off, seeded and cycling on now
-  c.fillStyle = 'rgba(255,200,90,' + (.85 * k) + ')'; c.beginPath();
-  for (let i = 0; i < 7; i++) { const r = (i * 9301 + 49297) % 233280 / 233280, r2 = ((i + 11) * 7919 + 104729) % 233280 / 233280, p = ((now / 700) + r2) % 1;
-    const ex = x + (r - .5) * (bodyW + finR) * 1.4, ey = (dir < 0 ? tip : baseY) + dir * (4 + p * wl * .9); const rad = 1.6 * (1 - p) + .3;
-    c.moveTo(ex + rad, ey); c.arc(ex, ey, rad, 0, 7); }
+  /* ── the hot skin: whichever edges of the silhouette face the stream ── */
+  c.lineCap = 'round';
+  if (axi > 0.02) {                                        // nose (or base) into the stream
+    c.strokeStyle = 'rgba(255,235,180,' + (0.9 * k * axi).toFixed(3) + ')'; c.lineWidth = 2.2 * flick;
+    c.beginPath();
+    if (wy < 0) { c.moveTo(x - hw, top + 6); c.quadraticCurveTo(x - hw, tip + 4, x, tip); c.quadraticCurveTo(x + hw, tip + 4, x + hw, top + 6); }
+    else        { c.moveTo(x - hw, baseY - 4); c.lineTo(x + hw, baseY - 4); }
+    if (finR) { const fh = t.aero >= 4 ? 18 + Math.min(t.aero, 7) * 3.2 : 12 + t.aero * 2;
+      c.moveTo(x - hw, baseY - fh); c.quadraticCurveTo(x - hw - finR * 0.45, baseY - fh * 0.35, x - hw - finR, baseY + 3);
+      c.moveTo(x + hw, baseY - fh); c.quadraticCurveTo(x + hw + finR * 0.45, baseY - fh * 0.35, x + hw + finR, baseY + 3); }
+    c.stroke(); drawCount++;
+  }
+  if (lat > 0.02) {                                        // broadside: the whole flank glows
+    c.strokeStyle = 'rgba(255,238,190,' + (0.9 * k * lat).toFixed(3) + ')'; c.lineWidth = 2.6 * flick;
+    c.beginPath(); c.moveTo(x + sx * hw, top + 3); c.lineTo(x + sx * hw, baseY - 2);
+    c.quadraticCurveTo(x + sx * hw * 0.9, tip + noseH * 0.5, x, tip + 1); c.stroke(); drawCount++;
+    /* and a tight band of white heat right on the leading edge */
+    const bg = c.createLinearGradient(x + sx * hw * 0.4, 0, x + sx * (hw + 7 + 7 * k), 0);
+    bg.addColorStop(0, 'rgba(255,255,240,' + (0.5 * k * lat).toFixed(3) + ')');
+    bg.addColorStop(1, 'rgba(255,120,40,0)');
+    c.fillStyle = bg; c.beginPath();
+    c.moveTo(x + sx * hw * 0.4, top + 2); c.lineTo(x + sx * (hw + 7 + 7 * k), top + noseH * 0.2);
+    c.lineTo(x + sx * (hw + 7 + 7 * k), baseY - 2); c.lineTo(x + sx * hw * 0.4, baseY - 2);
+    c.closePath(); c.fill(); drawCount++;
+  }
+  /* ── embers, blown downwind off the hot edge ── */
+  c.fillStyle = 'rgba(255,200,90,' + (0.85 * k).toFixed(3) + ')'; c.beginPath();
+  const wl = (58 + noseH) * k * flick;
+  for (let i = 0; i < 7; i++) {
+    const r = (i * 9301 + 49297) % 233280 / 233280, r2 = ((i + 11) * 7919 + 104729) % 233280 / 233280;
+    const u = ((now / 700) + r2) % 1;
+    const along = (r - 0.5) * (lat ? (baseY - tip) : (bodyW + finR) * 1.4);
+    const ex = x - wy * along - wx * (4 + u * wl * 0.9);
+    const ey = cy + wx * along - wy * (4 + u * wl * 0.9);
+    const rad = 1.6 * (1 - u) + 0.3;
+    c.moveTo(ex + rad, ey); c.arc(ex, ey, rad, 0, 6.2832);
+  }
   c.fill(); drawCount++;
   c.restore();
 }
@@ -3911,50 +4105,79 @@ function drawAtmosphere(c, DW, DH, km, now, stars) {
   c.restore();
 }
 
+/* ── the trailing plasma, in the pad scene ──────────────────────────────────────────────
+   Called from drawPadScene while `descent` is hot. It used to be a fixed vertical streak at
+   DW/2 — a nose-cone re-entry, drawn for a ship that is lying on its side. It now sits on
+   the ship's real station and is built around the ship's own axis: the shock sits under the
+   WINDWARD face, spans the whole length of the hull when the ship is broadside, and the
+   wake streams off downwind (up the screen, because the ship is falling).
+   No canvas filters — every soft edge here is a gradient. */
 function drawReentry(c, DW, DH, km, v, now) {
   const k = w8_win(km, 35, 45, 105, 125) * clamp(v / 2200, 0, 1);
   if (k <= 0.01) return;
-  const x = DW / 2, y = DH * 0.58, L = 70 + 90 * k;         // ship descends: the streak trails UP the screen
+  const d = rocketDims(S.tiers);
+  const ang = view.ang || 0, flaps = clamp(view.flaps || 0, 0, 1);
+  /* the pad scene's own station and pivot, so this cannot drift from the ship it belongs to */
+  const mid = -d.bodyH * 0.5 * flaps;
+  const bx = DW / 2 + (view.drift || 0) + mid * Math.sin(ang), by = DH * 0.58 + mid * (1 - Math.cos(ang));
+  const ux = Math.sin(ang), uy = -Math.cos(ang);          // body axis, base → nose
+  const cx = bx + ux * d.bodyH * 0.5, cy = by + uy * d.bodyH * 0.5;   // hull centre
+  /* windward: the ship is falling, so the airstream comes from below. Its component across
+     the hull is what makes this a belly and not a nose. */
+  const wx = -uy, wy = ux;                                 // hull normal (left side of the axis)
+  const s = (wy >= 0 ? 1 : -1);                            // pick the normal that faces the airstream
+  const nx = wx * s, ny = wy * s;
+  const broad = Math.abs(ny);                              // 1 broadside, 0 nose- or tail-on
+  const halfL = d.bodyH * 0.5 * (0.55 + 0.45 * broad) + d.noseH * 0.35;
+  const off = d.bodyW * 0.42 + 2;
+  const L = (54 + 74 * k) * (0.65 + 0.35 * broad);         // how far the wake reaches
+  const flick = 1 + Math.sin(now / 43) * 0.06 + Math.sin(now / 17) * 0.04;
+
   c.save();
-  /* wide soft plasma wake */
-  c.globalAlpha = 0.6 * k;
-  c.translate(x, y - 10); c.scale(1, L / 42);
-  let g = c.createRadialGradient(0, -24, 0, 0, -32, 40);   // centred well above the ship so the wake trails up and fades before its base
-  g.addColorStop(0, 'rgba(255,230,180,0.95)'); g.addColorStop(0.35, 'rgba(255,150,70,0.7)'); g.addColorStop(1, 'rgba(255,80,40,0)');
-  c.fillStyle = g; c.beginPath(); c.arc(0, -32, 40, 0, 6.283); c.fill(); drawCount++;
-  c.restore(); c.save();
-  /* bright core tongue right behind the ship */
-  c.globalAlpha = 0.85 * k;
-  g = c.createLinearGradient(0, y, 0, y - L * 0.6);
-  g.addColorStop(0, 'rgba(255,250,230,0.95)'); g.addColorStop(0.3, 'rgba(255,190,90,0.6)'); g.addColorStop(1, 'rgba(255,120,60,0)');
-  c.fillStyle = g; c.beginPath();
-  const wob = Math.sin(now / 90) * 3;
-  c.moveTo(x - 14, y + 4); c.quadraticCurveTo(x - 10 + wob, y - L * 0.3, x, y - L * 0.6);
-  c.quadraticCurveTo(x + 10 + wob, y - L * 0.3, x + 14, y + 4); c.closePath(); c.fill(); drawCount++;
-  /* heat shimmer: wavy translucent lines in the wake */
-  c.globalAlpha = 0.28 * k; c.strokeStyle = '#FFE0B0'; c.lineWidth = 1;
+  c.globalCompositeOperation = 'lighter';
+  /* ── 1 · the shock: a hot sheet pressed against the windward face ── */
+  const sx = cx + nx * off, sy = cy + ny * off;
+  c.save(); c.translate(sx, sy); c.rotate(Math.atan2(uy, ux));
+  const sg = c.createRadialGradient(0, 0, 1, 0, 0, halfL);
+  sg.addColorStop(0, 'rgba(255,252,232,' + (0.95 * k).toFixed(3) + ')');
+  sg.addColorStop(0.34, 'rgba(255,186,86,' + (0.72 * k).toFixed(3) + ')');
+  sg.addColorStop(0.7, 'rgba(255,120,40,' + (0.3 * k).toFixed(3) + ')');
+  sg.addColorStop(1, 'rgba(255,80,24,0)');
+  c.fillStyle = sg; c.beginPath();
+  c.ellipse(0, 0, halfL, (10 + 16 * k) * flick, 0, 0, 6.2832); c.fill(); drawCount++;
+  c.restore();
+  /* ── 2 · the wake: everything that boils off streams downwind, up the screen ── */
+  const ax = ux * halfL, ay = uy * halfL;                  // half the hot edge, along the hull
+  const dx = -nx * L, dy = -ny * L;                        // downwind
+  const wg = c.createLinearGradient(sx, sy, sx + dx, sy + dy);
+  wg.addColorStop(0, 'rgba(255,238,190,' + (0.72 * k).toFixed(3) + ')');
+  wg.addColorStop(0.28, 'rgba(255,158,70,' + (0.42 * k).toFixed(3) + ')');
+  wg.addColorStop(1, 'rgba(255,70,20,0)');
+  c.fillStyle = wg; c.beginPath();
+  c.moveTo(sx - ax, sy - ay); c.lineTo(sx + ax, sy + ay);
+  c.lineTo(sx + ax * 1.5 + dx, sy + ay * 1.5 + dy); c.lineTo(sx - ax * 1.5 + dx, sy - ay * 1.5 + dy);
+  c.closePath(); c.fill(); drawCount++;
+  /* ── 3 · shimmer: three streaks combed back along the airstream ── */
+  c.globalAlpha = 0.3 * k; c.strokeStyle = '#FFE0B0'; c.lineWidth = 1;
   for (let i = 0; i < 3; i++) {
-    const ox = (i - 1) * 10; c.beginPath();
-    for (let t = 0; t <= 1; t += 0.1) {
-      const yy = y - t * L * 0.7, xx = x + ox * (1 + t * 1.6) + Math.sin(t * 9 + now / 120 + i * 2) * (1.5 + t * 2.5);
-      t === 0 ? c.moveTo(xx, yy) : c.lineTo(xx, yy);
+    const o = (i - 1) * halfL * 0.55; c.beginPath();
+    for (let u = 0; u <= 1.0001; u += 0.125) {
+      const wob = Math.sin(u * 9 + now / 120 + i * 2) * (1.5 + u * 3);
+      const px = sx + ux * o + dx * u + ux * wob, py = sy + uy * o + dy * u + uy * wob;
+      u === 0 ? c.moveTo(px, py) : c.lineTo(px, py);
     }
     c.stroke(); drawCount++;
   }
-  /* embers: 14 sparks streaming up and outward, flickering */
-  c.fillStyle = '#FFB347';
+  /* ── 4 · embers peeling off the hot edge and blowing downwind ── */
   for (let i = 0; i < 14; i++) {
-    const r = w8_rand(i + 3), r2 = w8_rand(i + 41), t = ((now / (900 + r * 700)) + r2) % 1;
-    const yy = y - 6 - t * L * 1.05, xx = x + (r - 0.5) * 24 * (1 + t * 3) + Math.sin(now / 150 + i) * 2;
-    c.globalAlpha = k * (1 - t) * (0.5 + 0.5 * Math.sin(now / 60 + i * 2));
+    const r = w8_rand(i + 3), r2 = w8_rand(i + 41), u = ((now / (900 + r * 700)) + r2) % 1;
+    const o = (r - 0.5) * halfL * 2.1, spread = (r2 - 0.5) * 12 * u;
+    const px = sx + ux * (o + spread) - nx * (4 + u * L * 1.05);
+    const py = sy + uy * (o + spread) - ny * (4 + u * L * 1.05);
+    c.globalAlpha = k * (1 - u) * (0.5 + 0.5 * Math.sin(now / 60 + i * 2));
     c.fillStyle = r2 > 0.6 ? '#FFF4C2' : '#FFB347';
-    c.beginPath(); c.arc(xx, yy, 1 + r * 1.6 * (1 - t), 0, 6.283); c.fill(); drawCount++;
+    c.beginPath(); c.arc(px, py, 1 + r * 1.6 * (1 - u), 0, 6.2832); c.fill(); drawCount++;
   }
-  /* hot rim glow on the ship's leading (lower) edge */
-  c.globalAlpha = 0.55 * k;
-  g = c.createRadialGradient(x, y + 12, 0, x, y + 12, 34);
-  g.addColorStop(0, 'rgba(255,240,200,0.7)'); g.addColorStop(1, 'rgba(255,120,60,0)');
-  c.fillStyle = g; c.beginPath(); c.arc(x, y + 12, 34, 0, 6.283); c.fill(); drawCount++;
   c.restore();
 }
 

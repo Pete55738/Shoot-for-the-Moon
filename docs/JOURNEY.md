@@ -1,4 +1,30 @@
-# The journey — one world, one camera, one path
+# The journey — one world, one camera, one path, one speed
+
+## One speed (T96)
+
+The path was always continuous in *position*; what read as a pause between segments was
+**speed**. Every phase ran `easeInOut(p)` across its own unit of `jt`, so the ship braked to a
+standstill at the end of one phase and started again at the beginning of the next — measured
+0.00 px/frame at `orbit`→`transfer`, `transfer`→`moonorbit` and `back`→`reentry`.
+
+Equal `jt` per second is not equal speed, for two independent reasons: the arcs differ by 3× in
+length (at 390×844 the Earth ring is 349 px of ship travel, the outbound leg 424, the two lunar
+laps 1107), and the camera pans, which *cancels* the ship's motion on screen. So `jt` is paced
+against **arc length measured with the camera frozen** (`w29_pacing`) — the ship against the
+Earth and the Moon, which is what the eye reads as speed, not the ship against the bezel.
+
+That is only measurable because `jcam`, `retro` and `jmix` are pure functions of `jt`
+(`w29_jcam`, `w29_retro`, `w29_mix`), which is also what removed the last per-phase geometry.
+
+A **run** is a stretch flown without stopping, bounded by the places the ship genuinely comes to
+rest: the pad, the lunar surface, and mission 1's braking turn. Inside a run the profile is
+smoothstep ramp up → constant → ramp down. **Nothing eases at a phase boundary any more, because
+a phase boundary is not an event.** `FLIGHT_PLAN`'s seconds now only decide where the phase
+labels fall; every run total is unchanged, so every mission is exactly as long as it was.
+
+`w29_mix` takes a `side` argument because **`jt` = 3 is two different places** — the ship arrives
+to land at one end of the cargo flyover and leaves from the other, 280 px apart.
+
 
 *(T81/T82, W26. Replaces the five separate view geometries described by the old
 "the journey is one arc" note.)*
