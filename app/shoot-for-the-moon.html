@@ -546,6 +546,10 @@ body {
                letter-spacing: .06em; text-transform: uppercase; color: var(--h-text-muted);
                transition: opacity .3s; pointer-events: auto; }
   .checklist[hidden] { display: none; }
+  /* T93 · two lines, ever. The row cap is in the JS, but the height is pinned here too so no
+     future row, and no long task name wrapping, can make this window grow back over the scene. */
+  .checklist ol { max-height: 2.9em; overflow: hidden; }
+  .checklist li { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .checklist .t { color: var(--h-accent); font-weight: 700; margin-bottom: .3rem; display: flex; justify-content: space-between; }
   .checklist ol { margin: 0; padding: 0; list-style: none; max-height: 8.4em; overflow: hidden; }
   .checklist li { padding: 0; line-height: 1.4; display: flex; gap: .4rem; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -772,6 +776,7 @@ body {
         <div class="shoptabs" role="tablist" aria-label="Shop">
           <button class="vwbtn act" data-shop="rocket" title="Engine, tank, aero, hull, payload — ten tiers each">Rocket<span class="dots" id="sd-rocket"></span></button>
           <button class="vwbtn" data-shop="equipment" title="Two pieces per mission; both are needed to fly it">Equipment<span class="dots" id="sd-equipment"></span></button>
+          <button class="vwbtn" data-shop="base" id="shop-base-tab" hidden title="Cargo bay, logistics and habitats — only once the base is established">Base<span class="dots" id="sd-base"></span></button>
         </div>
         <div class="hint" id="shop-hint"></div>
         <div id="ups"></div>
@@ -800,10 +805,11 @@ body {
          once you are there, every Moon flight delivers a module until the base is complete.</p>
       <h3>The missions</h3>
       <p>Five missions, in order: Earth low orbit, lunar-injection orbit, lunar orbit, a lunar base, and a Moon base
-         of 10,000 people. Each needs the rocket's delivered Δv to clear the real requirement (9.3, 12.5, 13.4 and 15.3 km/s)
+         of 1,000 tonnes. Each needs the rocket's delivered Δv to clear the real requirement (9.3, 12.5, 13.4 and 15.3 km/s)
          <em>and</em> two pieces of equipment. When both are true, LAUNCH turns gold and the next flight is the milestone flight.
-         Every milestone unlocks two more tiers on every track. After the base is established, every flight lands cargo and the
-         population grows until 10,000 people live there.</p>
+         Every milestone unlocks two more tiers on every track. After the base is established, every flight lands cargo toward
+         1,000 tonnes, the population is what that tonnage houses, and three base tracks — cargo bay, logistics, habitats —
+         open on a third shop tab to make each run land more, earn more and house more.</p>
       <h3>The one lever</h3>
       <p>When to press LAUNCH is never a choice — it is always right to fly. The decision is
          <b>what to buy between launches</b>. Payload tiers pay more per flight but only ride a rocket
@@ -1035,13 +1041,44 @@ const RAILGUN_PER_PERSON = 0.9;     // $ per resident per shipment — at 10,000
 /* T78 · the endgame is a cargo goal, not a population grind. The base is finished when the tonnage
    is landed, and the population is just what that tonnage reads as — one number drives both, so the
    goal on screen and the people in the base can never disagree.
-   250 t is ten runs of a maxed ship (payloadOf at tier 10 = 24.9 t). It is deliberately expressed in
-   tonnes and never in launches: the player should be watching the cargo bar fill, not counting.
+   1,000 t is deliberately expressed in tonnes and never in launches: the player should be watching the
+   cargo bar fill, not counting. At a maxed ship and no base upgrades it is 41 runs, which is the dull
+   version; with the T99 base tracks bought as they are earned every strategy lands it in 14–16 runs.
    Before this the target was population at 5 people/tonne, which is 81 launches at tier 10 and 236
    at tier 8 — the last two thirds of the game were the grind nobody finished. Measured after: see
    the sim rows in the commit. */
-const BASE_CARGO_T = 250;
-const POP_PER_TONNE = MISSIONS[5].population / BASE_CARGO_T;   // 40 · derived, so the two can't drift
+const BASE_CARGO_T = 1000;
+/* T99 · the endgame had one verb: press LAUNCH. Everything caps at T10 well before the base is
+   built, so the last stretch was a corridor with nothing to buy. Three tracks open once the base
+   exists and each one shortens it a different way — more tonnes on the ship, more money per tonne,
+   more people per tonne. They are deliberately expensive: the point is that the cargo runs are
+   paying for the thing that makes the cargo runs shorter. */
+const BASE_TRACKS = ['bay', 'logistics', 'habitat'];
+const BASE_LEVELS = 8;
+const BASE_BASE_COST = { bay: 300000, logistics: 220000, habitat: 190000 };
+const BASE_GROWTH = 2.0;            // per level, per track
+const BAY_STEP = 1.26;              // × tonnes landed per run, per bay level
+const LOG_STEP = 1.22;              // × $ per tonne, per logistics level
+const HAB_STEP = 1.24;              // × people per tonne, per habitat level
+const BASE_INFO = {
+  bay:       { name: 'Cargo bay',   what: 'A bigger bay: every run lands more tonnes on the Moon.' },
+  logistics: { name: 'Logistics',   what: 'Contracts and handling: every tonne is worth more money.' },
+  habitat:   { name: 'Habitats',    what: 'Denser modules: every tonne houses  more people.' },
+};
+function baseCost(k, lvl) { return Math.round(BASE_BASE_COST[k] * Math.pow(BASE_GROWTH, lvl - 1)); }
+function baseLock(k, b, achieved, t) {
+  if ((achieved || 0) < 5) return 'unlocks once the base is established';
+  /* T99 · the ship comes first. Without this the money that should finish the rocket goes into the
+     base instead, and a player who buys the expensive thing every time ends up shuttling 8 t a run
+     forever — the sim's `priciest` took 158 cargo runs that way against 14 for a finished ship. */
+  if (t && TRACKS.some(x => t[x] < TIERS)) return 'finish the rocket first';
+  return (b && b[k] || 1) >= BASE_LEVELS ? 'max' : null;
+}
+const baseLvl = (b, k) => (b && b[k]) || 1;
+function bayMul(b)  { return Math.pow(BAY_STEP, baseLvl(b, 'bay') - 1); }
+function logMul(b)  { return Math.pow(LOG_STEP, baseLvl(b, 'logistics') - 1); }
+function popPerTonne(b) { return POP_PER_TONNE_BASE * Math.pow(HAB_STEP, baseLvl(b, 'habitat') - 1); }
+const POP_PER_TONNE_BASE = 10;   // people per tonne before any habitat upgrade
 function costOf(track, tier) { return Math.round(BASE_COST[track] * Math.pow(COST_GROWTH, tier - 1)); }
 function equipCost(id) { return Math.round(EQUIP_BASE_COST * Math.pow(COST_GROWTH, 2 * (EQUIPMENT[id].mission - 1))); }
 function statsOf(t) {
@@ -1145,11 +1182,11 @@ function missionReached(t, eq, achieved) {
 /* Cargo landed per tier-5 flight (t): payload and hull carry it; excess Δv above landing pays too. */
 function railgunPay(population) { return population >= RAILGUN_POP ? Math.round(population * RAILGUN_PER_PERSON) : 0; }
 /* What lands on the Moon is simply what the ship carried there. */
-function cargoOf(payloadT) { return Math.round(payloadT * 10) / 10; }
+function cargoOf(payloadT, b) { return Math.round(payloadT * bayMul(b) * 10) / 10; }
 /* Money follows the tonnes, because the tonnes are what the flight actually delivered. */
-function payValueOf(t) { return Math.pow(PAY_VALUE, t.payload - 1); }
-function rewardOf(apogeeKm, t, mission, payloadT) {
-  const tonnes = (payloadT == null ? PAY_MIN : payloadT) * payValueOf(t);
+function payValueOf(t, b) { return Math.pow(PAY_VALUE, t.payload - 1) * (b ? logMul(b) : 1); }
+function rewardOf(apogeeKm, t, mission, payloadT, b) {
+  const tonnes = (payloadT == null ? PAY_MIN : payloadT) * payValueOf(t, b);
   if (mission && mission >= 1) return Math.round(MISSIONS[mission].reward * tonnes);
   return Math.round((REWARD_K * Math.pow(apogeeKm, REWARD_P) + 5) * tonnes);
 }
@@ -1171,25 +1208,30 @@ function equipLock(id, eq, achieved) {
 }
 /* Headless play-through with equipment, milestone flights and the tier-5 population run. */
 function simulate(strategy, maxLaunches) {
-  const t = { engine: 1, tank: 1, aero: 1, hull: 1, payload: 1 }, eq = {};
+  const t = { engine: 1, tank: 1, aero: 1, hull: 1, payload: 1 }, eq = {}, base = { bay: 1, logistics: 1, habitat: 1 };
   let money = 0, launches = 0, dry = 0, maxDry = 0, buys = 0, achieved = 0, population = 0, cargoT = 0; const seen = new Set(), at = {};
   while (launches < (maxLaunches || 800)) {
     const { m, f, payloadT } = missionReached(t, eq, achieved); launches++;
     const flightMission = Math.min(m, achieved + 1);
-    let r = rewardOf(f.apogeeKm, t, flightMission, payloadT);
+    let r = rewardOf(f.apogeeKm, t, flightMission, payloadT, base);
     for (const ms of MILESTONES) if (f.apogeeKm >= ms.km && !seen.has(ms.km)) { seen.add(ms.km); r += ms.bonus; }
     if (flightMission > achieved) { achieved = flightMission; r += MISSIONS[achieved].bonus; at['m' + achieved] = launches; }
-    if (achieved >= 5) { cargoT += cargoOf(payloadT); population = cargoT * POP_PER_TONNE;    /* T78 · the cargo goal */
+    if (achieved >= 5) { cargoT += cargoOf(payloadT, base); population = cargoT * popPerTonne(base);   /* T78/T99 */
       if (cargoT >= BASE_CARGO_T) { at.done = launches; return { launches, maxDry: Math.max(maxDry, dry), buys, reached: true, at }; } }
     r += railgunPay(Math.floor(population));   // the railgun fires during the turnaround that follows
     money += r;
     let bought = false;
     for (;;) {
       const opts = TRACKS.filter(k => !lockReason(k, t, achieved)).map(k => ({ k, c: costOf(k, t[k] + 1) }))
-        .concat(Object.keys(EQUIPMENT).filter(id => !equipLock(id, eq, achieved)).map(id => ({ k: 'eq:' + id, c: equipCost(id) })));
+        .concat(Object.keys(EQUIPMENT).filter(id => !equipLock(id, eq, achieved)).map(id => ({ k: 'eq:' + id, c: equipCost(id) })))
+        .concat(BASE_TRACKS.filter(k => !baseLock(k, base, achieved, t)).map(k => ({ k: 'base:' + k, c: baseCost(k, base[k] + 1) })));
       if (!opts.length) break;
       const pick = strategy(opts, t);
-      if (pick && pick.c <= money) { money -= pick.c; if (pick.k.startsWith('eq:')) eq[pick.k.slice(3)] = true; else t[pick.k]++; bought = true; buys++; } else break;
+      if (pick && pick.c <= money) { money -= pick.c;
+        if (pick.k.startsWith('eq:')) eq[pick.k.slice(3)] = true;
+        else if (pick.k.startsWith('base:')) base[pick.k.slice(5)]++;
+        else t[pick.k]++;
+        bought = true; buys++; } else break;
     }
     if (bought) { maxDry = Math.max(maxDry, dry); dry = 0; } else if (achieved < 5) dry++;
   }
@@ -1210,7 +1252,7 @@ const STRATEGIES = {
 function runBalanceSim() {
   const rows = Object.entries(STRATEGIES).map(([name, s]) => ({ name, ...simulate(s) }));
   const ok = rows.every(r => r.reached && r.launches <= 400 && r.maxDry <= 25);
-  return { ok, rows, gate: 'every strategy builds the Moon base (10,000 people) in ≤400 launches with ≤25 dry launches in a row' };
+  return { ok, rows, gate: 'every strategy builds the Moon base (1,000 tonnes landed) in ≤400 launches with ≤25 dry launches in a row' };
 }
 /*BAL-END*/
 
@@ -1225,7 +1267,8 @@ const freshState = () => ({
   tiers: { engine: 1, tank: 1, aero: 1, hull: 1, payload: 1 },
   money: 0, launches: 0, earned: 0, bestKm: 0, bestV: 0,
   milestones: [], modules: 0, log: [], seed: 1,
-  equipment: {}, mission: 0, population: 0, cargoT: 0, shipments: 0,     // the mission ladder (T13): equipment owned, missions achieved, tier-5 base
+  equipment: {}, mission: 0, population: 0, cargoT: 0, shipments: 0,
+  base: { bay: 1, logistics: 1, habitat: 1 },   // T99 · the endgame tracks     // the mission ladder (T13): equipment owned, missions achieved, tier-5 base
 });
 let S = freshState();
 /* phase: 'ready' | 'flight' | 'descent' | 'turnaround' — the scene reads it; act() moves it. */
@@ -1248,6 +1291,7 @@ function load() {
   if (d.kind !== KIND || !d.payload) { saveStatus = 'save has the wrong shape — ignored'; return; }
   S = Object.assign(freshState(), d.payload);
   S.tiers = Object.assign(freshState().tiers, S.tiers || {}); S.equipment = Object.assign({}, S.equipment || {});
+  S.base = Object.assign(freshState().base, S.base || {});   /* T99 · a save from before the base tracks has none */
   saveStatus = 'saved ' + ago(d.at);
 }
 function ago(iso) {
@@ -1307,6 +1351,16 @@ function buyEquip(id) {
   save(); paintShop(); paintMoney(); paintBadge(); paintLaunch(); paintGauges(); paintDataWin(); drawScene();   /* T68 */
   return true;
 }
+/* T99 · the base tracks. Same shape as buy(), and the same repaint list: bay changes the tonnes a
+   run lands, logistics the money per tonne, habitat the people per tonne, so every gauge moves. */
+function buyBase(k) {
+  if (phase === 'flight' || phase === 'descent') return false;
+  if (baseLock(k, S.base, S.mission, S.tiers)) return false;
+  const c = baseCost(k, S.base[k] + 1); if (S.money < c) return false;
+  S.money -= c; S.base[k]++; replan();
+  save(); paintShop(); paintMoney(); paintBadge(); paintLaunch(); paintGauges(); paintDataWin(); drawScene();
+  return true;
+}
 /* The mission the next LAUNCH would newly achieve, or 0. Cached with the flight plan — flyRocket is thousands of steps. */
 let plan = null;
 function replan() { plan = missionReached(S.tiers, S.equipment, S.mission); return plan; }
@@ -1318,7 +1372,7 @@ function launch() {
   /* Orbital flights show their orbit, not a straight-up apogee (the pitch-over camera arrives with T15). */
   if (flightMission >= 1) { f.apogeeKm = MISSIONS[flightMission].orbitKm; f.moon = f.apogeeKm >= MOON_KM; }
   S.launches++;
-  let r = rewardOf(f.apogeeKm, S.tiers, flightMission, payloadT);
+  let r = rewardOf(f.apogeeKm, S.tiers, flightMission, payloadT, S.base);
   const hit = [];
   for (const ms of MILESTONES) if (f.apogeeKm >= ms.km && !S.milestones.includes(ms.km)) { S.milestones.push(ms.km); r += ms.bonus; hit.push(ms); }
   const record = f.apogeeKm > S.bestKm;
@@ -1334,13 +1388,13 @@ function launch() {
                  sub: MISSIONS[flightMission].flight + ' ✓' + (flightMission < 5 ? ' · tiers to T' + capOf(flightMission) + ' unlocked' : ' · now grow the base') };
     if (flightMission === 4) { module = BASE_MODULES[0]; S.modules = 1; } }
   else if (flightMission >= 1) override = { big: MISSIONS[flightMission].short === 'LEO' ? 'LOW EARTH ORBIT · ' + fmtMi(200) + ' MI' : MISSIONS[flightMission].name.toUpperCase(), sub: '' };
-  if (S.mission >= 5 && !milestone) { cargo = cargoOf(payloadT); S.cargoT = Math.round((S.cargoT + cargo) * 10) / 10;
+  if (S.mission >= 5 && !milestone) { cargo = cargoOf(payloadT, S.base); S.cargoT = Math.round((S.cargoT + cargo) * 10) / 10;
     /* T78 · population is a reading of the tonnage, not a second running total. */
-    const before = S.population; S.population = Math.min(MISSIONS[5].population, Math.round(S.cargoT * POP_PER_TONNE));
+    const before = S.population; S.population = Math.round(S.cargoT * popPerTonne(S.base));
     S.modules = Math.min(BASE_MODULES.length, 1 + Math.floor(S.population / 2500));
     if (S.modules > 1 + Math.floor(before / 2500)) module = BASE_MODULES[S.modules - 1];
     const shipPay = railgunPay(S.population);
-    override = { big: S.population >= MISSIONS[5].population ? 'MOON BASE BUILT · 10,000 PEOPLE' : 'CARGO LANDED · ' + cargo + ' T',
+    override = { big: S.cargoT >= BASE_CARGO_T ? 'MOON BASE BUILT · ' + S.population.toLocaleString('en-US') + ' PEOPLE' : 'CARGO LANDED · ' + cargo + ' T',
                  sub: 'Population ' + S.population.toLocaleString('en-US') + (module ? ' · new: ' + module : '')
                       + (shipPay ? ' · railgun sent ' + fmtMoney(shipPay) + ' home' : '') }; }
   const note = milestone ? 'Milestone ' + flightMission + ': ' + MISSIONS[flightMission].name : cargo ? 'Cargo ' + cargo + ' t · pop ' + S.population.toLocaleString('en-US') : module ? 'Delivered: ' + module : hit.length ? hit[hit.length - 1].name : record ? 'New record' : '';
@@ -1681,7 +1735,10 @@ function paintGoal() {
     /* T85 · the population moves to the tag slot, where there is room beside the title. Kept on the
        stat line it ran past the window's 13rem and got ellipsised, which is not "one line". */
     $('gw-title').textContent = 'Moon base';
-    $('gw-tag').textContent = S.population.toLocaleString('en-US') + ' people';
+    /* T99 · the tag is the rate, not the total. The total is on the cargo line's own terms below and
+       on the ladder; what the player is buying upgrades to move is how many people one run adds. */
+    const perRun = Math.round(cargoOf((plan || replan()).payloadT || PAY_MIN, S.base) * popPerTonne(S.base));
+    $('gw-tag').textContent = '+' + perRun.toLocaleString('en-US') + ' people';
     /* T84 · once the base is the goal the checklist never changes again — "base established, grow to
        10,000, keep landing cargo" is three rows of decoration. They are gone; the window is its title
        and the one number that moves.
@@ -9127,7 +9184,7 @@ function ladderProgress() {
      against the Δv the next mission needs — the thing the player is actually grinding — and it is
      held just short of the node until the mission is really achieved. */
   const m = clamp(S.mission, 0, 5);
-  if (m >= 5) return { u: 5, frac: clamp((S.population || 0) / MISSIONS[5].population, 0, 1) };
+  if (m >= 5) return { u: 5, frac: clamp((S.cargoT || 0) / BASE_CARGO_T, 0, 1) };
   const need = MISSIONS[m + 1].dvReq, have = (plan || replan()).f.dv;
   const gotKit = MISSIONS[m + 1].equip.every(k => S.equipment[k]);
   let frac = clamp(have / need, 0, 1) * 0.82 + (gotKit ? 0.18 : 0);
@@ -9137,7 +9194,7 @@ function ladderProgress() {
    widest that actually fits rather than letting it run off the edge. */
 function ladderCaption() {
   const m = S.mission, pop = (S.population || 0).toLocaleString('en-US');
-  if (m >= 5) return [[pop + ' of 10,000 people', pop + ' / 10,000', pop], true];
+  if (m >= 5) return [[pop + ' people on the Moon', pop + ' people', pop], true];
   if (m >= 4) return [['base landed · ' + pop + ' people', 'landed · ' + pop, pop], true];
   /* T67b · `fmtMi` prints the word MOON at and past lunar distance, which is right for the altitude
      readout and nonsense in a sentence — this line read "MOON MI OF MOON TO THE MOON". So the
@@ -9247,7 +9304,7 @@ function paintGauges() {
   { const p = plan || replan();
     const flying = Math.min(p.m, S.mission + 1);
     const tonnes = p.payloadT == null ? PAY_MIN : p.payloadT;
-    const rev = rewardOf(flying >= 1 ? MISSIONS[flying].orbitKm : p.f.apogeeKm, S.tiers, flying, tonnes);
+    const rev = rewardOf(flying >= 1 ? MISSIONS[flying].orbitKm : p.f.apogeeKm, S.tiers, flying, tonnes, S.base);
     $('g-pay').innerHTML = (tonnes < 10 ? tonnes.toFixed(1) : Math.round(tonnes)) + '<small>t</small>';
     $('g-rev').innerHTML = fmtMoney(rev) + '<small>/flight</small>'; }
   drawLadder(); paintDataWin(); paintWindows();
@@ -9256,21 +9313,48 @@ function paintMoney() { $('money').textContent = fmtMoney(S.money); }
 /* Mission control rows. Imperial at display, SI underneath (T11/T12). 1 kN = 224.809 lbf · 1 t = 2204.62 lb · 1 m/s² = 3.28084 ft/s² */
 const KN_TO_LBF = 224.809, T_TO_LB = 2204.62, MS2_TO_FTS2 = 3.28084;
 const fmtN = (x, d) => (Math.abs(x) >= 1e6 ? (x / 1e6).toFixed(2) + 'M' : Math.abs(x) >= 1e4 ? (x / 1e3).toFixed(1) + 'k' : x.toFixed(d == null ? 0 : d)).replace(/^-0(\.0+)?$/, '0');
+/* T94 · what the ship is actually doing, phase by phase, so the window reads as a mission moving
+   forward in time rather than flipping between BURN and COAST for twenty seconds. The names come
+   off the flight's own phase machine, so they cannot drift from what is on screen. */
+const PHASE_MODE = {
+  ascent: 'ASCENT', pitch: 'GRAVITY TURN', coast: 'COASTING',
+  orbit: 'EARTH ORBIT', transfer: 'LUNAR INJECTION', moonorbit: 'LUNAR ORBIT',
+  land: 'LUNAR LANDING', cargo: 'DROPPING CARGO', back: 'RETURN TRANSFER',
+  reentry: 'DECELERATION', descent: 'RE-ENTRY',
+};
+function flightMode() {
+  if (view.countdown) return 'T−' + (view.countdown.n || 'IGN');
+  if (phase === 'turnaround') return 'GROUND OPS';
+  if (phase !== 'flight' && phase !== 'descent') return 'PAD';
+  const named = PHASE_MODE[view.phaseName];
+  if (named) {
+    /* the two that have a second act worth naming while they run */
+    if (view.phaseName === 'orbit' && view.retro > 0.05) return 'BRAKING BURN';
+    if (view.phaseName === 'reentry' && view.retro > 0.05) return 'BRAKING BURN';
+    if (view.phaseName === 'descent') return view.km < CATCH_KM ? 'CATCH' : view.flaps > 0.5 ? 'RE-ENTRY' : 'DESCENT';
+    return named;
+  }
+  return view.burning ? 'BURN' : 'COAST';
+}
 function paintDataWin() {
   const st = statsOf(S.tiers), inFlight = phase === 'flight' || phase === 'descent';
   const f = inFlight && view.forces ? view.forces : { thrust: st.thrust, drag: 0, mass: st.dryMass + st.fuel, g: 9.81 };
   const twr = f.mass > 0 ? (f.thrust / (f.mass * f.g)) : 0;
+  /* T92 · four rows. It was ten, which is a spreadsheet — and eight of them (Cd, drag, mass, g,
+     TWR, Δv, stages) never change enough during a flight to be worth the height they cost over
+     the scene. Velocity and altitude are the two that move; thrust says whether the engine is
+     lit; payload is the number the whole economy turns on. */
   const rows = [
-    ['Vel', fmtN(view.v * MS_TO_MPH), 'mph'], ['Alt', fmtMi(view.km), view.km >= MOON_KM ? '' : 'mi'],
-    ['Cd', st.cd.toFixed(2), ''], ['Drag', fmtN(f.drag * KN_TO_LBF), 'lbf'], ['Thrust', fmtN(f.thrust * KN_TO_LBF), 'lbf'],
-    ['Mass', fmtN(f.mass * T_TO_LB), 'lb'], ['g', (f.g * MS2_TO_FTS2).toFixed(2), 'ft/s²'], ['TWR', twr.toFixed(2), ''],
-    ['Δv', ((plan || replan()).f.dv / 1000).toFixed(2), 'km/s'], ['Stages', String((plan || replan()).f.stages), ''],
+    ['Vel', fmtN(view.v * MS_TO_MPH), 'mph'],
+    ['Alt', fmtMi(view.km), view.km >= MOON_KM ? '' : 'mi'],
+    ['Thrust', fmtN(f.thrust * KN_TO_LBF), 'lbf'],
+    ['Payload', ((plan || replan()).payloadT || PAY_MIN).toFixed(1), 't'],
   ];
   const tb = $('dw-rows');
   if (tb.children.length !== rows.length) { tb.textContent = ''; for (const r of rows) { const tr = document.createElement('tr');
     tr.innerHTML = '<td class="k"></td><td class="v"><span></span><small></small></td>'; tb.appendChild(tr); } }
   rows.forEach((r, i) => { const tr = tb.children[i]; tr.children[0].textContent = r[0]; tr.children[1].children[0].textContent = r[1]; tr.children[1].children[1].textContent = r[2]; });
-  $('dw-mode').textContent = view.countdown ? 'T−' + (view.countdown.n || 'IGN') : phase === 'flight' ? (view.burning ? 'BURN' : 'COAST') : phase === 'descent' ? (view.km >= MOON_KM ? 'MOON' : view.heat > 0.2 ? 'RE-ENTRY' : 'DESCENT') : phase === 'turnaround' ? 'GROUND OPS' : 'PAD';
+  $('dw-mode').textContent = flightMode();
   $('datawin').classList.toggle('away', view.km >= MOON_KM * 0.999 && phase === 'descent');
 }
 function paintLaunch() {
@@ -9298,18 +9382,24 @@ function shopHint() {
 /* T58 · how many things on each tab the player could buy this second: unlocked, not maxed, and
    affordable. Being mid-flight does not count against it — the money is still there when it lands. */
 function buyableNow() {
-  let rocket = 0, equipment = 0;
+  let rocket = 0, equipment = 0, base = 0;
   for (const k of TRACKS) { const tier = S.tiers[k];
     if (tier < TIERS && !lockReason(k, S.tiers, S.mission) && S.money >= costOf(k, tier + 1)) rocket++; }
   for (const id of Object.keys(EQUIPMENT))
     if (!equipLock(id, S.equipment, S.mission) && S.money >= equipCost(id)) equipment++;
-  return { rocket, equipment };
+  for (const k of BASE_TRACKS)
+    if (!baseLock(k, S.base, S.mission, S.tiers) && S.money >= baseCost(k, S.base[k] + 1)) base++;
+  return { rocket, equipment, base };
 }
 function paintShop() {
   if (!plan) replan();
+  /* T99 · the base tab does not exist until there is a base. Before that it is a fourth thing to
+     read on a screen that is already full, and every card in it would say "locked". */
+  $('shop-base-tab').hidden = S.mission < 5;
+  if (shopTab === 'base' && S.mission < 5) shopTab = 'rocket';
   document.querySelectorAll('[data-shop]').forEach(b => b.classList.toggle('act', b.dataset.shop === shopTab));
   const buyable = buyableNow();
-  for (const key of ['rocket', 'equipment']) {
+  for (const key of ['rocket', 'equipment', 'base']) {
     const el = $('sd-' + key); el.textContent = '';
     for (let i = 0; i < buyable[key]; i++) el.appendChild(document.createElement('i'));
     el.title = buyable[key] === 1 ? '1 upgrade you can afford' : buyable[key] + ' upgrades you can afford';
@@ -9334,10 +9424,39 @@ function paintShop() {
     for (let i = 1; i <= TIERS; i++) { const p = document.createElement('i'); if (i <= tier) p.className = 'on'; else if (i > cap) p.style.opacity = '.35'; pips.appendChild(p); }
     d.appendChild(pips);
     const desc = document.createElement('div'); desc.className = 'd';
-    desc.textContent = k === 'payload' ? PAYLOADS[tier - 1] + ' · ×' + payValueOf(S.tiers).toFixed(2) + ' per tonne' + (lock && lock !== 'max' ? ' · ' + lock : '')
+    desc.textContent = k === 'payload' ? PAYLOADS[tier - 1] + ' · ×' + payValueOf(S.tiers, S.base).toFixed(2) + ' per tonne' + (lock && lock !== 'max' ? ' · ' + lock : '')
                      : lock && lock !== 'max' ? lock : TRACK_INFO[k].what;
     d.appendChild(desc);
     box.appendChild(d);
+  }
+  else if (shopTab === 'base') {
+    /* T99 · three tracks, eight levels each, and each card says what the next level actually buys
+       in the unit the player is watching — tonnes, dollars, people — not a multiplier. */
+    const payT = (plan || replan()).payloadT || PAY_MIN;
+    for (const k of BASE_TRACKS) {
+      const lvl = S.base[k], lock = baseLock(k, S.base, S.mission, S.tiers), c = lvl < BASE_LEVELS ? baseCost(k, lvl + 1) : 0;
+      const d = document.createElement('div'); d.className = 'up' + (lock === 'max' ? ' done' : ''); d.dataset.track = k;
+      d.title = BASE_INFO[k].what;
+      const n = document.createElement('div'); n.className = 'n'; n.textContent = BASE_INFO[k].name + ' · L' + lvl; d.appendChild(n);
+      const b = document.createElement('button'); b.className = 'buy';
+      if (lock === 'max') { b.textContent = 'MAX'; b.disabled = true; b.classList.add('max'); }
+      else if (lock) { b.textContent = fmtMoney(c); b.disabled = true; b.classList.add('locked'); b.title = 'Locked: ' + lock; }
+      else { b.textContent = fmtMoney(c); b.disabled = S.money < c || inFlight;
+             b.title = (S.money < c ? 'Need ' + fmtMoney(c - S.money) + ' more' : 'Buy level ' + (lvl + 1)) + ' — ' + BASE_INFO[k].what; }
+      b.addEventListener('click', () => { if (buyBase(k)) flashText(b, 'BOUGHT ✓'); });
+      d.appendChild(b);
+      const pips = document.createElement('div'); pips.className = 'pips';
+      for (let i = 1; i <= BASE_LEVELS; i++) { const p = document.createElement('i'); if (i <= lvl) p.className = 'on'; pips.appendChild(p); }
+      d.appendChild(pips);
+      const now = k === 'bay' ? cargoOf(payT, S.base).toFixed(1) + ' t a run'
+                : k === 'logistics' ? fmtMoney(Math.round(MISSIONS[5].reward * payValueOf(S.tiers, S.base))) + ' a tonne'
+                : Math.round(popPerTonne(S.base)) + ' people a tonne';
+      const nxt = { bay: BAY_STEP, logistics: LOG_STEP, habitat: HAB_STEP }[k];
+      const desc = document.createElement('div'); desc.className = 'd';
+      desc.textContent = now + (lock === 'max' ? '' : ' · next level +' + Math.round((nxt - 1) * 100) + '%');
+      d.appendChild(desc);
+      box.appendChild(d);
+    }
   }
   else {
     /* Only what is actually in play. Ten cards at full size overflowed the column and needed a
@@ -9376,8 +9495,7 @@ function paintShop() {
 }
 function flashText(el, msg) { const idle = el.textContent; el.textContent = msg; setTimeout(() => { if (el.isConnected) paintShop(); }, 700); }
 function paintBadge() {
-  const n = TRACKS.filter(k => !lockReason(k, S.tiers, S.mission) && S.money >= costOf(k, S.tiers[k] + 1)).length
-          + Object.keys(EQUIPMENT).filter(id => !equipLock(id, S.equipment, S.mission) && S.money >= equipCost(id)).length;
+  const bn = buyableNow(), n = bn.rocket + bn.equipment + bn.base;
   let bd = document.querySelector('.tab[data-p="pad"] .badge');
   if (!bd) { bd = document.createElement('span'); bd.className = 'badge'; document.querySelector('.tab[data-p="pad"]').appendChild(bd); }
   bd.hidden = n === 0; bd.textContent = n;
@@ -9516,7 +9634,7 @@ function devJump(sc) {
     view.forces = { thrust: s[4], drag: s[5], mass: s[6], g: s[7] }; }
   else if (sc === 'space') { const f = flyRocket(S.tiers, S.equipment); phase = 'flight'; view.km = Math.max(f.apogeeKm * 0.8, 150); view.v = f.burnoutV * 0.3; view.fuel = 0; view.flame = 0.2; view.burning = false; view.flaps = 0; view.forces = forcesAt(S.tiers, view.km * 1000, view.v, 0); }
   else if (sc === 'apogee') { const f = flyRocket(S.tiers, S.equipment); phase = 'descent'; view.km = f.apogeeKm; view.v = 0; view.fuel = 0; view.flame = 0; view.flaps = 0;
-    showFlash(f, rewardOf(f.apogeeKm, S.tiers, 0), true, MILESTONES.filter(m => f.apogeeKm >= m.km).slice(-1), null, null, PAY_MIN); }
+    showFlash(f, rewardOf(f.apogeeKm, S.tiers, 0, null, S.base), true, MILESTONES.filter(m => f.apogeeKm >= m.km).slice(-1), null, null, PAY_MIN); }
   else if (sc === 'descent') { phase = 'descent'; view.km = 5; view.v = 0; view.fuel = 0; view.flame = 0.6; view.burning = true; view.flaps = 1; view.ang = -0.55; }
   else if (sc === 'moon') { phase = 'descent'; view.moonAt = performance.now(); view.km = MOON_KM; view.v = 0; view.fuel = 0; view.flame = 0; view.flaps = 0; if (!S.modules) S.modules = 3; }
   paintLaunch(); paintGauges(); drawScene(); out.textContent = 'scene → ' + sc + ' · phase ' + phase;
