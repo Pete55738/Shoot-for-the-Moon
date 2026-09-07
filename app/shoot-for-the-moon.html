@@ -546,6 +546,10 @@ body {
                letter-spacing: .06em; text-transform: uppercase; color: var(--h-text-muted);
                transition: opacity .3s; pointer-events: auto; }
   .checklist[hidden] { display: none; }
+  /* T93 · two lines, ever. The row cap is in the JS, but the height is pinned here too so no
+     future row, and no long task name wrapping, can make this window grow back over the scene. */
+  .checklist ol { max-height: 2.9em; overflow: hidden; }
+  .checklist li { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .checklist .t { color: var(--h-accent); font-weight: 700; margin-bottom: .3rem; display: flex; justify-content: space-between; }
   .checklist ol { margin: 0; padding: 0; list-style: none; max-height: 8.4em; overflow: hidden; }
   .checklist li { padding: 0; line-height: 1.4; display: flex; gap: .4rem; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -772,6 +776,7 @@ body {
         <div class="shoptabs" role="tablist" aria-label="Shop">
           <button class="vwbtn act" data-shop="rocket" title="Engine, tank, aero, hull, payload — ten tiers each">Rocket<span class="dots" id="sd-rocket"></span></button>
           <button class="vwbtn" data-shop="equipment" title="Two pieces per mission; both are needed to fly it">Equipment<span class="dots" id="sd-equipment"></span></button>
+          <button class="vwbtn" data-shop="base" id="shop-base-tab" hidden title="Cargo bay, logistics and habitats — only once the base is established">Base<span class="dots" id="sd-base"></span></button>
         </div>
         <div class="hint" id="shop-hint"></div>
         <div id="ups"></div>
@@ -800,10 +805,11 @@ body {
          once you are there, every Moon flight delivers a module until the base is complete.</p>
       <h3>The missions</h3>
       <p>Five missions, in order: Earth low orbit, lunar-injection orbit, lunar orbit, a lunar base, and a Moon base
-         of 10,000 people. Each needs the rocket's delivered Δv to clear the real requirement (9.3, 12.5, 13.4 and 15.3 km/s)
+         of 1,000 tonnes. Each needs the rocket's delivered Δv to clear the real requirement (9.3, 12.5, 13.4 and 15.3 km/s)
          <em>and</em> two pieces of equipment. When both are true, LAUNCH turns gold and the next flight is the milestone flight.
-         Every milestone unlocks two more tiers on every track. After the base is established, every flight lands cargo and the
-         population grows until 10,000 people live there.</p>
+         Every milestone unlocks two more tiers on every track. After the base is established, every flight lands cargo toward
+         1,000 tonnes, the population is what that tonnage houses, and three base tracks — cargo bay, logistics, habitats —
+         open on a third shop tab to make each run land more, earn more and house more.</p>
       <h3>The one lever</h3>
       <p>When to press LAUNCH is never a choice — it is always right to fly. The decision is
          <b>what to buy between launches</b>. Payload tiers pay more per flight but only ride a rocket
@@ -988,7 +994,10 @@ const BALLISTIC_TOP = 1.45;
 /* T53 · the recovery, in altitudes. Above RECOV_KM the ship is still falling like a stone; below
    it the flaps are out and it belly-flops down, flips to vertical at FLIP_KM and lights the engine
    at BURN_KM for the last few seconds into the chopsticks. There is no parachute anywhere in it. */
-const RECOV_KM = 14, FLIP_KM = 9, FLIP_END_KM = 4, BURN_KM = 7, CATCH_KM = 3;
+const RECOV_KM = 14, FLIP_KM = 14, FLIP_END_KM = 5, BURN_KM = 7, CATCH_KM = 3;
+/* T97 · the plasma band. view.heat is a window centred on 80 km, so these bracket it: the ship
+   drops to ENTRY_KM quickly and then crosses to PLASMA_END_KM slowly, which is the whole beat. */
+const ENTRY_KM = 105, PLASMA_END_KM = 45;
 const BELLY_ANG = 1.57;   // flat to the airstream, belly down
 /* Just under a full lap: the ship leaves the atmosphere at the right-hand limb (angle 0, the Moon
    side), goes the long way round the back, and ends at the lower right ready to burn for the Moon. */
@@ -1019,13 +1028,20 @@ const ORBIT_COAST = 0.68;
    peaks low: warm from ~4 km, hottest near 12, gone by 30. Used for the nose glow on the way up. */
 function maxQHeat(km) { return km <= 2 || km >= 30 ? 0 : Math.pow(Math.sin(Math.PI * clamp((km - 2) / 28, 0, 1)), 1.6) * 0.55; }
 /* T82 · phase seconds only — the journey is one path now and needs room to fly it. */
+/* T96 · constant speed decides how long each ARC takes; these seconds only decide where the
+   phase labels fall. Re-cut in the measured proportions of each run's arc length at 390×844, so
+   every boundary lands within 0.08 s of the jt integer it names. Every RUN TOTAL is unchanged —
+   mission 5 is still 24.8 s of flight; only the boundaries inside a run moved.
+   T97 · `descent` is the exception, and deliberately: it is not part of a journey run (it is on
+   the pad camera), and at 1.9–2.6 s it had to fit the plasma pass, the flip, the landing burn and
+   the catch. It is 3.2 s on every mission now, which is what gives the Starship beat room. */
 const FLIGHT_PLAN = {
   0: [['ascent', 3.0], ['coast', 2.2], ['descent', 4.2]],
-  1: [['ascent', 2.2], ['pitch', 1.8], ['orbit', 5.0], ['reentry', 2.0], ['descent', 2.6]],
-  2: [['ascent', 2.0], ['pitch', 1.6], ['orbit', 2.6], ['transfer', 4.4], ['back', 2.6], ['reentry', 2.0], ['descent', 2.2]],
-  3: [['ascent', 1.8], ['pitch', 1.5], ['orbit', 2.6], ['transfer', 4.0], ['moonorbit', 3.4], ['back', 3.0], ['reentry', 2.0], ['descent', 2.0]],
-  4: [['ascent', 1.8], ['pitch', 1.5], ['orbit', 2.6], ['transfer', 3.6], ['moonorbit', 3.4], ['land', 3.6], ['back', 2.8], ['reentry', 2.0], ['descent', 1.9]],
-  5: [['ascent', 1.7], ['pitch', 1.4], ['orbit', 2.6], ['transfer', 4.0], ['moonorbit', 3.4], ['cargo', 5.4], ['back', 3.2], ['reentry', 2.0], ['descent', 1.9]],
+  1: [['ascent', 2.2], ['pitch', 1.8], ['orbit', 5.0], ['reentry', 2.0], ['descent', 3.2]],
+  2: [['ascent', 2.0], ['pitch', 1.6], ['orbit', 2.5], ['transfer', 3.0], ['back', 3.2], ['reentry', 2.9], ['descent', 3.2]],
+  3: [['ascent', 1.8], ['pitch', 1.5], ['orbit', 2.2], ['transfer', 2.5], ['moonorbit', 4.1], ['back', 3.5], ['reentry', 2.7], ['descent', 3.2]],
+  4: [['ascent', 1.8], ['pitch', 1.5], ['orbit', 2.2], ['transfer', 2.5], ['moonorbit', 4.9], ['land', 3.6], ['back', 2.9], ['reentry', 1.9], ['descent', 3.2]],
+  5: [['ascent', 1.7], ['pitch', 1.4], ['orbit', 2.3], ['transfer', 2.6], ['moonorbit', 5.1], ['cargo', 5.4], ['back', 3.2], ['reentry', 2.0], ['descent', 3.2]],
 };
 const FADE_S = 0.45;                // cross-fade between camera views; reads as a zoom-out
 /* T17 · once the base passes RAILGUN_POP it fires one cargo shipment home per turnaround.
@@ -1035,13 +1051,44 @@ const RAILGUN_PER_PERSON = 0.9;     // $ per resident per shipment — at 10,000
 /* T78 · the endgame is a cargo goal, not a population grind. The base is finished when the tonnage
    is landed, and the population is just what that tonnage reads as — one number drives both, so the
    goal on screen and the people in the base can never disagree.
-   250 t is ten runs of a maxed ship (payloadOf at tier 10 = 24.9 t). It is deliberately expressed in
-   tonnes and never in launches: the player should be watching the cargo bar fill, not counting.
+   1,000 t is deliberately expressed in tonnes and never in launches: the player should be watching the
+   cargo bar fill, not counting. At a maxed ship and no base upgrades it is 41 runs, which is the dull
+   version; with the T99 base tracks bought as they are earned every strategy lands it in 14–16 runs.
    Before this the target was population at 5 people/tonne, which is 81 launches at tier 10 and 236
    at tier 8 — the last two thirds of the game were the grind nobody finished. Measured after: see
    the sim rows in the commit. */
-const BASE_CARGO_T = 250;
-const POP_PER_TONNE = MISSIONS[5].population / BASE_CARGO_T;   // 40 · derived, so the two can't drift
+const BASE_CARGO_T = 1000;
+/* T99 · the endgame had one verb: press LAUNCH. Everything caps at T10 well before the base is
+   built, so the last stretch was a corridor with nothing to buy. Three tracks open once the base
+   exists and each one shortens it a different way — more tonnes on the ship, more money per tonne,
+   more people per tonne. They are deliberately expensive: the point is that the cargo runs are
+   paying for the thing that makes the cargo runs shorter. */
+const BASE_TRACKS = ['bay', 'logistics', 'habitat'];
+const BASE_LEVELS = 8;
+const BASE_BASE_COST = { bay: 300000, logistics: 220000, habitat: 190000 };
+const BASE_GROWTH = 2.0;            // per level, per track
+const BAY_STEP = 1.26;              // × tonnes landed per run, per bay level
+const LOG_STEP = 1.22;              // × $ per tonne, per logistics level
+const HAB_STEP = 1.24;              // × people per tonne, per habitat level
+const BASE_INFO = {
+  bay:       { name: 'Cargo bay',   what: 'A bigger bay: every run lands more tonnes on the Moon.' },
+  logistics: { name: 'Logistics',   what: 'Contracts and handling: every tonne is worth more money.' },
+  habitat:   { name: 'Habitats',    what: 'Denser modules: every tonne houses  more people.' },
+};
+function baseCost(k, lvl) { return Math.round(BASE_BASE_COST[k] * Math.pow(BASE_GROWTH, lvl - 1)); }
+function baseLock(k, b, achieved, t) {
+  if ((achieved || 0) < 5) return 'unlocks once the base is established';
+  /* T99 · the ship comes first. Without this the money that should finish the rocket goes into the
+     base instead, and a player who buys the expensive thing every time ends up shuttling 8 t a run
+     forever — the sim's `priciest` took 158 cargo runs that way against 14 for a finished ship. */
+  if (t && TRACKS.some(x => t[x] < TIERS)) return 'finish the rocket first';
+  return (b && b[k] || 1) >= BASE_LEVELS ? 'max' : null;
+}
+const baseLvl = (b, k) => (b && b[k]) || 1;
+function bayMul(b)  { return Math.pow(BAY_STEP, baseLvl(b, 'bay') - 1); }
+function logMul(b)  { return Math.pow(LOG_STEP, baseLvl(b, 'logistics') - 1); }
+function popPerTonne(b) { return POP_PER_TONNE_BASE * Math.pow(HAB_STEP, baseLvl(b, 'habitat') - 1); }
+const POP_PER_TONNE_BASE = 10;   // people per tonne before any habitat upgrade
 function costOf(track, tier) { return Math.round(BASE_COST[track] * Math.pow(COST_GROWTH, tier - 1)); }
 function equipCost(id) { return Math.round(EQUIP_BASE_COST * Math.pow(COST_GROWTH, 2 * (EQUIPMENT[id].mission - 1))); }
 function statsOf(t) {
@@ -1145,11 +1192,11 @@ function missionReached(t, eq, achieved) {
 /* Cargo landed per tier-5 flight (t): payload and hull carry it; excess Δv above landing pays too. */
 function railgunPay(population) { return population >= RAILGUN_POP ? Math.round(population * RAILGUN_PER_PERSON) : 0; }
 /* What lands on the Moon is simply what the ship carried there. */
-function cargoOf(payloadT) { return Math.round(payloadT * 10) / 10; }
+function cargoOf(payloadT, b) { return Math.round(payloadT * bayMul(b) * 10) / 10; }
 /* Money follows the tonnes, because the tonnes are what the flight actually delivered. */
-function payValueOf(t) { return Math.pow(PAY_VALUE, t.payload - 1); }
-function rewardOf(apogeeKm, t, mission, payloadT) {
-  const tonnes = (payloadT == null ? PAY_MIN : payloadT) * payValueOf(t);
+function payValueOf(t, b) { return Math.pow(PAY_VALUE, t.payload - 1) * (b ? logMul(b) : 1); }
+function rewardOf(apogeeKm, t, mission, payloadT, b) {
+  const tonnes = (payloadT == null ? PAY_MIN : payloadT) * payValueOf(t, b);
   if (mission && mission >= 1) return Math.round(MISSIONS[mission].reward * tonnes);
   return Math.round((REWARD_K * Math.pow(apogeeKm, REWARD_P) + 5) * tonnes);
 }
@@ -1171,25 +1218,30 @@ function equipLock(id, eq, achieved) {
 }
 /* Headless play-through with equipment, milestone flights and the tier-5 population run. */
 function simulate(strategy, maxLaunches) {
-  const t = { engine: 1, tank: 1, aero: 1, hull: 1, payload: 1 }, eq = {};
+  const t = { engine: 1, tank: 1, aero: 1, hull: 1, payload: 1 }, eq = {}, base = { bay: 1, logistics: 1, habitat: 1 };
   let money = 0, launches = 0, dry = 0, maxDry = 0, buys = 0, achieved = 0, population = 0, cargoT = 0; const seen = new Set(), at = {};
   while (launches < (maxLaunches || 800)) {
     const { m, f, payloadT } = missionReached(t, eq, achieved); launches++;
     const flightMission = Math.min(m, achieved + 1);
-    let r = rewardOf(f.apogeeKm, t, flightMission, payloadT);
+    let r = rewardOf(f.apogeeKm, t, flightMission, payloadT, base);
     for (const ms of MILESTONES) if (f.apogeeKm >= ms.km && !seen.has(ms.km)) { seen.add(ms.km); r += ms.bonus; }
     if (flightMission > achieved) { achieved = flightMission; r += MISSIONS[achieved].bonus; at['m' + achieved] = launches; }
-    if (achieved >= 5) { cargoT += cargoOf(payloadT); population = cargoT * POP_PER_TONNE;    /* T78 · the cargo goal */
+    if (achieved >= 5) { cargoT += cargoOf(payloadT, base); population = cargoT * popPerTonne(base);   /* T78/T99 */
       if (cargoT >= BASE_CARGO_T) { at.done = launches; return { launches, maxDry: Math.max(maxDry, dry), buys, reached: true, at }; } }
     r += railgunPay(Math.floor(population));   // the railgun fires during the turnaround that follows
     money += r;
     let bought = false;
     for (;;) {
       const opts = TRACKS.filter(k => !lockReason(k, t, achieved)).map(k => ({ k, c: costOf(k, t[k] + 1) }))
-        .concat(Object.keys(EQUIPMENT).filter(id => !equipLock(id, eq, achieved)).map(id => ({ k: 'eq:' + id, c: equipCost(id) })));
+        .concat(Object.keys(EQUIPMENT).filter(id => !equipLock(id, eq, achieved)).map(id => ({ k: 'eq:' + id, c: equipCost(id) })))
+        .concat(BASE_TRACKS.filter(k => !baseLock(k, base, achieved, t)).map(k => ({ k: 'base:' + k, c: baseCost(k, base[k] + 1) })));
       if (!opts.length) break;
       const pick = strategy(opts, t);
-      if (pick && pick.c <= money) { money -= pick.c; if (pick.k.startsWith('eq:')) eq[pick.k.slice(3)] = true; else t[pick.k]++; bought = true; buys++; } else break;
+      if (pick && pick.c <= money) { money -= pick.c;
+        if (pick.k.startsWith('eq:')) eq[pick.k.slice(3)] = true;
+        else if (pick.k.startsWith('base:')) base[pick.k.slice(5)]++;
+        else t[pick.k]++;
+        bought = true; buys++; } else break;
     }
     if (bought) { maxDry = Math.max(maxDry, dry); dry = 0; } else if (achieved < 5) dry++;
   }
@@ -1210,7 +1262,7 @@ const STRATEGIES = {
 function runBalanceSim() {
   const rows = Object.entries(STRATEGIES).map(([name, s]) => ({ name, ...simulate(s) }));
   const ok = rows.every(r => r.reached && r.launches <= 400 && r.maxDry <= 25);
-  return { ok, rows, gate: 'every strategy builds the Moon base (10,000 people) in ≤400 launches with ≤25 dry launches in a row' };
+  return { ok, rows, gate: 'every strategy builds the Moon base (1,000 tonnes landed) in ≤400 launches with ≤25 dry launches in a row' };
 }
 /*BAL-END*/
 
@@ -1225,7 +1277,8 @@ const freshState = () => ({
   tiers: { engine: 1, tank: 1, aero: 1, hull: 1, payload: 1 },
   money: 0, launches: 0, earned: 0, bestKm: 0, bestV: 0,
   milestones: [], modules: 0, log: [], seed: 1,
-  equipment: {}, mission: 0, population: 0, cargoT: 0, shipments: 0,     // the mission ladder (T13): equipment owned, missions achieved, tier-5 base
+  equipment: {}, mission: 0, population: 0, cargoT: 0, shipments: 0,
+  base: { bay: 1, logistics: 1, habitat: 1 },   // T99 · the endgame tracks     // the mission ladder (T13): equipment owned, missions achieved, tier-5 base
 });
 let S = freshState();
 /* phase: 'ready' | 'flight' | 'descent' | 'turnaround' — the scene reads it; act() moves it. */
@@ -1248,6 +1301,7 @@ function load() {
   if (d.kind !== KIND || !d.payload) { saveStatus = 'save has the wrong shape — ignored'; return; }
   S = Object.assign(freshState(), d.payload);
   S.tiers = Object.assign(freshState().tiers, S.tiers || {}); S.equipment = Object.assign({}, S.equipment || {});
+  S.base = Object.assign(freshState().base, S.base || {});   /* T99 · a save from before the base tracks has none */
   saveStatus = 'saved ' + ago(d.at);
 }
 function ago(iso) {
@@ -1307,6 +1361,16 @@ function buyEquip(id) {
   save(); paintShop(); paintMoney(); paintBadge(); paintLaunch(); paintGauges(); paintDataWin(); drawScene();   /* T68 */
   return true;
 }
+/* T99 · the base tracks. Same shape as buy(), and the same repaint list: bay changes the tonnes a
+   run lands, logistics the money per tonne, habitat the people per tonne, so every gauge moves. */
+function buyBase(k) {
+  if (phase === 'flight' || phase === 'descent') return false;
+  if (baseLock(k, S.base, S.mission, S.tiers)) return false;
+  const c = baseCost(k, S.base[k] + 1); if (S.money < c) return false;
+  S.money -= c; S.base[k]++; replan();
+  save(); paintShop(); paintMoney(); paintBadge(); paintLaunch(); paintGauges(); paintDataWin(); drawScene();
+  return true;
+}
 /* The mission the next LAUNCH would newly achieve, or 0. Cached with the flight plan — flyRocket is thousands of steps. */
 let plan = null;
 function replan() { plan = missionReached(S.tiers, S.equipment, S.mission); return plan; }
@@ -1318,7 +1382,7 @@ function launch() {
   /* Orbital flights show their orbit, not a straight-up apogee (the pitch-over camera arrives with T15). */
   if (flightMission >= 1) { f.apogeeKm = MISSIONS[flightMission].orbitKm; f.moon = f.apogeeKm >= MOON_KM; }
   S.launches++;
-  let r = rewardOf(f.apogeeKm, S.tiers, flightMission, payloadT);
+  let r = rewardOf(f.apogeeKm, S.tiers, flightMission, payloadT, S.base);
   const hit = [];
   for (const ms of MILESTONES) if (f.apogeeKm >= ms.km && !S.milestones.includes(ms.km)) { S.milestones.push(ms.km); r += ms.bonus; hit.push(ms); }
   const record = f.apogeeKm > S.bestKm;
@@ -1334,13 +1398,13 @@ function launch() {
                  sub: MISSIONS[flightMission].flight + ' ✓' + (flightMission < 5 ? ' · tiers to T' + capOf(flightMission) + ' unlocked' : ' · now grow the base') };
     if (flightMission === 4) { module = BASE_MODULES[0]; S.modules = 1; } }
   else if (flightMission >= 1) override = { big: MISSIONS[flightMission].short === 'LEO' ? 'LOW EARTH ORBIT · ' + fmtMi(200) + ' MI' : MISSIONS[flightMission].name.toUpperCase(), sub: '' };
-  if (S.mission >= 5 && !milestone) { cargo = cargoOf(payloadT); S.cargoT = Math.round((S.cargoT + cargo) * 10) / 10;
+  if (S.mission >= 5 && !milestone) { cargo = cargoOf(payloadT, S.base); S.cargoT = Math.round((S.cargoT + cargo) * 10) / 10;
     /* T78 · population is a reading of the tonnage, not a second running total. */
-    const before = S.population; S.population = Math.min(MISSIONS[5].population, Math.round(S.cargoT * POP_PER_TONNE));
+    const before = S.population; S.population = Math.round(S.cargoT * popPerTonne(S.base));
     S.modules = Math.min(BASE_MODULES.length, 1 + Math.floor(S.population / 2500));
     if (S.modules > 1 + Math.floor(before / 2500)) module = BASE_MODULES[S.modules - 1];
     const shipPay = railgunPay(S.population);
-    override = { big: S.population >= MISSIONS[5].population ? 'MOON BASE BUILT · 10,000 PEOPLE' : 'CARGO LANDED · ' + cargo + ' T',
+    override = { big: S.cargoT >= BASE_CARGO_T ? 'MOON BASE BUILT · ' + S.population.toLocaleString('en-US') + ' PEOPLE' : 'CARGO LANDED · ' + cargo + ' T',
                  sub: 'Population ' + S.population.toLocaleString('en-US') + (module ? ' · new: ' + module : '')
                       + (shipPay ? ' · railgun sent ' + fmtMoney(shipPay) + ' home' : '') }; }
   const note = milestone ? 'Milestone ' + flightMission + ': ' + MISSIONS[flightMission].name : cargo ? 'Cargo ' + cargo + ' t · pop ' + S.population.toLocaleString('en-US') : module ? 'Delivered: ' + module : hit.length ? hit[hit.length - 1].name : record ? 'New record' : '';
@@ -1456,7 +1520,7 @@ function runFlight(f, onApogee, onLanded, mission) {
     } else if (ph.name === 'orbit' || ph.name === 'reentry') {
       view.km = orbitKm >= MOON_KM ? 400 : orbitKm; view.v = 7800; view.burning = false; view.flame = 0;
       /* T82 · the ring angle, the retro flip and the zoom belong to w26_journeyState now. */
-      view.heat = ph.name === 'reentry' ? Math.sin(p * Math.PI) : 0;
+      view.heat = 0;   /* T97 · no atmosphere out there; the way home gets a lit engine, not a nose glow */
       view.forces = forcesAt(S.tiers, view.km * 1000, view.v, 0);
       if (!paid && view.mission === 1 && ph.name === 'orbit' && p > 0.5) { paid = true; view.apogeeKm = orbitKm; onApogee(); }
     } else if (ph.name === 'transfer' || ph.name === 'back') {
@@ -1490,11 +1554,18 @@ function runFlight(f, onApogee, onLanded, mission) {
          the catch. One curve made the whole recovery flash past in a few frames. */
       view.scene = 'pad'; view.cargo = 0;
       /* T64 · three rates, not two. The catch used to be whatever was left over — about 0.7 s — and
-         the chopsticks closed before you could see them do it. It now owns the last 38% of the
-         phase outright, so the arms come in, take the ship and set it down where you can watch. */
-      view.km = p < 0.34 ? lerp(fromKm, RECOV_KM, easeOut(p / 0.34))
-              : p < 0.62 ? lerp(RECOV_KM, CATCH_KM, (p - 0.34) / 0.28)
-                         : CATCH_KM * (1 - (p - 0.62) / 0.38);
+         the chopsticks closed before you could see them do it. It now owns the last third of the
+         phase outright, so the arms come in, take the ship and set it down where you can watch.
+         T97 · four rates, because the plasma pass had the same problem the catch used to have.
+         Heat only exists between 105 and 45 km, and under the old single free-fall curve the ship
+         crossed that band in 6 frames — 0.12 s of the Starship re-entry the whole beat is for.
+         So the band gets its own rate and a quarter of the phase, and only then does the fall
+         resume. Measured after: 0.72 s above heat 0.3, against 0.12 s before. */
+      view.km = p < 0.10 ? lerp(fromKm, ENTRY_KM, easeOut(p / 0.10))
+              : p < 0.34 ? lerp(ENTRY_KM, PLASMA_END_KM, (p - 0.10) / 0.24)
+              : p < 0.50 ? lerp(PLASMA_END_KM, RECOV_KM, easeOut((p - 0.34) / 0.16))
+              : p < 0.72 ? lerp(RECOV_KM, CATCH_KM, (p - 0.50) / 0.22)
+                         : CATCH_KM * (1 - (p - 0.72) / 0.28);
       /* The lean carried it left on the way up; the fall brings it back over the site, and it is
          lined up on the tower well before the flip. */
       view.drift = lerp(-74, 0, easeOut(clamp(p * 1.5, 0, 1)));
@@ -1502,10 +1573,14 @@ function runFlight(f, onApogee, onLanded, mission) {
       /* T53 · the flaps swing out as it hits thick air, and from there it is the Starship routine:
          belly-flop flat to the airstream, then flip to vertical and light the engine for the last
          few seconds. No parachute — the chopsticks take it under 3 km (drawCatch). */
-      view.flaps = clamp((60 - view.km) / 25, 0, 1);
+      /* T97 · out before the plasma, not during it — the sideways silhouette the user is meant to
+         watch burn is the flapped one, and heat peaks at 80 km. */
+      view.flaps = clamp((140 - view.km) / 30, 0, 1);
       const flip = clamp((FLIP_KM - view.km) / (FLIP_KM - FLIP_END_KM), 0, 1);
       const belly = lerp(-BALLISTIC_TOP, -BELLY_ANG, clamp(p * 2.5, 0, 1)) + Math.sin(t * 1.3) * 0.05 * (1 - flip);
-      view.ang = lerp(belly, 0, easeOut(flip));
+      /* T97 · easeInOut, not easeOut. easeOut front-loaded the pivot into its first few frames and
+         then crept the last few degrees, so what should read as a deliberate turn was a snap. */
+      view.ang = lerp(belly, 0, easeInOut(flip));
       view.flame = clamp((BURN_KM - view.km) / 3, 0, 1) * 0.9;
       view.burning = view.flame > 0.15;   /* the landing burn gets a real plume, not an idle glow */
       view.v = Math.min(7000, Math.sqrt(2 * 9.81 * view.km * 1000)) * (view.flaps > 0 ? 1 - view.flaps * 0.55 : 1) * (1 - flip * 0.6);
@@ -1681,7 +1756,10 @@ function paintGoal() {
     /* T85 · the population moves to the tag slot, where there is room beside the title. Kept on the
        stat line it ran past the window's 13rem and got ellipsised, which is not "one line". */
     $('gw-title').textContent = 'Moon base';
-    $('gw-tag').textContent = S.population.toLocaleString('en-US') + ' people';
+    /* T99 · the tag is the rate, not the total. The total is on the cargo line's own terms below and
+       on the ladder; what the player is buying upgrades to move is how many people one run adds. */
+    const perRun = Math.round(cargoOf((plan || replan()).payloadT || PAY_MIN, S.base) * popPerTonne(S.base));
+    $('gw-tag').textContent = '+' + perRun.toLocaleString('en-US') + ' people';
     /* T84 · once the base is the goal the checklist never changes again — "base established, grow to
        10,000, keep landing cargo" is three rows of decoration. They are gone; the window is its title
        and the one number that moves.
@@ -1829,9 +1907,9 @@ const J_LR = J_RM * 1.42;                           // the lunar circle — T67'
 const J_D  = 820;                                   // Earth → Moon
 const J_RE_SWEEP = 2.6;                             // radians of ring the return flies before it lands (T82: "loops around")
 const J_BACK_ARC = 0.26;                            // fraction of `back` spent coming round the corner in lunar orbit
-const J_JOIN = 0.22;                                // fraction of `orbit` spent easing off the pad camera's ship station
-const J_DIVE = 0.34;                                // fraction of `reentry` spent easing back onto it
-const J_LIFT = 0.26;                                // fraction of `moonorbit` / `back` spent on the surface join
+/* T96 · the old J_JOIN / J_DIVE / J_LIFT are gone. The joins are measured in jt now
+   (JT_JOIN, JT_DIVE, JT_LAND, JT_LIFT beside w29_pacing), because a fraction of an eased
+   phase was never a fixed amount of path. */
 const J_TOKEN = 0.085;                              // the ship's height in space, as a fraction of min(DW,DH)
 
 /* The layout, per viewport. aIn / aOut / aRe are the three tangency angles that make the
@@ -2365,10 +2443,11 @@ function w26_body(c, kind, x, y, R, now, alpha) {
    drawOrbitView / drawTransferView / drawMoonApproach are all this function now, which is
    why the cross-fade at a scene change has nothing left to hide: both sides of it paint
    the same world with the same camera value. */
+/* ── one frame of the journey ───────────────────────────────────────────────────────────
+   drawOrbitView / drawTransferView / drawMoonApproach are all this function. */
 function drawJourney(c, DW, DH, st, drawRocketFn, rocketDimsFn) {
   const now = st.now || 0, mission = st.mission || 0;
   const jt = clamp(st.jt || 0, 0, 5), k = clamp(st.jcam || 0, 0, 3);
-  const heat = clamp(st.heat || 0, 0, 1);
   const t = st.tiers || S.tiers;
   const cam = jcam(DW, DH, k), G = jgeom(DW, DH), AR = j_arcs(DW, DH, mission);
   const U = Math.min(DW, DH) / 360;
@@ -2396,11 +2475,8 @@ function drawJourney(c, DW, DH, st, drawRocketFn, rocketDimsFn) {
   /* ---- the bodies ---- */
   const ES = to([0, 0]), MS = to([G.mx, G.my]);
   const ER = J_RE * cam.s, MR = J_RM * cam.s;
-  /* home never leaves the frame entirely: past the edge it clamps to a margin and holds a
-     minimum size, which is continuous — it slides out and sits there rather than vanishing. */
   const mg = 16 + Math.max(9, ER);
   w26_body(c, 'earth', clamp(ES[0], -mg + 26, DW + mg - 26), clamp(ES[1], -mg + 26, DH + mg - 26), Math.max(9, ER), now, 1);
-  /* the Moon fades rather than clamps — it is where you are going, not where you are from */
   const off = Math.max(0, -MS[0] - MR, MS[0] - DW - MR, -MS[1] - MR, MS[1] - DH - MR);
   w26_body(c, 'moon', MS[0], MS[1], MR, now, clamp(1 - off / (Math.min(DW, DH) * 0.45), 0, 1));
 
@@ -2412,43 +2488,44 @@ function drawJourney(c, DW, DH, st, drawRocketFn, rocketDimsFn) {
   c.stroke(); drawCount++;
   c.restore();
 
-  /* ---- the ship ---- */
+  /* ---- the ship ----
+     T97 · there is no atmosphere anywhere on this path, so the journey never draws re-entry
+     heat — `st.heat` is deliberately ignored here. What the way home gets instead is the
+     engine: the ship coasts round the back of the Earth dark and cold, turns end-for-end at
+     the bottom left, and lights up for the deceleration burn. `retro` is the turn (T87/T59)
+     and the burn starts as the last third of it completes, so the flame appears with the
+     ship already pointing retrograde. */
   const sh = jship(DW, DH, { jt, jcam: k, mission, tiers: t, retro: st.retro, jmix: st.jmix, jmixTo: st.jmixTo });
-  const burn = (st.retro || 0) > 0.62 ? clamp(((st.retro || 0) - 0.62) / 0.18, 0, 1) : 0;   // the braking burn, once it is round
+  const retro = clamp(st.retro || 0, 0, 1);
+  /* The burn dies away over the dive onto the pad station: by jt 5 the ship belongs to
+     `descent`, which lights its own engine for the landing. Without this the journey's ship —
+     still painted for FADE_S underneath the pad scene as the outgoing half of the cross-fade —
+     sits on top of the belly-flopping booster with a full braking plume out of its tail. */
+  const dive = jt > 5 - JT_DIVE ? clamp((jt - (5 - JT_DIVE)) / JT_DIVE, 0, 1) : 0;
+  const burn = (retro > 0.62 ? clamp((retro - 0.62) / 0.18, 0, 1) : 0) * (1 - dive);
+  const coasting = jt > 4 && burn <= 0;                         // homebound, engine off
+  const flame = burn > 0 ? 0.4 + 0.6 * burn : coasting ? 0 : 0.45 + 0.12 * Math.sin(now / 90);
   const dims = rocketDimsFn(t);
   c.save();
   if (sh.behind) c.globalAlpha = 0.38;
-  /* engine glow trailing back down the path */
-  if (heat <= 0) {
-    const b0 = to(jpath(DW, DH, Math.max(0, jt - 0.012), mission));
+  /* engine glow trailing back down the path — only when the engine is actually lit */
+  if (flame > 0) {
+    const b0 = to(jpath(DW, DH, Math.max(0, jt - 0.012 - 0.02 * burn), mission));
     const tg = c.createLinearGradient(sh.x, sh.y, b0[0], b0[1]);
-    tg.addColorStop(0, 'rgba(255,196,110,.8)'); tg.addColorStop(1, 'rgba(255,196,110,0)');
-    c.strokeStyle = tg; c.lineWidth = 3.4 * U; c.lineCap = 'round';
+    tg.addColorStop(0, 'rgba(255,196,110,' + (0.8 + 0.2 * burn).toFixed(2) + ')'); tg.addColorStop(1, 'rgba(255,196,110,0)');
+    c.strokeStyle = tg; c.lineWidth = (3.4 + 2.6 * burn) * U; c.lineCap = 'round';
     c.beginPath(); c.moveTo(sh.x, sh.y); c.lineTo(b0[0], b0[1]); c.stroke(); drawCount++;
   }
   c.translate(sh.x, sh.y); c.rotate(sh.rot); c.scale(sh.k, sh.k);
-  if (heat > 0) {
-    const L = dims.totalH * (2.4 + 3.2 * heat);
-    const pg = c.createLinearGradient(0, 0, 0, L);
-    pg.addColorStop(0, 'rgba(255,244,194,' + (0.85 * heat) + ')');
-    pg.addColorStop(0.35, 'rgba(255,140,60,' + (0.5 * heat) + ')');
-    pg.addColorStop(1, 'rgba(224,82,58,0)');
-    c.fillStyle = pg; c.beginPath();
-    c.moveTo(-dims.bodyW * 0.7, dims.bodyH * 0.2);
-    c.quadraticCurveTo(-dims.bodyW * 1.6, L * 0.6, 0, L);
-    c.quadraticCurveTo(dims.bodyW * 1.6, L * 0.6, dims.bodyW * 0.7, dims.bodyH * 0.2);
-    c.closePath(); c.fill(); drawCount++;
+  /* the braking burn gets a halo at the bells so it reads as a burn and not a brighter idle */
+  if (burn > 0) {
+    const by = dims.bodyH / 2, rg = c.createRadialGradient(0, by, 1, 0, by, dims.bodyW * (1.4 + 1.2 * burn));
+    rg.addColorStop(0, 'rgba(255,246,206,' + (0.5 * burn).toFixed(2) + ')');
+    rg.addColorStop(0.5, 'rgba(255,170,80,' + (0.26 * burn).toFixed(2) + ')');
+    rg.addColorStop(1, 'rgba(255,120,40,0)');
+    c.fillStyle = rg; c.beginPath(); c.arc(0, by, dims.bodyW * (1.4 + 1.2 * burn), 0, 6.2832); c.fill(); drawCount++;
   }
-  drawRocketFn(c, 0, sh.anchorH, t, heat > 0 ? 0 : burn > 0 ? 0.4 + 0.6 * burn : 0.45 + 0.12 * Math.sin(now / 90),
-               heat === 0, now, { heat: heat });
-  if (heat > 0) {
-    const ny = -dims.bodyH / 2 - dims.noseH;
-    const hg = c.createRadialGradient(0, ny, 1, 0, ny, dims.bodyW * 2.2);
-    hg.addColorStop(0, 'rgba(255,255,235,' + (0.95 * heat) + ')');
-    hg.addColorStop(0.45, 'rgba(255,170,70,' + (0.6 * heat) + ')');
-    hg.addColorStop(1, 'rgba(255,120,40,0)');
-    c.fillStyle = hg; c.beginPath(); c.arc(0, ny, dims.bodyW * 2.2, 0, 6.2832); c.fill(); drawCount++;
-  }
+  drawRocketFn(c, 0, sh.anchorH, t, flame, flame > 0, now, {});
   c.restore();
   c.restore();
 }
@@ -2505,102 +2582,234 @@ function drawView(name, c, now) {
      v.jmix  how much of the pad camera's own ship station is mixed in, with the drift and
              the angle that station is at — this is what joins the two ends to the pad.
    It also refreshes v.ang / v.zoom so the gauges and the compatibility wrappers agree with
-   it, which is why it must run before the phase branches, not after.
+   it, which is why it must run before the phase branches, not after.  Read docs/JOURNEY.md. */
 
-   INTEGRATOR — one line inside runFlight's frame(), immediately after
-       view.scene = SCENE_OF[ph.name] || 'pad'; view.p = p; view.phaseName = ph.name;
-   add
-       w26_journeyState(view, ph.name, p, DW, DH);
-   and delete, from the phase branches, only the lines that set view.ang / view.zoom /
-   view.retro-for-Moon-missions in `orbit`, `reentry`, `transfer`, `back` and `moonorbit`
-   (listed one by one in workers/w26-report.md §5). Everything else in those branches —
-   km, v, flame, heat, forces, the `paid` gates, the railgun — stays exactly as it is.
-   Add `jt: 0, jcam: 0, jmix: 0, jmixTo: null` to the `view` initialiser. */
-function w26_journeyState(v, name, p, DW, DH) {
-  p = clamp(p || 0, 0, 1);
-  const m = v.mission || 0, AR = j_arcs(DW, DH, m);
-  v.jmix = 0;
-  if (name === 'orbit') {
-    /* T80 · one graceful arc round the bottom of the Earth for a Moon mission; a low-orbit
-       flight still makes its lap and then brakes end-for-end. */
-    const lap = m >= 2 ? 1 : ORBIT_COAST;
-    const e = m >= 2 ? easeInOut(clamp(p / lap, 0, 1)) : easeOut(clamp(p / lap, 0, 1));
-    v.jt = e; v.jcam = easeOut(p); v.zoom = easeOut(p);
-    v.ang = lerp(AR.out[0], AR.out[1], e);
-    v.retro = m >= 2 ? 0 : clamp((p - ORBIT_COAST) / (1 - ORBIT_COAST), 0, 1);
-    /* T81 · the ship arrives from the pad camera, where it is big and centred. Hold it on the
-       pad's own station and ease it onto the ring over the first J_JOIN of the phase, so the
-       camera change has nothing left to hide and reads as a pull-back rather than a cut. */
-    v.jmix = 1 - easeInOut(clamp(p / J_JOIN, 0, 1));
-    v.jmixTo = w26_padStation(DW, DH, -140, -1.52, 0, 0);         // where `pitch` left it
-    /* The cross-fade paints the OUTGOING view too, with this frame's state, so the pad scene's own
-       ship has to be told to hold that station as well — otherwise the ghost of it swings round
-       with the ring angle while the real one flies straight. Only for as long as the mix lasts. */
-    v.ang = lerp(v.ang, -1.52, v.jmix);
-  } else if (name === 'reentry') {
-    /* Coming home is the same ring onward. A Moon mission joins it at aRe — the one angle whose
-       tangent is the return leg's own heading — and runs J_RE_SWEEP round it: in at the far
-       side, round, and out on the near side, which is the side the pad is on. */
-    const e = easeInOut(p);
-    v.jt = 4 + e; v.jcam = 1; v.zoom = 1;
-    v.ang = lerp(AR.home[0], AR.home[1], e);
-    /* T87 · a Moon mission brakes too, and it brakes where a returning ship would: at the bottom
-       left of the Earth, part way round the arc home. The angle is derived, not tuned — the return
-       runs 152° to 301°, so the bottom left (225°) is a real point on it and `eBL` is where the
-       sweep reaches it. The ship turns end-for-end over RETRO_TURN of the arc from there and stays
-       that way down, exactly as the low-orbit flight does.
-       A low-orbit flight already flipped at the end of its lap, so it arrives here holding it —
-       `retro` stays 1 for the whole phase or it would snap its nose back in one frame. */
-    if (m >= 2) {
-      const a0 = AR.home[0], a1 = AR.home[1], span = a1 - a0;
-      let eBL = 0.5;
-      for (const k of [-1, 0, 1]) { const f = (RETRO_AT + k * 2 * Math.PI - a0) / span;
-        if (f >= 0 && f <= 1) { eBL = f; break; } }
-      v.retro = clamp((e - eBL) / RETRO_TURN, 0, 1);
-    } else v.retro = 1;
-    /* T81 · the mirror of the join above: over the last J_DIVE the ship eases onto the pad
-       camera's station and grows to its pad scale, so `descent` picks it up where it is. */
-    v.jmix = easeInOut(clamp((p - (1 - J_DIVE)) / J_DIVE, 0, 1));
-    v.jmixTo = w26_padStation(DW, DH, -74, -BALLISTIC_TOP, 0, 5); // where `descent` starts it
-  } else if (name === 'transfer' || name === 'back') {
-    /* T82 · the outbound leg starts where the ring ends and the camera pulls back with it; the
-       return starts wherever the ship left off — close at the Moon if it has been in lunar
-       orbit, the wide two-body frame if it only swung past — and pushes back in to the Earth. */
-    const out = name === 'transfer', e = easeInOut(p);
-    v.jt = (out ? 1 : 3) + e;
-    v.jcam = out ? 1 + e : lerp(m >= 3 ? 3 : 2, 1, e);
-    v.zoom = out ? e : 1 - e; v.retro = 0;
-    v.jp = out ? p * 0.5 : 0.5 + p * 0.5;                        // legacy, for anything still reading it
-    /* A mission that landed leaves from the surface, so the return begins on the cargo scene's
-       own ship station and climbs off it into the orbit it is already on. */
-    if (!out && m >= 4) { v.jmix = 1 - easeInOut(clamp(p / J_LIFT, 0, 1)); v.jmixTo = w26_cargoStation(DW, DH, S.tiers, 1); }
-  } else if (name === 'moonorbit') {
-    const e = easeInOut(p);
-    v.jt = 2 + e;                                                /* T50 · two full laps */
-    v.jcam = 2 + easeOut(p); v.zoom = easeOut(p); v.retro = 0;
-    v.ang = jgeom(DW, DH).aIn + e * 4 * Math.PI;                 // legacy, for jrnyLunar callers
-    /* and, if this mission lands, the last of the phase is the descent onto the drop zone the
-       cargo scene puts the ship on, so that boundary is a join too. */
-    if (m >= 4) { v.jmix = easeInOut(clamp((p - (1 - J_LIFT)) / J_LIFT, 0, 1)); v.jmixTo = w26_cargoStation(DW, DH, S.tiers, 0); }
-  } else if (name === 'land' || name === 'cargo') {
-    /* the cargo scene owns the ship here; the journey view is only the outgoing half of the
-       cross-fade, so pin it to the same station rather than letting it snap back into orbit */
-    v.jt = 3; v.jcam = 3; v.jmix = 1; v.jmixTo = w26_cargoStation(DW, DH, S.tiers, v.cargo || 0);
-  } else if (name === 'descent') {
-    /* same again at the other end: `descent` belongs to the pad scene, and the orbit view fading
-       out behind it must keep the ship exactly where the pad scene has it. */
-    v.jt = 5; v.jcam = 1; v.jmix = 1;
-    v.jmixTo = w26_padStation(DW, DH, v.drift || 0, v.ang || 0, v.flaps, 5);
+const JT_JOIN = 0.05;   // jt spent easing off the pad's own ship station at the start of `orbit`
+const JT_DIVE = 0.16;   // jt spent easing back onto it at the end of `reentry`
+const JT_LAND = 0.15;   // jt spent easing onto the cargo scene's station (the landing)
+const JT_LIFT = 0.10;   // jt spent easing off it again (the liftoff)
+/* These are the old J_JOIN/J_DIVE/J_LIFT, converted: the old numbers were fractions of a
+   phase that was itself eased, so J_JOIN 0.22 of `orbit` was really easeInOut(0.22) = 0.043
+   of the ring. Measured in jt they are the same joins, and they no longer move when the
+   phase seconds change. */
+
+const W29_ARC_N = 16;        // first-pass arc samples per unit of jt; the walk refines from there
+const W29_ARC_PX = 5;        // and keeps subdividing until no sample is more than this far from the next
+const W29_RAMP_IN = 0.20, W29_RAMP_IN_MAX = 1.05;    // seconds of ramp, as a fraction of the run and a cap
+const W29_RAMP_OUT = 0.24, W29_RAMP_OUT_MAX = 1.25;  // arriving is allowed to take a little longer
+
+/* ── the camera, as a pure function of jt ──────────────────────────────────────────────
+   Same shape as the phase-by-phase version it replaces (and the same value at every join),
+   but it no longer needs to know which phase is running. */
+function w29_jcam(jt, m) {
+  if (jt <= 1) return easeOut(jt);
+  if (jt <= 2) return 1 + easeInOut(jt - 1);
+  if (jt <= 3) return m >= 3 ? 2 + easeOut(jt - 2) : 2;
+  if (jt <= 4) {
+    /* the way home crosses the wide two-body framing (k = 2), and `jcam` is only C0 at its
+       anchors — a camera moving fast through one is a visible kick. Two eased halves put the
+       camera momentarily at rest exactly there, so it settles into the wide shot for a beat
+       and then pushes in. The SHIP does not pause: jt is paced by arc length and knows
+       nothing about this. */
+    const u = jt - 3, top = m >= 3 ? 3 : 2;
+    return u <= 0.5 ? lerp(top, 2, easeInOut(u * 2)) : lerp(2, 1, easeInOut(u * 2 - 1));
   }
+  return 1;
+}
+/* ── the retro flip, as a pure function of jt ─────────────────────────────────────────
+   T87's derivation is unchanged: the return arc runs from aRe through J_RE_SWEEP, the
+   bottom left of the Earth (RETRO_AT, 225°) is a real point on it, and `eBL` is where the
+   sweep reaches it. A low-orbit flight still flips at the end of its lap and holds it. */
+function w29_retro(DW, DH, jt, m) {
+  if (m >= 2) {
+    if (jt <= 4) return 0;
+    const AR = j_arcs(DW, DH, m), a0 = AR.home[0], span = AR.home[1] - a0;
+    let eBL = 0.5;
+    for (const k of [-1, 0, 1]) { const f = (RETRO_AT + k * 2 * Math.PI - a0) / span; if (f >= 0 && f <= 1) { eBL = f; break; } }
+    return clamp(((jt - 4) - eBL) / RETRO_TURN, 0, 1);
+  }
+  /* A low-orbit flight turns end-for-end AT REST, after its lap: jt is pinned at 1 for the last
+     of the `orbit` phase while it does, so the turn cannot be a function of jt — w26_journeyState
+     ramps it on phase progress there, exactly as before. Here it is 0 on the lap, 1 ever after. */
+  return jt <= 1 ? 0 : 1;
+}
+/* ── the joins, as a pure function of jt ─────────────────────────────────────────────── */
+/* `side` disambiguates jt exactly 3, which is TWO places: the ship arrives there to land at
+   one end of the cargo flyover and leaves from the other, ~280 px apart at 390×844. −1 is the
+   arrival (`moonorbit`, `land`, `cargo`), +1 the departure (`back`). Without it the return run
+   opens with a 280 px step in its own arc table and the ship sits still for a second while the
+   pacing pays for a journey it never made. */
+function w29_mix(DW, DH, jt, m, side) {
+  side = side === undefined ? 1 : side;
+  if (jt <= JT_JOIN) return { mix: 1 - easeInOut(jt / JT_JOIN), to: w26_padStation(DW, DH, -140, -1.52, 0, 0) };
+  if (m >= 4) {
+    if (jt > 3 - JT_LAND && (jt < 3 || side < 0)) return { mix: easeInOut(1 - (3 - jt) / JT_LAND), to: w26_cargoStation(DW, DH, S.tiers, 0) };
+    if (jt >= 3 && jt < 3 + JT_LIFT && side > 0)  return { mix: 1 - easeInOut((jt - 3) / JT_LIFT),  to: w26_cargoStation(DW, DH, S.tiers, 1) };
+  }
+  if (jt >= 5 - JT_DIVE) return { mix: easeInOut((jt - (5 - JT_DIVE)) / JT_DIVE), to: w26_padStation(DW, DH, -74, -BALLISTIC_TOP, 0, 5) };
+  return { mix: 0, to: null };
+}
+/* ── where the ship is, for one jt and one FROZEN camera ─────────────────────────────── */
+function w29_shipXY(DW, DH, jt, m, k, side) {
+  const mx = w29_mix(DW, DH, jt, m, side);
+  const sh = jship(DW, DH, { jt: jt, jcam: k, mission: m, tiers: S.tiers,
+                             retro: w29_retro(DW, DH, jt, m), jmix: mx.mix, jmixTo: mx.to });
+  return [sh.x, sh.y];
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════════════
-   FLIGHT_PLAN — PATCH (phase seconds only). The joins and the longer ring arcs need room:
-   the pad join eats J_JOIN of `orbit`, the pad dive eats J_DIVE of `reentry`, and the
-   return now flies half a lap round the Moon before it leaves. At these lengths the Earth
-   ring sweeps at ~69 deg/s, which is T80's "graceful", and the reentry loop at ~74 deg/s.
-   Mission 5 goes from 21.6 s to 24.8 s of flight.
-   ═══════════════════════════════════════════════════════════════════════════════════ */
+/* ── the run plan: legs, runs and one arc-length table per run ────────────────────────── */
+const W29_CACHE = { key: '', val: null };
+/* ∫ of the speed shape (ramp up over A, flat, ramp down over B) from 0 to t. The ramps are
+   smoothstep, so acceleration is continuous at both ends and the mean of a ramp is exactly
+   half — which is why the whole thing closes in one line: total = T − A/2 − B/2. */
+function w29_sOf(t, T, A, B) {
+  if (t <= 0) return 0;
+  if (t >= T) return T - A / 2 - B / 2;
+  if (t < A)      { const u = t / A;       return A * (u * u * u - u * u * u * u / 2); }
+  if (t > T - B)  { const u = (T - t) / B; return A / 2 + (T - B - A) + B / 2 - B * (u * u * u - u * u * u * u / 2); }
+  return A / 2 + (t - A);
+}
+/* One interval of the arc table. It subdivides until every step is under W29_ARC_PX, because
+   the two ends of the journey are where the ship moves furthest per unit of jt — the pad and
+   surface joins cover a couple of hundred pixels inside a tenth of jt — and a table too coarse
+   to see that paces straight through it, which is a lurch. */
+function w29_walk(DW, DH, m, a, b, jts, cum, depth, side) {
+  const k = w29_jcam((a + b) / 2, m);
+  const A = w29_shipXY(DW, DH, a, m, k, side), B = w29_shipXY(DW, DH, b, m, k, side);
+  const d = Math.hypot(B[0] - A[0], B[1] - A[1]);
+  if (d > W29_ARC_PX && depth < 5) {
+    const mid = (a + b) / 2;
+    w29_walk(DW, DH, m, a, mid, jts, cum, depth + 1, side);
+    w29_walk(DW, DH, m, mid, b, jts, cum, depth + 1, side);
+    return;
+  }
+  jts.push(b); cum.push(cum[cum.length - 1] + d);
+}
+function w29_pacing(DW, DH, m) {
+  const key = DW + 'x' + DH + '|' + m + '|' + TRACKS.map(k => S.tiers[k]).join('.');
+  if (W29_CACHE.key === key && W29_CACHE.val) return W29_CACHE.val;
+  const plan = FLIGHT_PLAN[m] || FLIGHT_PLAN[0];
+  const SPAN = { orbit: [0, 1], transfer: [1, 2], moonorbit: [2, 3], back: [3, 4], reentry: [4, 5] };
+  const phase = {}, legs = [];
+  let t = 0;
+  for (const [name, d] of plan) {
+    const sp = SPAN[name];
+    if (sp) {
+      phase[name] = { t0: t, d: d };
+      /* A low-orbit flight is the one journey with a stop in the middle of a phase: it flies
+         its lap over the first ORBIT_COAST of `orbit` and then holds still to turn end-for-end
+         and brake. That stop is real, so it ends a run. */
+      const moveTo = (m < 2 && name === 'orbit') ? t + d * ORBIT_COAST : t + d;
+      legs.push({ name: name, t0: t, t1: moveTo, jt0: sp[0], jt1: sp[1] });
+    }
+    t += d;
+  }
+  /* group legs that touch in time into runs — a run is what the ship flies without stopping */
+  const runs = [];
+  for (const L of legs) {
+    const R = runs[runs.length - 1];
+    if (R && Math.abs(R.t1 - L.t0) < 1e-6) { R.t1 = L.t1; R.legs.push(L); }
+    else runs.push({ t0: L.t0, t1: L.t1, legs: [L] });
+  }
+  /* one arc-length table per run, in frozen-camera screen pixels */
+  for (const R of runs) {
+    const jts = [], cum = [0];
+    for (const L of R.legs) {
+      const n = Math.max(4, Math.round(W29_ARC_N * (L.jt1 - L.jt0)));
+      /* a leg boundary that jumps in jt (mission 2 skips the lunar laps, 2 → 3) is the SAME
+         point on the path, so it adds no length — hence the per-leg loop rather than one sweep */
+      if (!jts.length) jts.push(L.jt0);
+      else if (jts[jts.length - 1] !== L.jt0) { jts.push(L.jt0); cum.push(cum[cum.length - 1]); }
+      const side = L.jt0 >= 3 ? 1 : -1;
+      for (let i = 0; i < n; i++)
+        w29_walk(DW, DH, m, lerp(L.jt0, L.jt1, i / n), lerp(L.jt0, L.jt1, (i + 1) / n), jts, cum, 0, side);
+    }
+    R.jts = jts; R.cum = cum; R.L = cum[cum.length - 1];
+    R.T = R.t1 - R.t0;
+    R.A = Math.min(W29_RAMP_IN * R.T, W29_RAMP_IN_MAX);
+    R.B = Math.min(W29_RAMP_OUT * R.T, W29_RAMP_OUT_MAX);
+    if (R.A + R.B > R.T * 0.9) { const f = R.T * 0.9 / (R.A + R.B); R.A *= f; R.B *= f; }
+    R.V = R.L / Math.max(1e-6, R.T - R.A / 2 - R.B / 2);          // px/s — the run's cruise speed
+  }
+  const val = {
+    runs: runs, phase: phase,
+    /* jt for one moment of the flight. Inside a run it is the arc-length inverse; in the gap
+       after a run (mission 1's braking turn, the cargo drop) it holds the run's last jt. */
+    at: function (name, p) {
+      const ph = phase[name]; if (!ph) return null;
+      const tt = ph.t0 + clamp(p, 0, 1) * ph.d;
+      let last = null;
+      for (const R of runs) {
+        if (tt < R.t0) break;
+        if (tt <= R.t1) {
+          const s = R.V * w29_sOf(tt - R.t0, R.T, R.A, R.B);
+          let lo = 0, hi = R.cum.length - 1;
+          while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (R.cum[mid] <= s) lo = mid; else hi = mid; }
+          const d = R.cum[hi] - R.cum[lo];
+          return d > 1e-9 ? lerp(R.jts[lo], R.jts[hi], (s - R.cum[lo]) / d) : R.jts[hi];
+        }
+        last = R;
+      }
+      return last ? last.jts[last.jts.length - 1] : null;
+    }
+  };
+  W29_CACHE.key = key; W29_CACHE.val = val;
+  return val;
+}
+/* the table is keyed on size, mission and tiers, so a resize or a DPR change rebuilds it —
+   but call this from redrawEverything() alongside w12_invalidate() if anything else ever
+   moves the pad or the cargo station under it. */
+function w29_invalidate() { W29_CACHE.key = ''; W29_CACHE.val = null; }
+
+
+/* T96 · this owns jt, jcam, jmix, jmixTo, ang, zoom and retro, and it is the only thing
+   that may set them. jt is paced by w29_pacing so the ship holds one speed across a whole
+   run — no phase boundary eases any more, because a phase boundary is not an event. */
+function w26_journeyState(v, name, p, DW, DH) {
+  p = clamp(p || 0, 0, 1);
+  const m = v.mission || 0;
+  v.jmix = 0; v.jmixTo = null;
+  if (name === 'land' || name === 'cargo') {
+    /* the cargo scene owns the ship here; the journey view is only the outgoing half of the
+       cross-fade, so pin it to the same station rather than letting it snap back into orbit */
+    v.jt = 3; v.jcam = 3; v.zoom = 1; v.retro = 0; v.ang = 0;
+    v.jmix = 1; v.jmixTo = w26_cargoStation(DW, DH, S.tiers, v.cargo || 0);
+    return;
+  }
+  if (name === 'descent') {
+    /* same at the other end: `descent` belongs to the pad scene, and the orbit view fading out
+       behind it must keep the ship exactly where the pad scene has it. `descent` owns the
+       attitude from here down, so ang and retro are left alone. */
+    v.jt = 5; v.jcam = 1; v.zoom = 1; v.jmix = 1;
+    v.jmixTo = w26_padStation(DW, DH, v.drift || 0, v.ang || 0, v.flaps, 5);
+    return;
+  }
+  const P = w29_pacing(DW, DH, m), jt = P.at(name, p);
+  if (jt === null) return;                       // ascent / pitch / coast — not on the journey
+  const AR = j_arcs(DW, DH, m);
+  v.jt = jt;
+  v.jcam = w29_jcam(jt, m);
+  v.retro = w29_retro(DW, DH, jt, m);
+  /* T59 · the low-orbit brake: the lap ends at ORBIT_COAST and the rest of the phase is the ship
+     standing still and turning round. That is real time, not path, so it stays on p. */
+  if (m < 2 && name === 'orbit') v.retro = clamp((p - ORBIT_COAST) / (1 - ORBIT_COAST), 0, 1);
+  const mx = w29_mix(DW, DH, jt, m, (name === 'moonorbit' || name === 'land' || name === 'cargo') ? -1 : 1);
+  v.jmix = mx.mix; v.jmixTo = mx.to;
+  /* ── the legacy fields. zoom and ang are read by the old wrappers and the pitch gauge; they
+        are derived from jt now so they cannot disagree with the path. ── */
+  if (jt <= 1)      { v.zoom = jt;      v.ang = lerp(AR.out[0], AR.out[1], jt); }
+  else if (jt <= 2) { v.zoom = jt - 1;  v.ang = lerp(AR.out[0], AR.out[1], 1); }
+  else if (jt <= 3) { v.zoom = jt - 2;  v.ang = jgeom(DW, DH).aIn + (jt - 2) * 4 * Math.PI; }
+  else if (jt <= 4) { v.zoom = 4 - jt;  v.ang = jgeom(DW, DH).aIn + Math.PI; }
+  else              { v.zoom = 1;       v.ang = lerp(AR.home[0], AR.home[1], jt - 4); }
+  v.jp = clamp((jt - 1) / 3, 0, 1);              // legacy, for anything still reading it
+  /* The cross-fade paints the OUTGOING view too, with this frame's state, so while the ship is
+     still mixed onto the pad station the pad scene's own ship has to be told to hold it as
+     well — otherwise the ghost of it swings round with the ring angle while the real one flies
+     straight. Only for as long as the mix lasts, and only at the launch end. */
+  if (jt <= JT_JOIN) v.ang = lerp(v.ang, -1.52, v.jmix);
+}
+
 
 function drawScene() {
   if (!scene.width) sizeScene();
@@ -2707,12 +2916,61 @@ function rocketDims(t) {
   return { bodyH, bodyW, noseH, totalH: bodyH + noseH + 8 }; // tier 1: 77.5 · tier 10: 169
 }
 
-/* hull material scheme */
+/* T95 · hull scheme — white or silver at every tier; the progression is in the trim.
+   era 0 (1-3) riveted white  · era 1 (4-6) panelled white + service livery
+   era 2 (7-8) white over brushed silver + tiles · era 3 (9-10) pearl + light.
+   `kind` stays 'steel' at every tier so the VAB copy of the ship (w18_*) keeps grey fins
+   and a plain white body without a second set of edits. */
 function w1_scheme(h) {
-  if (h <= 3) return { lo: '#7F8891', hi: '#CBD2D8', accent: '#4A5561', noseLo: '#6E777F', noseHi: '#AEB6BD', kind: 'steel' };
-  if (h <= 6) return { lo: ART.rocketDk, hi: ART.rocket, accent: ART.nose, noseLo: '#B23E2B', noseHi: '#F07A62', kind: 'paint' };
-  if (h <= 8) return { lo: '#B27F26', hi: '#F6D97F', accent: '#2B2F36', noseLo: ART.rocketDk, noseHi: ART.rocket, kind: 'foil' };
-  return { lo: '#111417', hi: '#3E464F', accent: ART.nose, noseLo: '#111417', noseHi: '#3E464F', kind: 'carbon' };
+  const t = clamp(Math.round(h || 1), 1, 10);
+  if (t <= 3) return {                                    // plain little rocket
+    lo: '#9BA5AE', hi: '#F6F9FC', noseLo: '#96A0A9', noseHi: '#EDF1F5',
+    accent: '#4A5561', fin: '#8A949E', trim: '#5B646D', band: '#6E777F',
+    glow: null, era: 0, tier: t, kind: 'steel' };
+  if (t <= 6) return {                                    // panelled, liveried
+    lo: '#A8B2BB', hi: '#FFFFFF', noseLo: '#9EA8B1', noseHi: '#F4F7FA',
+    accent: '#39424C', fin: '#5B646D', trim: '#4A5561', band: '#39424C',
+    glow: null, era: 1, tier: t, kind: 'steel' };
+  if (t <= 8) return {                                    // white over silver
+    lo: '#A2ACB6', hi: '#FFFFFF', noseLo: '#B4BEC7', noseHi: '#FFFFFF',
+    accent: '#2E353D', fin: '#6E777F', trim: '#5B646D', band: '#2E353D',
+    glow: null, era: 2, tier: t, kind: 'steel' };
+  return {                                                // pearl + light
+    lo: '#BFCEDA', hi: '#FFFFFF', noseLo: '#C6D4DF', noseHi: '#FFFFFF',
+    accent: '#22384A', fin: '#AEBCC8', trim: '#8FA6B8', band: '#5E7285',
+    glow: '#5FE0FF', era: 3, tier: t, kind: 'steel' };
+}
+
+/* the flag — LOD'd on the drawn size, so it reads at 35 px and at 110 px.
+   k = device pixels per local unit, taken from the live ctx transform. */
+function w1_flag(c, cx, cy, w, h, k) {
+  const x0 = cx - w / 2, y0 = cy - h / 2, dh = h * k;      // drawn height, px
+  const stripes = dh >= 10 ? 13 : dh >= 5 ? 7 : 3;
+  const sh = h / stripes;
+  c.fillStyle = '#F4F7FA'; c.fillRect(x0, y0, w, h); drawCount++;
+  c.fillStyle = '#C41F30'; c.beginPath();                  // every red stripe, one fill
+  for (let i = 0; i < stripes; i += 2) c.rect(x0, y0 + i * sh, w, sh);
+  c.fill(); drawCount++;
+  const cw = w * 0.42, ch = sh * Math.max(1, Math.round(stripes * 7 / 13));
+  c.fillStyle = '#182F6E'; c.fillRect(x0, y0, cw, ch); drawCount++;
+  if (dh >= 7) {                                           // stars, only when they can land
+    const cols = dh >= 11 ? 4 : 3, rows = dh >= 11 ? 3 : 2, r = Math.max(0.3, Math.min(cw / (cols * 4), ch / (rows * 4)));
+    c.fillStyle = 'rgba(255,255,255,.95)'; c.beginPath();
+    for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) {
+      const sx = x0 + cw * (i + 0.5) / cols, sy = y0 + ch * (j + 0.5) / rows;
+      c.moveTo(sx + r, sy); c.arc(sx, sy, r, 0, 7); }
+    c.fill(); drawCount++;
+  }
+  c.strokeStyle = 'rgba(24,32,40,.55)';                    // frame: white stripes on a white hull
+  c.lineWidth = clamp(0.9 / Math.max(k, 0.05), 0.5, h * 0.14);
+  c.strokeRect(x0, y0, w, h); drawCount++;
+}
+
+/* a soft glow bar without a canvas filter: three stacked, fading rects */
+function w1_glowbar(c, x0, y0, w, h, col, a) {
+  c.globalAlpha = a * 0.30; c.fillStyle = col; c.fillRect(x0 - w * 0.06, y0 - h * 1.1, w * 1.12, h * 3.2);
+  c.globalAlpha = a; c.fillStyle = '#FFFFFF'; c.fillRect(x0, y0, w, h);
+  c.globalAlpha = 1; drawCount += 2;
 }
 function w1_grad(c, x0, x1, lo, hi) {
   const g = c.createLinearGradient(x0, 0, x1, 0);
@@ -2807,19 +3065,30 @@ function drawRocket(c, x, baseY, t, flame, burning, now, opts) {
   const hw = bodyW / 2, top = baseY - bodyH;
   const S = w1_scheme(t.hull);
   const E = w1_engine(t.engine, bodyW);
+  const era = S.era, ht = S.tier;
   const fx = i => x + (i - (E.front - 1) / 2) * E.pitch;
   const bx = i => x + (i - (E.back - 1) / 2) * E.pitch;
+  /* device pixels per local unit — drives the flag's level of detail */
+  let k = 1;
+  if (c.getTransform) { const M = c.getTransform(); k = Math.hypot(M.a, M.b) || 1; }
   c.save(); c.lineWidth = 1;
 
-  /* ── exhaust ── */
+  /* ── exhaust ── (T95: no c.filter — the blur halved the frame rate) */
   if (flame > 0) {
-    const k = (t.engine - 1) / 9;                              // 0 orange .. 1 blue-white
-    const outer = mixHex('#FF7A1A', '#5FA8FF', k), mid = mixHex('#FFB347', '#BFE3FF', k), core = mixHex('#FFF4C2', '#FFFFFF', k);
+    const ek = (t.engine - 1) / 9;                             // 0 orange .. 1 blue-white
+    const outer = mixHex('#FF7A1A', '#5FA8FF', ek), mid = mixHex('#FFB347', '#BFE3FF', ek), core = mixHex('#FFF4C2', '#FFFFFF', ek);
     const Lbase = (burning ? 58 + t.engine * 6.5 : 26) * flame;
     const fl = i => 1 + Math.sin(now / 37 + i * 1.7) * .07 + Math.sin(now / 21 + i) * .05;
     const plume = (w, lenK, y0) => { c.beginPath(); for (let i = 0; i < E.front; i++) { const nx = fx(i), L = Lbase * fl(i) * lenK, bw = E.bw * w;
       c.moveTo(nx - bw, baseY + y0); c.quadraticCurveTo(nx - bw * 1.35, baseY + L * .42, nx, baseY + L); c.quadraticCurveTo(nx + bw * 1.35, baseY + L * .42, nx + bw, baseY + y0); } c.fill(); drawCount++; };
-    c.save(); c.filter = 'blur(4px)'; c.globalAlpha = .75 * flame; c.fillStyle = outer; plume(1.35, 1.08, 2); c.restore();
+    /* the soft halo, pre-softened: three widening skirts under one vertical
+       fade, instead of one blur(4px) pass */
+    const hg = c.createLinearGradient(0, baseY, 0, baseY + Lbase * 1.25);
+    hg.addColorStop(0, outer); hg.addColorStop(.42, outer); hg.addColorStop(1, 'rgba(255,120,26,0)');
+    c.fillStyle = hg;
+    c.globalAlpha = .11 * flame; plume(1.80, 1.14, 1);
+    c.globalAlpha = .15 * flame; plume(1.52, 1.11, 2);
+    c.globalAlpha = .26 * flame; plume(1.28, 1.07, 2);
     c.globalAlpha = .9 * flame; c.fillStyle = mid; plume(.85, .82, 4);
     c.globalAlpha = flame; c.fillStyle = core; plume(.42, .5, 4);
     if (t.engine >= 7) { // shock diamonds — 3..5 per plume, a soft halo then a hot white core
@@ -2828,20 +3097,19 @@ function drawRocket(c, x, baseY, t, flame, burning, now, opts) {
         for (let i = 0; i < E.front; i++) for (let d = 1; d <= nd; d++) { const nx = fx(i), y = baseY + y0 + Lbase * fl(i) * (.12 * d + .05), w = spread * (.95 - d * .1) * scale, h = w * 1.9;
           c.moveTo(nx, y - h); c.lineTo(nx + w, y); c.lineTo(nx, y + h); c.lineTo(nx - w, y); }
         c.fill(); drawCount++; };
-      c.globalAlpha = .55 * flame; c.fillStyle = mixHex('#FFD68A', '#BFE3FF', k); dia(1.35, 1);   // halo
+      c.globalAlpha = .55 * flame; c.fillStyle = mixHex('#FFD68A', '#BFE3FF', ek); dia(1.35, 1);   // halo
       c.globalAlpha = flame; c.fillStyle = '#FFFFFF'; dia(.7, 0);                                   // core
     }
     c.globalAlpha = 1;
   }
 
   /* ── fins (behind the body) ── */
-  const finCol = S.kind === 'steel' ? '#6E777F' : S.kind === 'carbon' ? '#2A3038' : ART.fin;
+  const finCol = S.fin;
   /* T53 · recovery flaps. Every ship has them whatever its aero tier, because they are not an
-     upgrade — they are how it comes home: they swing out for the belly-flop and steer the fall.
-     Drawn before the tier fins so they sit behind the body like the rest of the aero. */
+     upgrade — they are how it comes home: they swing out for the belly-flop and steer the fall. */
   const flaps = clamp(opts.flaps || 0, 0, 1);
   if (flaps > 0.01) {
-    const flapCol = S.kind === 'carbon' ? '#242A31' : S.kind === 'foil' ? '#8E6A20' : '#5B646D';
+    const flapCol = S.trim;
     const flap = (hy, len, wid, side) => {
       const L = len * flaps;
       c.fillStyle = flapCol; c.beginPath();
@@ -2850,13 +3118,13 @@ function drawRocket(c, x, baseY, t, flame, burning, now, opts) {
       c.lineTo(x + side * (hw + L), hy + wid * 0.5);
       c.lineTo(x + side * hw, hy + wid * 0.5);
       c.closePath(); c.fill(); drawCount++;
-      c.fillStyle = 'rgba(255,255,255,.22)'; c.fillRect(x + side * hw, hy - wid * 0.5, side * L, 1.4); drawCount++;
+      c.fillStyle = era === 3 ? 'rgba(255,255,255,.42)' : 'rgba(255,255,255,.22)'; c.fillRect(x + side * hw, hy - wid * 0.5, side * L, 1.4); drawCount++;
+      if (era === 3) { c.fillStyle = S.glow; c.globalAlpha = .55 + .25 * Math.sin(now / 420); c.fillRect(x + side * (hw + L * .55), hy - wid * 0.5 + 1.4, side * L * .45, 1.1); c.globalAlpha = 1; drawCount++; }
       c.fillStyle = '#2A2F36'; c.fillRect(x + side * (hw - 1.5), hy - wid * 0.5 - 1, side * 3, wid + 2); drawCount++;   // hinge fairing
     };
     const fwdY = top + bodyH * 0.13, aftY = baseY - bodyH * 0.20;
     for (const side of [-1, 1]) { flap(fwdY, 9 + bodyW * 0.30, bodyH * 0.16, side); flap(aftY, 13 + bodyW * 0.42, bodyH * 0.22, side); }
   }
-  const finEdge = S.kind === 'carbon' ? ART.nose : 'rgba(0,0,0,.18)';
   if (t.aero >= 2 && t.aero <= 3) { const fw = 7 + t.aero * 1.5, fh = 12 + t.aero * 2; // stubby
     c.fillStyle = finCol; c.beginPath();
     c.moveTo(x - hw, baseY - fh); c.lineTo(x - hw - fw, baseY - fh * .35); c.lineTo(x - hw - fw, baseY + 1); c.lineTo(x - hw, baseY + 1);
@@ -2866,67 +3134,114 @@ function drawRocket(c, x, baseY, t, flame, burning, now, opts) {
     c.moveTo(x - hw, baseY - fh); c.quadraticCurveTo(x - hw - fw * .45, baseY - fh * .35, x - hw - fw, baseY + 3); c.lineTo(x - hw - fw * .55, baseY + 3); c.lineTo(x - hw, baseY - 1);
     c.moveTo(x + hw, baseY - fh); c.quadraticCurveTo(x + hw + fw * .45, baseY - fh * .35, x + hw + fw, baseY + 3); c.lineTo(x + hw + fw * .55, baseY + 3); c.lineTo(x + hw, baseY - 1); c.fill();
     c.fillStyle = 'rgba(0,0,0,.18)'; c.beginPath(); c.moveTo(x + hw, baseY - fh); c.quadraticCurveTo(x + hw + fw * .45, baseY - fh * .35, x + hw + fw, baseY + 3); c.lineTo(x + hw + fw * .55, baseY + 3); c.lineTo(x + hw, baseY - 1); c.fill(); drawCount += 2;
-    if (S.kind === 'carbon') { c.strokeStyle = finEdge; c.lineWidth = 1.5; c.beginPath(); c.moveTo(x - hw, baseY - fh); c.quadraticCurveTo(x - hw - fw * .45, baseY - fh * .35, x - hw - fw, baseY + 3); c.moveTo(x + hw, baseY - fh); c.quadraticCurveTo(x + hw + fw * .45, baseY - fh * .35, x + hw + fw, baseY + 3); c.stroke(); drawCount++; }
+    if (era === 3) { // lit leading edges
+      c.strokeStyle = S.glow; c.globalAlpha = .55 + .25 * Math.sin(now / 380); c.lineWidth = 1.4; c.beginPath();
+      c.moveTo(x - hw, baseY - fh); c.quadraticCurveTo(x - hw - fw * .45, baseY - fh * .35, x - hw - fw, baseY + 3);
+      c.moveTo(x + hw, baseY - fh); c.quadraticCurveTo(x + hw + fw * .45, baseY - fh * .35, x + hw + fw, baseY + 3); c.stroke(); c.globalAlpha = 1; drawCount++; }
   }
   if (t.aero >= 8) { // grid fins high on the body
     const gw = 9 + (t.aero - 8) * 1.5, gh = 6, gy0 = top + bodyH * .36;
-    c.fillStyle = '#5B646D'; c.fillRect(x - hw - gw, gy0, gw, gh); c.fillRect(x + hw, gy0, gw, gh);
+    c.fillStyle = era === 3 ? '#8FA6B8' : '#5B646D'; c.fillRect(x - hw - gw, gy0, gw, gh); c.fillRect(x + hw, gy0, gw, gh);
     c.strokeStyle = 'rgba(255,255,255,.55)'; c.lineWidth = .8; c.beginPath();
     for (let i = 1; i < 4; i++) { const yy = gy0 + gh * i / 4; c.moveTo(x - hw - gw, yy); c.lineTo(x - hw, yy); c.moveTo(x + hw, yy); c.lineTo(x + hw + gw, yy); }
     for (let i = 1; i < 4; i++) { const dx = gw * i / 4; c.moveTo(x - hw - dx, gy0); c.lineTo(x - hw - dx, gy0 + gh); c.moveTo(x + hw + dx, gy0); c.lineTo(x + hw + dx, gy0 + gh); }
     c.stroke(); drawCount += 3;
   }
   if (t.aero >= 10) { // canards near the nose
-    c.fillStyle = S.kind === 'carbon' ? ART.nose : finCol; c.beginPath();
+    c.fillStyle = finCol; c.beginPath();
     c.moveTo(x - hw + 1, top - 3); c.lineTo(x - hw - 9, top + 7); c.lineTo(x - hw + 1, top + 9);
     c.moveTo(x + hw - 1, top - 3); c.lineTo(x + hw + 9, top + 7); c.lineTo(x + hw - 1, top + 9); c.fill(); drawCount++;
   }
 
   /* ── engine skirt + bells ── */
-  c.fillStyle = '#3A434D'; c.fillRect(x - hw - 1, baseY - 7, bodyW + 2, 5); drawCount++;
+  c.fillStyle = era === 3 ? '#46525E' : '#3A434D'; c.fillRect(x - hw - 1, baseY - 7, bodyW + 2, 5); drawCount++;
   for (let i = 0; i < E.back; i++) { const nx = bx(i), bw = E.bw * .8; // back row of the cluster, darker
     c.fillStyle = '#2E353D'; c.beginPath(); c.moveTo(nx - bw * .55, baseY - 4); c.lineTo(nx + bw * .55, baseY - 4); c.lineTo(nx + bw, baseY + 3); c.lineTo(nx - bw, baseY + 3); c.fill(); drawCount++; }
   for (let i = 0; i < E.front; i++) { const nx = fx(i), bw = E.bw;
-    c.fillStyle = w1_grad(c, nx - bw, nx + bw, '#3A434D', '#8A949E'); c.beginPath(); c.moveTo(nx - bw * .55, baseY - 3); c.lineTo(nx + bw * .55, baseY - 3); c.lineTo(nx + bw, baseY + 6); c.lineTo(nx - bw, baseY + 6); c.fill();
-    c.fillStyle = '#242A30'; c.fillRect(nx - bw, baseY + 5, bw * 2, 1.2); drawCount += 2; }
+    c.fillStyle = w1_grad(c, nx - bw, nx + bw, era === 3 ? '#5A6874' : '#3A434D', era === 3 ? '#C3D0DA' : '#8A949E'); c.beginPath(); c.moveTo(nx - bw * .55, baseY - 3); c.lineTo(nx + bw * .55, baseY - 3); c.lineTo(nx + bw, baseY + 6); c.lineTo(nx - bw, baseY + 6); c.fill();
+    c.fillStyle = era === 3 ? '#1A2C3A' : '#242A30'; c.fillRect(nx - bw, baseY + 5, bw * 2, 1.2); drawCount += 2; }
 
   /* ── body ── */
   c.fillStyle = w1_grad(c, x - hw, x + hw, S.lo, S.hi); c.fillRect(x - hw, top, bodyW, bodyH); drawCount++;
-  // material detail
-  if (S.kind === 'steel') { // rivet rows
-    c.fillStyle = 'rgba(0,0,0,.28)'; c.beginPath();
-    const rows = t.hull + 1; for (let r = 0; r <= rows; r++) { const yy = top + 6 + (bodyH - 12) * r / rows; for (let rx = x - hw + 3; rx <= x + hw - 3; rx += 4) { c.moveTo(rx, yy); c.arc(rx, yy, .8, 0, 7); } }
+
+  if (era === 0) {                                   /* 1-3 · riveted white shell */
+    c.fillStyle = 'rgba(0,0,0,.22)'; c.beginPath();
+    const rows = ht + 1; for (let r = 0; r <= rows; r++) { const yy = top + 6 + (bodyH - 12) * r / rows; for (let rx = x - hw + 3; rx <= x + hw - 3; rx += 4) { c.moveTo(rx, yy); c.arc(rx, yy, .8, 0, 7); } }
     for (let yy = top + 6; yy < baseY - 8; yy += 4) { c.moveTo(x - hw + 2, yy); c.arc(x - hw + 2, yy, .8, 0, 7); c.moveTo(x + hw - 2, yy); c.arc(x + hw - 2, yy, .8, 0, 7); }
     c.fill(); drawCount++;
-    if (t.hull >= 2) { c.fillStyle = 'rgba(0,0,0,.12)'; c.fillRect(x - hw, top + bodyH * .45, bodyW, bodyH * .1); drawCount++; }
-  } else if (S.kind === 'paint') {
-    c.fillStyle = ART.nose; c.fillRect(x - hw, baseY - 7 - bodyH * .12, bodyW, bodyH * .12); drawCount++;   // red skirt band
-    if (t.hull >= 5) { c.fillRect(x - hw, top + 2, bodyW, 4); drawCount++; }                              // top ring
-    if (t.hull >= 6) { const cy = top + bodyH * .5, cs = bodyW / 4; c.fillStyle = '#23272C';                   // roll-pattern checker
-      for (let i = 0; i < 4; i++) for (let j = 0; j < 2; j++) if ((i + j) % 2 === 0) c.fillRect(x - hw + i * cs, cy + j * cs, cs, cs); drawCount++; }
-  } else if (S.kind === 'foil') { // upper white, lower gold foil
-    const split = top + bodyH * .36;
-    c.fillStyle = w1_grad(c, x - hw, x + hw, ART.rocketDk, ART.rocket); c.fillRect(x - hw, top, bodyW, split - top); drawCount++;
-    c.strokeStyle = 'rgba(120,80,10,.45)'; c.lineWidth = .8; c.beginPath();
-    for (let yy = split + 3; yy < baseY - 10; yy += 5) { const j = ((yy * 7) % 5) - 2; c.moveTo(x - hw, yy); c.lineTo(x - hw * .3, yy + j); c.lineTo(x + hw * .35, yy - j); c.lineTo(x + hw, yy + j * .5); }
+    c.fillStyle = S.band; c.fillRect(x - hw, baseY - 7 - bodyH * .09, bodyW, bodyH * .09); drawCount++;      // grey skirt band
+    if (ht >= 2) { c.fillStyle = 'rgba(0,0,0,.12)'; c.fillRect(x - hw, top + bodyH * .45, bodyW, bodyH * .08); drawCount++; }
+    if (ht >= 3) { c.fillStyle = S.band; c.fillRect(x - hw, top + 3, bodyW, 3); drawCount++; }               // shoulder ring
+  } else if (era === 1) {                            /* 4-6 · panelled + service livery */
+    c.strokeStyle = 'rgba(70,84,98,.38)'; c.lineWidth = .8; c.beginPath();                                   // vertical panel lines
+    for (const f of [-.55, -.18, .18, .55]) { const px = x + hw * f; c.moveTo(px, top + 4); c.lineTo(px, baseY - 9); }
     c.stroke(); drawCount++;
-    if (t.hull >= 8) { const th = bodyH * .14, ty = baseY - 7 - th; c.fillStyle = '#23272C'; c.fillRect(x - hw, ty, bodyW, th);                     // heat tiles
-      c.strokeStyle = 'rgba(255,255,255,.22)'; c.lineWidth = .7; c.beginPath(); for (let tx = x - hw + 4; tx < x + hw; tx += 4) { c.moveTo(tx, ty); c.lineTo(tx, ty + th); } c.moveTo(x - hw, ty + th / 2); c.lineTo(x + hw, ty + th / 2); c.stroke(); drawCount += 2; }
-  } else { // carbon: racing stripes + gloss
-    const sw = Math.max(2.5, bodyW * .12);
-    c.fillStyle = ART.nose; c.fillRect(x - sw * .2, top + 4, sw, bodyH - 12);
-    c.fillStyle = '#E9EEF3'; c.fillRect(x + sw * 1.1, top + 4, sw * .5, bodyH - 12); drawCount += 2;
-    if (t.hull >= 10) { c.fillStyle = ART.nose; c.fillRect(x - sw * 1.9, top + 4, sw * .5, bodyH - 12); c.fillStyle = '#FFD46A'; c.fillRect(x + sw * 1.9, top + 4, sw * .4, bodyH - 12); drawCount += 2; }
-    c.fillStyle = 'rgba(255,255,255,.14)'; c.fillRect(x - hw + 2, top, 2.5, bodyH); drawCount++;
+    c.fillStyle = S.band; c.fillRect(x - hw, baseY - 7 - bodyH * .11, bodyW, bodyH * .11); drawCount++;      // dark skirt band
+    c.fillStyle = 'rgba(255,255,255,.5)'; c.fillRect(x - hw, baseY - 7 - bodyH * .11, bodyW, 1); drawCount++;
+    if (ht >= 5) { c.fillStyle = S.band; c.fillRect(x - hw, top + 2, bodyW, 3.5); drawCount++;               // top ring
+      c.fillStyle = 'rgba(50,60,72,.75)'; c.beginPath();                                                     // "UNITED STATES" tick block
+      for (let i = 0; i < 5; i++) c.rect(x - hw * .5 + i * bodyW * .17, top + bodyH * .30, bodyW * .10, 2.2);
+      c.fill(); drawCount++; }
+    if (ht >= 6) { const cy = top + bodyH * .46, cs = Math.max(2.5, bodyW / 5); c.fillStyle = '#23272C';     // roll pattern
+      for (let i = 0; i < 5; i++) for (let j = 0; j < 2; j++) if ((i + j) % 2 === 0) c.fillRect(x - hw + i * cs, cy + j * cs, cs, cs); drawCount++; }
+  } else if (era === 2) {                            /* 7-8 · white over brushed silver, tiles */
+    const split = top + bodyH * .40;
+    c.fillStyle = w1_grad(c, x - hw, x + hw, '#7E8993', '#E4EAEF'); c.fillRect(x - hw, split, bodyW, baseY - 7 - split); drawCount++;
+    c.strokeStyle = 'rgba(255,255,255,.30)'; c.lineWidth = .7; c.beginPath();                                // stringers on the silver
+    for (let yy = split + 4; yy < baseY - 12; yy += 5) { c.moveTo(x - hw, yy); c.lineTo(x + hw, yy); }
+    c.stroke(); drawCount++;
+    c.fillStyle = 'rgba(30,38,46,.55)'; c.fillRect(x - hw, split - 1.5, bodyW, 3); drawCount++;              // the join
+    const th = bodyH * (ht >= 8 ? .17 : .12), ty = baseY - 7 - th;                                           // heat tiles
+    c.fillStyle = '#23272C'; c.fillRect(x - hw, ty, bodyW, th);
+    c.strokeStyle = 'rgba(255,255,255,.20)'; c.lineWidth = .7; c.beginPath();
+    for (let tx = x - hw + 4; tx < x + hw; tx += 4) { c.moveTo(tx, ty); c.lineTo(tx, ty + th); }
+    c.moveTo(x - hw, ty + th / 2); c.lineTo(x + hw, ty + th / 2); c.stroke(); drawCount += 2;
+    if (ht >= 8) { c.fillStyle = S.trim; c.fillRect(x - hw, top + 3, bodyW, 3); drawCount++; }               // shoulder trim
+  } else {                                           /* 9-10 · pearl hull, lit trim */
+    const pulse = .55 + .25 * Math.sin(now / 420);
+    c.fillStyle = 'rgba(255,255,255,.45)'; c.fillRect(x - hw + 1.5, top + 4, Math.max(1.6, bodyW * .09), bodyH - 14); drawCount++;  // pearl sheen
+    const sw = Math.max(2.2, bodyW * .11), sy0 = top + bodyH * .10, sy1 = baseY - 9;                          // strakes / nacelle rails
+    for (const side of [-1, 1]) {
+      const sx = x + side * hw * .60 - sw / 2;
+      c.fillStyle = w1_grad(c, sx, sx + sw, '#8FA1B0', '#F2F7FB'); c.fillRect(sx, sy0, sw, sy1 - sy0); drawCount++;
+      c.globalAlpha = pulse; c.fillStyle = S.glow; c.fillRect(sx + sw * .3, sy0 + 3, sw * .4, sy1 - sy0 - 6); c.globalAlpha = 1; drawCount++;
+    }
+    c.fillStyle = S.trim; c.fillRect(x - hw, top + 2, bodyW, 4); drawCount++;                                 // collar
+    c.fillStyle = 'rgba(255,255,255,.55)'; c.fillRect(x - hw, top + 2, bodyW, 1); drawCount++;
+    w1_glowbar(c, x - hw + 1, baseY - 11, bodyW - 2, 1.6, S.glow, pulse);                                     // impulse ring above the skirt
+    if (ht >= 10) {
+      w1_glowbar(c, x - hw + 1, top + bodyH * .62, bodyW - 2, 1.4, S.glow, pulse * .85);                      // second ring
+      const sw2 = hw * 1.34, sy2 = top + bodyH * .11;                                                         // saucer collar, proud of the hull
+      c.fillStyle = w1_grad(c, x - sw2, x + sw2, '#8FA1B0', '#FFFFFF');
+      c.beginPath(); c.ellipse(x, sy2, sw2, Math.max(2.4, bodyH * .035), 0, 0, 7); c.fill(); drawCount++;
+      c.fillStyle = 'rgba(34,56,74,.35)'; c.fillRect(x - sw2, sy2 + Math.max(1.2, bodyH * .016), sw2 * 2, 1); drawCount++;
+      c.globalAlpha = pulse; c.fillStyle = S.glow;
+      c.fillRect(x - sw2 * .92, sy2 - Math.max(1, bodyH * .012), sw2 * 1.84, 1.1); c.globalAlpha = 1; drawCount++;
+      c.globalAlpha = .40 + .18 * Math.sin(now / 380); c.fillStyle = S.glow;                                  // cyan rim light down both edges
+      c.beginPath(); c.rect(x - hw, top + 6, 1.2, bodyH - 16); c.rect(x + hw - 1.2, top + 6, 1.2, bodyH - 16); c.fill(); c.globalAlpha = 1; drawCount++;
+    }
   }
-  // tank seams
-  const seams = Math.ceil(t.tank / 2);
-  c.fillStyle = 'rgba(0,0,0,.18)'; for (let i = 1; i <= seams; i++) c.fillRect(x - hw, top + (bodyH - 8) * i / (seams + 1), bodyW, 1.5); drawCount++;
+
+  /* tank seams — era 3 is seamless by design */
+  if (era < 3) {
+    const seams = Math.ceil(t.tank / 2);
+    c.fillStyle = 'rgba(0,0,0,.18)'; for (let i = 1; i <= seams; i++) c.fillRect(x - hw, top + (bodyH - 8) * i / (seams + 1), bodyW, 1.5); drawCount++;
+  }
   if (t.tank >= 6) { const sy = top + bodyH * .62; // second-stage interstage
-    c.fillStyle = '#2E353D'; c.fillRect(x - hw, sy, bodyW, 5); c.fillStyle = 'rgba(255,255,255,.35)'; c.fillRect(x - hw, sy, bodyW, 1); drawCount += 2;
-    if (t.tank >= 9) { c.fillStyle = '#8A949E'; for (let sx = x - hw + 3; sx < x + hw - 2; sx += 6) c.fillRect(sx, sy + 1, 2, 3); drawCount++; }
+    c.fillStyle = era === 3 ? '#5E7285' : '#2E353D'; c.fillRect(x - hw, sy, bodyW, 5); c.fillStyle = 'rgba(255,255,255,.35)'; c.fillRect(x - hw, sy, bodyW, 1); drawCount += 2;
+    if (t.tank >= 9) { c.fillStyle = era === 3 ? '#C3D0DA' : '#8A949E'; for (let sx = x - hw + 3; sx < x + hw - 2; sx += 6) c.fillRect(sx, sy + 1, 2, 3); drawCount++; }
   }
-  // lit edge
+
+  /* ── the flag ── lower third, left of centre, clear of the bay door hinge.
+     Height tracks bodyH so it grows with the ship; LOD tracks the drawn size. */
+  {
+    const fh = clamp(bodyH * .13, 6.5, 15), fw = Math.min(fh * 1.6, bodyW * .60);
+    const fcx = x - hw + fw * .62 + bodyW * .06;
+    const fcy = baseY - 7 - (era === 2 ? bodyH * (ht >= 8 ? .17 : .12) : bodyH * .11) - fh * .72;
+    w1_flag(c, fcx, fcy, fw, fh, k);
+  }
+
+  /* lit edge */
   c.fillStyle = 'rgba(0,0,0,.18)'; c.fillRect(x + hw - 2, top, 2, bodyH); drawCount++;
 
   /* ── nose ── */
@@ -2936,12 +3251,20 @@ function drawRocket(c, x, baseY, t, flame, burning, now, opts) {
   else if (t.aero <= 8) { c.quadraticCurveTo(x - hw * .8, top - noseH * .7, x, top - noseH); c.quadraticCurveTo(x + hw * .8, top - noseH * .7, x + hw, top); } // ogive
   else { const nh = noseH - 8; c.quadraticCurveTo(x - hw * .8, top - nh * .75, x - 1.2, top - nh); c.lineTo(x, top - noseH); c.lineTo(x + 1.2, top - nh); c.quadraticCurveTo(x + hw * .8, top - nh * .75, x + hw, top); } // needle
   c.closePath(); c.fill(); drawCount++;
-  if (S.kind === 'foil' || S.kind === 'paint') { c.fillStyle = 'rgba(0,0,0,.18)'; c.fillRect(x - hw, top - 1, bodyW, 2); drawCount++; } // nose join ring
-  if (t.aero >= 9) { c.fillStyle = '#FFD46A'; c.globalAlpha = .6 + .4 * Math.sin(now / 250); c.beginPath(); c.arc(x, top - noseH + 1.5, 1.6, 0, 7); c.fill(); c.globalAlpha = 1; drawCount++; } // tip beacon
+  if (era === 1 || era === 2) { c.fillStyle = 'rgba(0,0,0,.18)'; c.fillRect(x - hw, top - 1, bodyW, 2); drawCount++; }   // nose join ring
+  if (era === 3) {                                                    // lit nose band + deflector
+    const pulse = .5 + .25 * Math.sin(now / 420);
+    c.fillStyle = S.trim; c.fillRect(x - hw * .82, top - noseH * .30, hw * 1.64, 2.2); drawCount++;
+    c.globalAlpha = pulse; c.fillStyle = S.glow; c.fillRect(x - hw * .82, top - noseH * .30, hw * 1.64, 1); c.globalAlpha = 1; drawCount++;
+    if (ht >= 10) { c.globalAlpha = .30 + .18 * Math.sin(now / 300); c.strokeStyle = S.glow; c.lineWidth = 1.2;
+      c.beginPath(); c.ellipse(x, top - noseH * .58, hw * .46, noseH * .10, 0, 0, 7); c.stroke(); c.globalAlpha = 1; drawCount++; }
+  }
+  if (t.aero >= 9) { c.fillStyle = era === 3 ? S.glow : '#FFD46A'; c.globalAlpha = .6 + .4 * Math.sin(now / 250); c.beginPath(); c.arc(x, top - noseH + 1.5, 1.6, 0, 7); c.fill(); c.globalAlpha = 1; drawCount++; } // tip beacon
 
   /* ── payload window ── */
   const wr = clamp(bodyW * .3, 5.5, 9), wy = top + Math.max(12, bodyW * .5);
   w1_window(c, x, wy, wr, t.payload, S.accent, now);
+  if (era === 3) { c.strokeStyle = S.glow; c.globalAlpha = .5 + .2 * Math.sin(now / 420); c.lineWidth = 1; c.beginPath(); c.arc(x, wy, wr + 2.8, 0, 7); c.stroke(); c.globalAlpha = 1; drawCount++; }
 
   /* ── payload bay (opts.bayOpen): a hull panel slides aside to show the cargo ── */
   if (bayOpen > 0) w1_bay(c, x, top, bodyW, bodyH, wy + wr, S, t.payload, bayOpen, now);
@@ -2976,40 +3299,82 @@ function w1_bay(c, x, top, bodyW, bodyH, belowY, S, payload, k, now) {
   c.restore();
 }
 
-/* re-entry sheath: orange-white plasma hugging the nose, glowing fin edges, and a trailing wake.
-   dir = −1: wake streams up past the nose (nose-first descent); +1: down past the bells. */
-function w1_heat(c, x, top, baseY, bodyW, noseH, t, k, now, dir) {
-  const hw = bodyW / 2, tip = top - noseH, flick = 1 + Math.sin(now / 43) * .06 + Math.sin(now / 17) * .04;
+
+/* ── the sheath on the hull itself ──────────────────────────────────────────────────────
+   `k` 0..1 is the heat. The old version glowed the nose whatever the ship was doing, which
+   is right on the way up (max Q, nose into the airstream) and wrong on the way down (a
+   Starship falls belly-first). It now works out which face is INTO the airstream and puts
+   the plasma there — nose on the climb, belly on the fall, base if it ever fell tail-first.
+
+   `dir` keeps its old meaning as the fallback (−1 nose-first) for any caller that has no
+   attitude to offer; `ang` overrides it. The live callers are the pad scene, so the ship's
+   attitude and its direction of travel are read from `view` and `phase`, the same globals
+   drawPadScene positions the ship from. No canvas filter: this used to cost a blur pass. */
+function w1_heat(c, x, top, baseY, bodyW, noseH, t, k, now, dir, ang) {
+  const hw = bodyW / 2, tip = top - noseH, flick = 1 + Math.sin(now / 43) * 0.06 + Math.sin(now / 17) * 0.04;
   const finR = t.aero >= 4 ? 8 + Math.min(t.aero, 7) * 1.9 : t.aero >= 2 ? 7 + t.aero * 1.5 : 0;
+  const a = ang !== undefined ? ang : (typeof view !== 'undefined' ? (view.ang || 0) : 0);
+  /* which way is it going? Falling on `descent`, climbing on everything else. In body
+     coordinates the airstream comes from  vy · (sin a, cos a). */
+  const vy = (typeof phase !== 'undefined' && phase === 'descent') ? 1 : (dir < 0 ? -1 : 1);
+  const wx = vy * Math.sin(a), wy = vy * Math.cos(a);       // unit: the windward direction, body space
+  const cy = (top + baseY) / 2, halfL = (baseY - tip) / 2;
+  const lat = Math.abs(wx), axi = Math.abs(wy);             // broadside vs nose/tail-on
+  const sx = wx >= 0 ? 1 : -1;
+
   c.save(); c.globalCompositeOperation = 'lighter';
-  // wake + sheath share the one blur pass
-  const wl = (70 + noseH) * k * flick, wy0 = dir < 0 ? tip : baseY;
-  c.save(); c.filter = 'blur(5px)';
-  const wg = c.createLinearGradient(0, wy0, 0, wy0 + dir * wl);
-  wg.addColorStop(0, 'rgba(255,220,150,' + (.8 * k) + ')'); wg.addColorStop(.35, 'rgba(255,140,50,' + (.5 * k) + ')'); wg.addColorStop(1, 'rgba(255,70,20,0)');
-  c.fillStyle = wg; c.beginPath();
-  c.moveTo(x - hw * .9, wy0 + dir * 2); c.quadraticCurveTo(x - hw * 1.1, wy0 + dir * wl * .45, x, wy0 + dir * wl);
-  c.quadraticCurveTo(x + hw * 1.1, wy0 + dir * wl * .45, x + hw * .9, wy0 + dir * 2); c.fill(); drawCount++;
-  // sheath: a radial bloom hugging the nose
-  const sy = tip + noseH * .4, sg = c.createRadialGradient(x, sy, 1, x, sy, hw + noseH * .6);
-  sg.addColorStop(0, 'rgba(255,255,235,' + (.95 * k) + ')'); sg.addColorStop(.5, 'rgba(255,170,60,' + (.65 * k) + ')'); sg.addColorStop(1, 'rgba(255,80,20,0)');
-  c.fillStyle = sg; c.beginPath(); c.ellipse(x, sy, hw + 5 * k, noseH * .7 + 6 * k, 0, 0, 7); c.fill(); drawCount++;
+  /* ── the plasma, standing off the windward face ── */
+  const dist = hw * 1.15 * lat + halfL * 0.92 * axi;          // how far off the skin the shock stands
+  const px = x + wx * dist, py = cy + wy * dist;
+  const rx = hw * (1.15 + 0.8 * k);                            // ACROSS the hull, either way up
+  const ry = axi * (noseH * 0.8 + 8 * k) + lat * halfL * 0.95; // ALONG it — the whole flank when broadside
+  const R = Math.max(rx, ry);
+  const pg = c.createRadialGradient(px, py, 1, px, py, R);
+  pg.addColorStop(0, 'rgba(255,255,235,' + (0.92 * k).toFixed(3) + ')');
+  pg.addColorStop(0.45, 'rgba(255,170,66,' + (0.6 * k).toFixed(3) + ')');
+  pg.addColorStop(1, 'rgba(255,90,26,0)');
+  /* the gradient rides the same transform as the shape, so scaling the circle to an ellipse
+     scales the falloff with it — an unscaled radial gradient in an ellipse cuts off square */
+  c.save(); c.translate(px, py); c.scale(rx / R, ry / R); c.translate(-px, -py);
+  c.fillStyle = pg; c.beginPath(); c.arc(px, py, R * flick, 0, 6.2832); c.fill(); drawCount++;
   c.restore();
-  // hot skin: nose outline + body edges + fin leading edges as glowing strokes
-  c.strokeStyle = 'rgba(255,235,180,' + (.9 * k) + ')'; c.lineWidth = 2.2 * flick; c.lineCap = 'round'; c.beginPath();
-  c.moveTo(x - hw, top + 6); c.quadraticCurveTo(x - hw, tip + 4, x, tip); c.quadraticCurveTo(x + hw, tip + 4, x + hw, top + 6);
-  if (finR) { const fh = t.aero >= 4 ? 18 + Math.min(t.aero, 7) * 3.2 : 12 + t.aero * 2;
-    c.moveTo(x - hw, baseY - fh); c.quadraticCurveTo(x - hw - finR * .45, baseY - fh * .35, x - hw - finR, baseY + 3);
-    c.moveTo(x + hw, baseY - fh); c.quadraticCurveTo(x + hw + finR * .45, baseY - fh * .35, x + hw + finR, baseY + 3); }
-  c.stroke(); drawCount++;
-  // body edge shimmer
-  c.strokeStyle = 'rgba(255,140,50,' + (.45 * k) + ')'; c.lineWidth = 1.5; c.beginPath();
-  c.moveTo(x - hw - .5, top); c.lineTo(x - hw - .5, baseY - 8); c.moveTo(x + hw + .5, top); c.lineTo(x + hw + .5, baseY - 8); c.stroke(); drawCount++;
-  // embers peeling off, seeded and cycling on now
-  c.fillStyle = 'rgba(255,200,90,' + (.85 * k) + ')'; c.beginPath();
-  for (let i = 0; i < 7; i++) { const r = (i * 9301 + 49297) % 233280 / 233280, r2 = ((i + 11) * 7919 + 104729) % 233280 / 233280, p = ((now / 700) + r2) % 1;
-    const ex = x + (r - .5) * (bodyW + finR) * 1.4, ey = (dir < 0 ? tip : baseY) + dir * (4 + p * wl * .9); const rad = 1.6 * (1 - p) + .3;
-    c.moveTo(ex + rad, ey); c.arc(ex, ey, rad, 0, 7); }
+  /* ── the hot skin: whichever edges of the silhouette face the stream ── */
+  c.lineCap = 'round';
+  if (axi > 0.02) {                                        // nose (or base) into the stream
+    c.strokeStyle = 'rgba(255,235,180,' + (0.9 * k * axi).toFixed(3) + ')'; c.lineWidth = 2.2 * flick;
+    c.beginPath();
+    if (wy < 0) { c.moveTo(x - hw, top + 6); c.quadraticCurveTo(x - hw, tip + 4, x, tip); c.quadraticCurveTo(x + hw, tip + 4, x + hw, top + 6); }
+    else        { c.moveTo(x - hw, baseY - 4); c.lineTo(x + hw, baseY - 4); }
+    if (finR) { const fh = t.aero >= 4 ? 18 + Math.min(t.aero, 7) * 3.2 : 12 + t.aero * 2;
+      c.moveTo(x - hw, baseY - fh); c.quadraticCurveTo(x - hw - finR * 0.45, baseY - fh * 0.35, x - hw - finR, baseY + 3);
+      c.moveTo(x + hw, baseY - fh); c.quadraticCurveTo(x + hw + finR * 0.45, baseY - fh * 0.35, x + hw + finR, baseY + 3); }
+    c.stroke(); drawCount++;
+  }
+  if (lat > 0.02) {                                        // broadside: the whole flank glows
+    c.strokeStyle = 'rgba(255,238,190,' + (0.9 * k * lat).toFixed(3) + ')'; c.lineWidth = 2.6 * flick;
+    c.beginPath(); c.moveTo(x + sx * hw, top + 3); c.lineTo(x + sx * hw, baseY - 2);
+    c.quadraticCurveTo(x + sx * hw * 0.9, tip + noseH * 0.5, x, tip + 1); c.stroke(); drawCount++;
+    /* and a tight band of white heat right on the leading edge */
+    const bg = c.createLinearGradient(x + sx * hw * 0.4, 0, x + sx * (hw + 7 + 7 * k), 0);
+    bg.addColorStop(0, 'rgba(255,255,240,' + (0.5 * k * lat).toFixed(3) + ')');
+    bg.addColorStop(1, 'rgba(255,120,40,0)');
+    c.fillStyle = bg; c.beginPath();
+    c.moveTo(x + sx * hw * 0.4, top + 2); c.lineTo(x + sx * (hw + 7 + 7 * k), top + noseH * 0.2);
+    c.lineTo(x + sx * (hw + 7 + 7 * k), baseY - 2); c.lineTo(x + sx * hw * 0.4, baseY - 2);
+    c.closePath(); c.fill(); drawCount++;
+  }
+  /* ── embers, blown downwind off the hot edge ── */
+  c.fillStyle = 'rgba(255,200,90,' + (0.85 * k).toFixed(3) + ')'; c.beginPath();
+  const wl = (58 + noseH) * k * flick;
+  for (let i = 0; i < 7; i++) {
+    const r = (i * 9301 + 49297) % 233280 / 233280, r2 = ((i + 11) * 7919 + 104729) % 233280 / 233280;
+    const u = ((now / 700) + r2) % 1;
+    const along = (r - 0.5) * (lat ? (baseY - tip) : (bodyW + finR) * 1.4);
+    const ex = x - wy * along - wx * (4 + u * wl * 0.9);
+    const ey = cy + wx * along - wy * (4 + u * wl * 0.9);
+    const rad = 1.6 * (1 - u) + 0.3;
+    c.moveTo(ex + rad, ey); c.arc(ex, ey, rad, 0, 6.2832);
+  }
   c.fill(); drawCount++;
   c.restore();
 }
@@ -3740,50 +4105,79 @@ function drawAtmosphere(c, DW, DH, km, now, stars) {
   c.restore();
 }
 
+/* ── the trailing plasma, in the pad scene ──────────────────────────────────────────────
+   Called from drawPadScene while `descent` is hot. It used to be a fixed vertical streak at
+   DW/2 — a nose-cone re-entry, drawn for a ship that is lying on its side. It now sits on
+   the ship's real station and is built around the ship's own axis: the shock sits under the
+   WINDWARD face, spans the whole length of the hull when the ship is broadside, and the
+   wake streams off downwind (up the screen, because the ship is falling).
+   No canvas filters — every soft edge here is a gradient. */
 function drawReentry(c, DW, DH, km, v, now) {
   const k = w8_win(km, 35, 45, 105, 125) * clamp(v / 2200, 0, 1);
   if (k <= 0.01) return;
-  const x = DW / 2, y = DH * 0.58, L = 70 + 90 * k;         // ship descends: the streak trails UP the screen
+  const d = rocketDims(S.tiers);
+  const ang = view.ang || 0, flaps = clamp(view.flaps || 0, 0, 1);
+  /* the pad scene's own station and pivot, so this cannot drift from the ship it belongs to */
+  const mid = -d.bodyH * 0.5 * flaps;
+  const bx = DW / 2 + (view.drift || 0) + mid * Math.sin(ang), by = DH * 0.58 + mid * (1 - Math.cos(ang));
+  const ux = Math.sin(ang), uy = -Math.cos(ang);          // body axis, base → nose
+  const cx = bx + ux * d.bodyH * 0.5, cy = by + uy * d.bodyH * 0.5;   // hull centre
+  /* windward: the ship is falling, so the airstream comes from below. Its component across
+     the hull is what makes this a belly and not a nose. */
+  const wx = -uy, wy = ux;                                 // hull normal (left side of the axis)
+  const s = (wy >= 0 ? 1 : -1);                            // pick the normal that faces the airstream
+  const nx = wx * s, ny = wy * s;
+  const broad = Math.abs(ny);                              // 1 broadside, 0 nose- or tail-on
+  const halfL = d.bodyH * 0.5 * (0.55 + 0.45 * broad) + d.noseH * 0.35;
+  const off = d.bodyW * 0.42 + 2;
+  const L = (54 + 74 * k) * (0.65 + 0.35 * broad);         // how far the wake reaches
+  const flick = 1 + Math.sin(now / 43) * 0.06 + Math.sin(now / 17) * 0.04;
+
   c.save();
-  /* wide soft plasma wake */
-  c.globalAlpha = 0.6 * k;
-  c.translate(x, y - 10); c.scale(1, L / 42);
-  let g = c.createRadialGradient(0, -24, 0, 0, -32, 40);   // centred well above the ship so the wake trails up and fades before its base
-  g.addColorStop(0, 'rgba(255,230,180,0.95)'); g.addColorStop(0.35, 'rgba(255,150,70,0.7)'); g.addColorStop(1, 'rgba(255,80,40,0)');
-  c.fillStyle = g; c.beginPath(); c.arc(0, -32, 40, 0, 6.283); c.fill(); drawCount++;
-  c.restore(); c.save();
-  /* bright core tongue right behind the ship */
-  c.globalAlpha = 0.85 * k;
-  g = c.createLinearGradient(0, y, 0, y - L * 0.6);
-  g.addColorStop(0, 'rgba(255,250,230,0.95)'); g.addColorStop(0.3, 'rgba(255,190,90,0.6)'); g.addColorStop(1, 'rgba(255,120,60,0)');
-  c.fillStyle = g; c.beginPath();
-  const wob = Math.sin(now / 90) * 3;
-  c.moveTo(x - 14, y + 4); c.quadraticCurveTo(x - 10 + wob, y - L * 0.3, x, y - L * 0.6);
-  c.quadraticCurveTo(x + 10 + wob, y - L * 0.3, x + 14, y + 4); c.closePath(); c.fill(); drawCount++;
-  /* heat shimmer: wavy translucent lines in the wake */
-  c.globalAlpha = 0.28 * k; c.strokeStyle = '#FFE0B0'; c.lineWidth = 1;
+  c.globalCompositeOperation = 'lighter';
+  /* ── 1 · the shock: a hot sheet pressed against the windward face ── */
+  const sx = cx + nx * off, sy = cy + ny * off;
+  c.save(); c.translate(sx, sy); c.rotate(Math.atan2(uy, ux));
+  const sg = c.createRadialGradient(0, 0, 1, 0, 0, halfL);
+  sg.addColorStop(0, 'rgba(255,252,232,' + (0.95 * k).toFixed(3) + ')');
+  sg.addColorStop(0.34, 'rgba(255,186,86,' + (0.72 * k).toFixed(3) + ')');
+  sg.addColorStop(0.7, 'rgba(255,120,40,' + (0.3 * k).toFixed(3) + ')');
+  sg.addColorStop(1, 'rgba(255,80,24,0)');
+  c.fillStyle = sg; c.beginPath();
+  c.ellipse(0, 0, halfL, (10 + 16 * k) * flick, 0, 0, 6.2832); c.fill(); drawCount++;
+  c.restore();
+  /* ── 2 · the wake: everything that boils off streams downwind, up the screen ── */
+  const ax = ux * halfL, ay = uy * halfL;                  // half the hot edge, along the hull
+  const dx = -nx * L, dy = -ny * L;                        // downwind
+  const wg = c.createLinearGradient(sx, sy, sx + dx, sy + dy);
+  wg.addColorStop(0, 'rgba(255,238,190,' + (0.72 * k).toFixed(3) + ')');
+  wg.addColorStop(0.28, 'rgba(255,158,70,' + (0.42 * k).toFixed(3) + ')');
+  wg.addColorStop(1, 'rgba(255,70,20,0)');
+  c.fillStyle = wg; c.beginPath();
+  c.moveTo(sx - ax, sy - ay); c.lineTo(sx + ax, sy + ay);
+  c.lineTo(sx + ax * 1.5 + dx, sy + ay * 1.5 + dy); c.lineTo(sx - ax * 1.5 + dx, sy - ay * 1.5 + dy);
+  c.closePath(); c.fill(); drawCount++;
+  /* ── 3 · shimmer: three streaks combed back along the airstream ── */
+  c.globalAlpha = 0.3 * k; c.strokeStyle = '#FFE0B0'; c.lineWidth = 1;
   for (let i = 0; i < 3; i++) {
-    const ox = (i - 1) * 10; c.beginPath();
-    for (let t = 0; t <= 1; t += 0.1) {
-      const yy = y - t * L * 0.7, xx = x + ox * (1 + t * 1.6) + Math.sin(t * 9 + now / 120 + i * 2) * (1.5 + t * 2.5);
-      t === 0 ? c.moveTo(xx, yy) : c.lineTo(xx, yy);
+    const o = (i - 1) * halfL * 0.55; c.beginPath();
+    for (let u = 0; u <= 1.0001; u += 0.125) {
+      const wob = Math.sin(u * 9 + now / 120 + i * 2) * (1.5 + u * 3);
+      const px = sx + ux * o + dx * u + ux * wob, py = sy + uy * o + dy * u + uy * wob;
+      u === 0 ? c.moveTo(px, py) : c.lineTo(px, py);
     }
     c.stroke(); drawCount++;
   }
-  /* embers: 14 sparks streaming up and outward, flickering */
-  c.fillStyle = '#FFB347';
+  /* ── 4 · embers peeling off the hot edge and blowing downwind ── */
   for (let i = 0; i < 14; i++) {
-    const r = w8_rand(i + 3), r2 = w8_rand(i + 41), t = ((now / (900 + r * 700)) + r2) % 1;
-    const yy = y - 6 - t * L * 1.05, xx = x + (r - 0.5) * 24 * (1 + t * 3) + Math.sin(now / 150 + i) * 2;
-    c.globalAlpha = k * (1 - t) * (0.5 + 0.5 * Math.sin(now / 60 + i * 2));
+    const r = w8_rand(i + 3), r2 = w8_rand(i + 41), u = ((now / (900 + r * 700)) + r2) % 1;
+    const o = (r - 0.5) * halfL * 2.1, spread = (r2 - 0.5) * 12 * u;
+    const px = sx + ux * (o + spread) - nx * (4 + u * L * 1.05);
+    const py = sy + uy * (o + spread) - ny * (4 + u * L * 1.05);
+    c.globalAlpha = k * (1 - u) * (0.5 + 0.5 * Math.sin(now / 60 + i * 2));
     c.fillStyle = r2 > 0.6 ? '#FFF4C2' : '#FFB347';
-    c.beginPath(); c.arc(xx, yy, 1 + r * 1.6 * (1 - t), 0, 6.283); c.fill(); drawCount++;
+    c.beginPath(); c.arc(px, py, 1 + r * 1.6 * (1 - u), 0, 6.2832); c.fill(); drawCount++;
   }
-  /* hot rim glow on the ship's leading (lower) edge */
-  c.globalAlpha = 0.55 * k;
-  g = c.createRadialGradient(x, y + 12, 0, x, y + 12, 34);
-  g.addColorStop(0, 'rgba(255,240,200,0.7)'); g.addColorStop(1, 'rgba(255,120,60,0)');
-  c.fillStyle = g; c.beginPath(); c.arc(x, y + 12, 34, 0, 6.283); c.fill(); drawCount++;
   c.restore();
 }
 
@@ -8193,7 +8587,7 @@ function drawCatch(c, DW, DH, gy, p, t, now, drawRocketFn, rocketDimsFn) {
 }
 
 /* ── W20 · the lunar settlement (A7): domes, solar farm, painted targets, cargo-net pods ── */
-/* ── W20 · the lunar settlement ── drawLunarSite, drawCargoPods ── */
+/* ── W20 · the lunar settlement ── drawLunarSite ── */
 
 /* gproj lives once, in the W16 section. */
 
@@ -8207,7 +8601,7 @@ function w20_shade(c, x, y, w, h, a, b) { const g = c.createLinearGradient(x, y,
 /* the deepest z that still lands below the horizon line with this projection */
 const W20_ZMAX = 0.60;
 
-/* ── painted landing targets: the one source of truth, shared with drawCargoPods ── */
+/* ── the landing pad: one source of truth, baked into the cached lunar layer (W27) ── */
 
 /* ── a painted circle-and-cross target on a blast-scoured pad ── */
 
@@ -9127,7 +9521,7 @@ function ladderProgress() {
      against the Δv the next mission needs — the thing the player is actually grinding — and it is
      held just short of the node until the mission is really achieved. */
   const m = clamp(S.mission, 0, 5);
-  if (m >= 5) return { u: 5, frac: clamp((S.population || 0) / MISSIONS[5].population, 0, 1) };
+  if (m >= 5) return { u: 5, frac: clamp((S.cargoT || 0) / BASE_CARGO_T, 0, 1) };
   const need = MISSIONS[m + 1].dvReq, have = (plan || replan()).f.dv;
   const gotKit = MISSIONS[m + 1].equip.every(k => S.equipment[k]);
   let frac = clamp(have / need, 0, 1) * 0.82 + (gotKit ? 0.18 : 0);
@@ -9137,7 +9531,7 @@ function ladderProgress() {
    widest that actually fits rather than letting it run off the edge. */
 function ladderCaption() {
   const m = S.mission, pop = (S.population || 0).toLocaleString('en-US');
-  if (m >= 5) return [[pop + ' of 10,000 people', pop + ' / 10,000', pop], true];
+  if (m >= 5) return [[pop + ' people on the Moon', pop + ' people', pop], true];
   if (m >= 4) return [['base landed · ' + pop + ' people', 'landed · ' + pop, pop], true];
   /* T67b · `fmtMi` prints the word MOON at and past lunar distance, which is right for the altitude
      readout and nonsense in a sentence — this line read "MOON MI OF MOON TO THE MOON". So the
@@ -9247,7 +9641,7 @@ function paintGauges() {
   { const p = plan || replan();
     const flying = Math.min(p.m, S.mission + 1);
     const tonnes = p.payloadT == null ? PAY_MIN : p.payloadT;
-    const rev = rewardOf(flying >= 1 ? MISSIONS[flying].orbitKm : p.f.apogeeKm, S.tiers, flying, tonnes);
+    const rev = rewardOf(flying >= 1 ? MISSIONS[flying].orbitKm : p.f.apogeeKm, S.tiers, flying, tonnes, S.base);
     $('g-pay').innerHTML = (tonnes < 10 ? tonnes.toFixed(1) : Math.round(tonnes)) + '<small>t</small>';
     $('g-rev').innerHTML = fmtMoney(rev) + '<small>/flight</small>'; }
   drawLadder(); paintDataWin(); paintWindows();
@@ -9256,21 +9650,48 @@ function paintMoney() { $('money').textContent = fmtMoney(S.money); }
 /* Mission control rows. Imperial at display, SI underneath (T11/T12). 1 kN = 224.809 lbf · 1 t = 2204.62 lb · 1 m/s² = 3.28084 ft/s² */
 const KN_TO_LBF = 224.809, T_TO_LB = 2204.62, MS2_TO_FTS2 = 3.28084;
 const fmtN = (x, d) => (Math.abs(x) >= 1e6 ? (x / 1e6).toFixed(2) + 'M' : Math.abs(x) >= 1e4 ? (x / 1e3).toFixed(1) + 'k' : x.toFixed(d == null ? 0 : d)).replace(/^-0(\.0+)?$/, '0');
+/* T94 · what the ship is actually doing, phase by phase, so the window reads as a mission moving
+   forward in time rather than flipping between BURN and COAST for twenty seconds. The names come
+   off the flight's own phase machine, so they cannot drift from what is on screen. */
+const PHASE_MODE = {
+  ascent: 'ASCENT', pitch: 'GRAVITY TURN', coast: 'COASTING',
+  orbit: 'EARTH ORBIT', transfer: 'LUNAR INJECTION', moonorbit: 'LUNAR ORBIT',
+  land: 'LUNAR LANDING', cargo: 'DROPPING CARGO', back: 'RETURN TRANSFER',
+  reentry: 'DECELERATION', descent: 'RE-ENTRY',
+};
+function flightMode() {
+  if (view.countdown) return 'T−' + (view.countdown.n || 'IGN');
+  if (phase === 'turnaround') return 'GROUND OPS';
+  if (phase !== 'flight' && phase !== 'descent') return 'PAD';
+  const named = PHASE_MODE[view.phaseName];
+  if (named) {
+    /* the two that have a second act worth naming while they run */
+    if (view.phaseName === 'orbit' && view.retro > 0.05) return 'BRAKING BURN';
+    if (view.phaseName === 'reentry' && view.retro > 0.05) return 'BRAKING BURN';
+    if (view.phaseName === 'descent') return view.km < CATCH_KM ? 'CATCH' : view.flaps > 0.5 ? 'RE-ENTRY' : 'DESCENT';
+    return named;
+  }
+  return view.burning ? 'BURN' : 'COAST';
+}
 function paintDataWin() {
   const st = statsOf(S.tiers), inFlight = phase === 'flight' || phase === 'descent';
   const f = inFlight && view.forces ? view.forces : { thrust: st.thrust, drag: 0, mass: st.dryMass + st.fuel, g: 9.81 };
   const twr = f.mass > 0 ? (f.thrust / (f.mass * f.g)) : 0;
+  /* T92 · four rows. It was ten, which is a spreadsheet — and eight of them (Cd, drag, mass, g,
+     TWR, Δv, stages) never change enough during a flight to be worth the height they cost over
+     the scene. Velocity and altitude are the two that move; thrust says whether the engine is
+     lit; payload is the number the whole economy turns on. */
   const rows = [
-    ['Vel', fmtN(view.v * MS_TO_MPH), 'mph'], ['Alt', fmtMi(view.km), view.km >= MOON_KM ? '' : 'mi'],
-    ['Cd', st.cd.toFixed(2), ''], ['Drag', fmtN(f.drag * KN_TO_LBF), 'lbf'], ['Thrust', fmtN(f.thrust * KN_TO_LBF), 'lbf'],
-    ['Mass', fmtN(f.mass * T_TO_LB), 'lb'], ['g', (f.g * MS2_TO_FTS2).toFixed(2), 'ft/s²'], ['TWR', twr.toFixed(2), ''],
-    ['Δv', ((plan || replan()).f.dv / 1000).toFixed(2), 'km/s'], ['Stages', String((plan || replan()).f.stages), ''],
+    ['Vel', fmtN(view.v * MS_TO_MPH), 'mph'],
+    ['Alt', fmtMi(view.km), view.km >= MOON_KM ? '' : 'mi'],
+    ['Thrust', fmtN(f.thrust * KN_TO_LBF), 'lbf'],
+    ['Payload', ((plan || replan()).payloadT || PAY_MIN).toFixed(1), 't'],
   ];
   const tb = $('dw-rows');
   if (tb.children.length !== rows.length) { tb.textContent = ''; for (const r of rows) { const tr = document.createElement('tr');
     tr.innerHTML = '<td class="k"></td><td class="v"><span></span><small></small></td>'; tb.appendChild(tr); } }
   rows.forEach((r, i) => { const tr = tb.children[i]; tr.children[0].textContent = r[0]; tr.children[1].children[0].textContent = r[1]; tr.children[1].children[1].textContent = r[2]; });
-  $('dw-mode').textContent = view.countdown ? 'T−' + (view.countdown.n || 'IGN') : phase === 'flight' ? (view.burning ? 'BURN' : 'COAST') : phase === 'descent' ? (view.km >= MOON_KM ? 'MOON' : view.heat > 0.2 ? 'RE-ENTRY' : 'DESCENT') : phase === 'turnaround' ? 'GROUND OPS' : 'PAD';
+  $('dw-mode').textContent = flightMode();
   $('datawin').classList.toggle('away', view.km >= MOON_KM * 0.999 && phase === 'descent');
 }
 function paintLaunch() {
@@ -9298,18 +9719,24 @@ function shopHint() {
 /* T58 · how many things on each tab the player could buy this second: unlocked, not maxed, and
    affordable. Being mid-flight does not count against it — the money is still there when it lands. */
 function buyableNow() {
-  let rocket = 0, equipment = 0;
+  let rocket = 0, equipment = 0, base = 0;
   for (const k of TRACKS) { const tier = S.tiers[k];
     if (tier < TIERS && !lockReason(k, S.tiers, S.mission) && S.money >= costOf(k, tier + 1)) rocket++; }
   for (const id of Object.keys(EQUIPMENT))
     if (!equipLock(id, S.equipment, S.mission) && S.money >= equipCost(id)) equipment++;
-  return { rocket, equipment };
+  for (const k of BASE_TRACKS)
+    if (!baseLock(k, S.base, S.mission, S.tiers) && S.money >= baseCost(k, S.base[k] + 1)) base++;
+  return { rocket, equipment, base };
 }
 function paintShop() {
   if (!plan) replan();
+  /* T99 · the base tab does not exist until there is a base. Before that it is a fourth thing to
+     read on a screen that is already full, and every card in it would say "locked". */
+  $('shop-base-tab').hidden = S.mission < 5;
+  if (shopTab === 'base' && S.mission < 5) shopTab = 'rocket';
   document.querySelectorAll('[data-shop]').forEach(b => b.classList.toggle('act', b.dataset.shop === shopTab));
   const buyable = buyableNow();
-  for (const key of ['rocket', 'equipment']) {
+  for (const key of ['rocket', 'equipment', 'base']) {
     const el = $('sd-' + key); el.textContent = '';
     for (let i = 0; i < buyable[key]; i++) el.appendChild(document.createElement('i'));
     el.title = buyable[key] === 1 ? '1 upgrade you can afford' : buyable[key] + ' upgrades you can afford';
@@ -9334,10 +9761,39 @@ function paintShop() {
     for (let i = 1; i <= TIERS; i++) { const p = document.createElement('i'); if (i <= tier) p.className = 'on'; else if (i > cap) p.style.opacity = '.35'; pips.appendChild(p); }
     d.appendChild(pips);
     const desc = document.createElement('div'); desc.className = 'd';
-    desc.textContent = k === 'payload' ? PAYLOADS[tier - 1] + ' · ×' + payValueOf(S.tiers).toFixed(2) + ' per tonne' + (lock && lock !== 'max' ? ' · ' + lock : '')
+    desc.textContent = k === 'payload' ? PAYLOADS[tier - 1] + ' · ×' + payValueOf(S.tiers, S.base).toFixed(2) + ' per tonne' + (lock && lock !== 'max' ? ' · ' + lock : '')
                      : lock && lock !== 'max' ? lock : TRACK_INFO[k].what;
     d.appendChild(desc);
     box.appendChild(d);
+  }
+  else if (shopTab === 'base') {
+    /* T99 · three tracks, eight levels each, and each card says what the next level actually buys
+       in the unit the player is watching — tonnes, dollars, people — not a multiplier. */
+    const payT = (plan || replan()).payloadT || PAY_MIN;
+    for (const k of BASE_TRACKS) {
+      const lvl = S.base[k], lock = baseLock(k, S.base, S.mission, S.tiers), c = lvl < BASE_LEVELS ? baseCost(k, lvl + 1) : 0;
+      const d = document.createElement('div'); d.className = 'up' + (lock === 'max' ? ' done' : ''); d.dataset.track = k;
+      d.title = BASE_INFO[k].what;
+      const n = document.createElement('div'); n.className = 'n'; n.textContent = BASE_INFO[k].name + ' · L' + lvl; d.appendChild(n);
+      const b = document.createElement('button'); b.className = 'buy';
+      if (lock === 'max') { b.textContent = 'MAX'; b.disabled = true; b.classList.add('max'); }
+      else if (lock) { b.textContent = fmtMoney(c); b.disabled = true; b.classList.add('locked'); b.title = 'Locked: ' + lock; }
+      else { b.textContent = fmtMoney(c); b.disabled = S.money < c || inFlight;
+             b.title = (S.money < c ? 'Need ' + fmtMoney(c - S.money) + ' more' : 'Buy level ' + (lvl + 1)) + ' — ' + BASE_INFO[k].what; }
+      b.addEventListener('click', () => { if (buyBase(k)) flashText(b, 'BOUGHT ✓'); });
+      d.appendChild(b);
+      const pips = document.createElement('div'); pips.className = 'pips';
+      for (let i = 1; i <= BASE_LEVELS; i++) { const p = document.createElement('i'); if (i <= lvl) p.className = 'on'; pips.appendChild(p); }
+      d.appendChild(pips);
+      const now = k === 'bay' ? cargoOf(payT, S.base).toFixed(1) + ' t a run'
+                : k === 'logistics' ? fmtMoney(Math.round(MISSIONS[5].reward * payValueOf(S.tiers, S.base))) + ' a tonne'
+                : Math.round(popPerTonne(S.base)) + ' people a tonne';
+      const nxt = { bay: BAY_STEP, logistics: LOG_STEP, habitat: HAB_STEP }[k];
+      const desc = document.createElement('div'); desc.className = 'd';
+      desc.textContent = now + (lock === 'max' ? '' : ' · next level +' + Math.round((nxt - 1) * 100) + '%');
+      d.appendChild(desc);
+      box.appendChild(d);
+    }
   }
   else {
     /* Only what is actually in play. Ten cards at full size overflowed the column and needed a
@@ -9376,8 +9832,7 @@ function paintShop() {
 }
 function flashText(el, msg) { const idle = el.textContent; el.textContent = msg; setTimeout(() => { if (el.isConnected) paintShop(); }, 700); }
 function paintBadge() {
-  const n = TRACKS.filter(k => !lockReason(k, S.tiers, S.mission) && S.money >= costOf(k, S.tiers[k] + 1)).length
-          + Object.keys(EQUIPMENT).filter(id => !equipLock(id, S.equipment, S.mission) && S.money >= equipCost(id)).length;
+  const bn = buyableNow(), n = bn.rocket + bn.equipment + bn.base;
   let bd = document.querySelector('.tab[data-p="pad"] .badge');
   if (!bd) { bd = document.createElement('span'); bd.className = 'badge'; document.querySelector('.tab[data-p="pad"]').appendChild(bd); }
   bd.hidden = n === 0; bd.textContent = n;
@@ -9516,7 +9971,7 @@ function devJump(sc) {
     view.forces = { thrust: s[4], drag: s[5], mass: s[6], g: s[7] }; }
   else if (sc === 'space') { const f = flyRocket(S.tiers, S.equipment); phase = 'flight'; view.km = Math.max(f.apogeeKm * 0.8, 150); view.v = f.burnoutV * 0.3; view.fuel = 0; view.flame = 0.2; view.burning = false; view.flaps = 0; view.forces = forcesAt(S.tiers, view.km * 1000, view.v, 0); }
   else if (sc === 'apogee') { const f = flyRocket(S.tiers, S.equipment); phase = 'descent'; view.km = f.apogeeKm; view.v = 0; view.fuel = 0; view.flame = 0; view.flaps = 0;
-    showFlash(f, rewardOf(f.apogeeKm, S.tiers, 0), true, MILESTONES.filter(m => f.apogeeKm >= m.km).slice(-1), null, null, PAY_MIN); }
+    showFlash(f, rewardOf(f.apogeeKm, S.tiers, 0, null, S.base), true, MILESTONES.filter(m => f.apogeeKm >= m.km).slice(-1), null, null, PAY_MIN); }
   else if (sc === 'descent') { phase = 'descent'; view.km = 5; view.v = 0; view.fuel = 0; view.flame = 0.6; view.burning = true; view.flaps = 1; view.ang = -0.55; }
   else if (sc === 'moon') { phase = 'descent'; view.moonAt = performance.now(); view.km = MOON_KM; view.v = 0; view.fuel = 0; view.flame = 0; view.flaps = 0; if (!S.modules) S.modules = 3; }
   paintLaunch(); paintGauges(); drawScene(); out.textContent = 'scene → ' + sc + ' · phase ' + phase;
