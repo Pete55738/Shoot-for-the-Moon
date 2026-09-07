@@ -8193,7 +8193,7 @@ function drawCatch(c, DW, DH, gy, p, t, now, drawRocketFn, rocketDimsFn) {
 }
 
 /* ── W20 · the lunar settlement (A7): domes, solar farm, painted targets, cargo-net pods ── */
-/* ── W20 · the lunar settlement ── drawLunarSite, drawCargoPods ── */
+/* ── W20 · the lunar settlement ── drawLunarSite ── */
 
 /* gproj lives once, in the W16 section. */
 
@@ -8207,7 +8207,7 @@ function w20_shade(c, x, y, w, h, a, b) { const g = c.createLinearGradient(x, y,
 /* the deepest z that still lands below the horizon line with this projection */
 const W20_ZMAX = 0.60;
 
-/* ── painted landing targets: the one source of truth, shared with drawCargoPods ── */
+/* ── the landing pad: one source of truth, baked into the cached lunar layer (W27) ── */
 
 /* ── a painted circle-and-cross target on a blast-scoured pad ── */
 
