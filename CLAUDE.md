@@ -97,9 +97,14 @@ and `skills/orchestrate.md` for how workers are split, heartbeat and report.
   earns more instead of just flying higher. The payload *track* sets what a tonne is worth
   (`payValueOf`), not how many you can carry — if the bay were the only gate, a player who never
   bought payload would be pinned at the capsule for the whole game.
-- **The endgame is the BASE tab (T98/T99).** The Moon base wants `BASE_CARGO_T` = 1,000 t and the
-  win, the ladder and the flash all read `S.cargoT` — population is only what that tonnage houses
-  (`popPerTonne`), never a second running total. Three tracks in `BASE_TRACKS` (bay, logistics,
+- **The endgame is the BASE tab (T98/T99), and winning is `S.won` (T101).** The Moon base wants
+  `BASE_CARGO_T` = 1,000 t and the ladder, the flash and the goal window all read `S.cargoT` —
+  population is only what that tonnage houses (`popPerTonne`), never a second running total.
+  **`S.won` is set once, saved, and never recomputed from `cargoT`**: before it existed the banner
+  printed on every landing past 1,000 t and vanished on refresh, so there was no win to speak of.
+  Winning does not end the game. The goal window's tag is the **total** people (T100); the
+  per-launch rate goes in its tooltip and the payoff flash, never on the tonnage line — it
+  ellipsises the tonnage at 360–390 wide. Three tracks in `BASE_TRACKS` (bay, logistics,
   habitat, eight levels each) multiply tonnes a run, $ a tonne and people a tonne, and they are the
   only thing left to buy once the rocket is maxed — which is exactly when `baseLock` unlocks them.
   **That gate is load-bearing:** without it a player who buys the expensive thing every time

@@ -511,6 +511,9 @@ body {
   .goalwin .t { display: flex; justify-content: space-between; color: var(--h-accent); font-weight: 700; margin-bottom: .2rem; }
   .goalwin .t #gw-tag { color: var(--h-warning); }
   .goalwin.go .t #gw-tag { color: var(--h-positive); }
+  /* T101 · the base is built. The window stops being a target and becomes a record of one. */
+  .goalwin.won .t #gw-tag, .goalwin.won .dv { color: var(--h-positive); }
+  .goalwin.won { border-color: var(--h-positive); }
   .goalwin .todo { margin: 0; padding: 0; list-style: none; }
   .goalwin .todo li { display: flex; gap: .35rem; align-items: baseline; line-height: 1.4; color: var(--h-text-muted); }
   .goalwin .todo li::before { content: '☐'; color: var(--h-border); }
@@ -1278,7 +1281,11 @@ const freshState = () => ({
   money: 0, launches: 0, earned: 0, bestKm: 0, bestV: 0,
   milestones: [], modules: 0, log: [], seed: 1,
   equipment: {}, mission: 0, population: 0, cargoT: 0, shipments: 0,
-  base: { bay: 1, logistics: 1, habitat: 1 },   // T99 · the endgame tracks     // the mission ladder (T13): equipment owned, missions achieved, tier-5 base
+  base: { bay: 1, logistics: 1, habitat: 1 },   // T99 · the endgame tracks
+  /* T101 · the win, so it survives a refresh. Null until the base is built; then the launch it
+     was finished on, the tonnage and the people. Winning does not end the game — you can keep
+     flying cargo — but it is a thing that HAPPENED, and the game has to remember it. */
+  won: null,   // { launch, cargoT, population, at }   // the mission ladder (T13): equipment owned, missions achieved, tier-5 base
 });
 let S = freshState();
 /* phase: 'ready' | 'flight' | 'descent' | 'turnaround' — the scene reads it; act() moves it. */
@@ -1404,9 +1411,18 @@ function launch() {
     S.modules = Math.min(BASE_MODULES.length, 1 + Math.floor(S.population / 2500));
     if (S.modules > 1 + Math.floor(before / 2500)) module = BASE_MODULES[S.modules - 1];
     const shipPay = railgunPay(S.population);
-    override = { big: S.cargoT >= BASE_CARGO_T ? 'MOON BASE BUILT · ' + S.population.toLocaleString('en-US') + ' PEOPLE' : 'CARGO LANDED · ' + cargo + ' T',
-                 sub: 'Population ' + S.population.toLocaleString('en-US') + (module ? ' · new: ' + module : '')
-                      + (shipPay ? ' · railgun sent ' + fmtMoney(shipPay) + ' home' : '') }; }
+    /* T101 · the crossing is a one-off. Before this, `MOON BASE BUILT` was printed on every
+       landing once the tonnage was past 1,000 — so the moment you actually won looked exactly
+       like the fifty runs after it, and a refresh erased it entirely. It is recorded now, and
+       only the flight that crosses gets the banner. */
+    const justWon = !S.won && S.cargoT >= BASE_CARGO_T;
+    if (justWon) S.won = { launch: S.launches, cargoT: S.cargoT, population: S.population, at: new Date().toISOString() };
+    override = { big: justWon ? 'MOON BASE BUILT · ' + S.population.toLocaleString('en-US') + ' PEOPLE' : 'CARGO LANDED · ' + cargo + ' T',
+                 sub: justWon ? 'The base is finished on launch ' + S.launches + ' · ' + S.cargoT.toFixed(0) + ' tonnes landed'
+                      : 'Population ' + S.population.toLocaleString('en-US')
+                        + ' · +' + (S.population - before).toLocaleString('en-US') + ' this run'   /* T100 */
+                        + (module ? ' · new: ' + module : '')
+                        + (shipPay ? ' · railgun sent ' + fmtMoney(shipPay) + ' home' : '') }; }
   const note = milestone ? 'Milestone ' + flightMission + ': ' + MISSIONS[flightMission].name : cargo ? 'Cargo ' + cargo + ' t · pop ' + S.population.toLocaleString('en-US') : module ? 'Delivered: ' + module : hit.length ? hit[hit.length - 1].name : record ? 'New record' : '';
   const entry = { n: S.launches, km: f.apogeeKm, v: f.maxV, earned: r, note };
   S.log.unshift(entry); if (S.log.length > 30) S.log.length = 30;
@@ -1754,18 +1770,29 @@ function paintGoal() {
   if (S.mission >= 5) {
     g.hidden = false; g.classList.add('go');
     /* T85 · the population moves to the tag slot, where there is room beside the title. Kept on the
-       stat line it ran past the window's 13rem and got ellipsised, which is not "one line". */
+       stat line it ran past the window's 13rem and got ellipsised, which is not "one line".
+       T100 · the tag is the TOTAL again. T99 put the per-launch rate here instead, which answered
+       "how fast am I going" and lost "where am I" — and where you are is the number the whole
+       endgame is about. The rate keeps its place on the stat line, next to the tonnage it moves. */
     $('gw-title').textContent = 'Moon base';
-    /* T99 · the tag is the rate, not the total. The total is on the cargo line's own terms below and
-       on the ladder; what the player is buying upgrades to move is how many people one run adds. */
     const perRun = Math.round(cargoOf((plan || replan()).payloadT || PAY_MIN, S.base) * popPerTonne(S.base));
-    $('gw-tag').textContent = '+' + perRun.toLocaleString('en-US') + ' people';
+    $('gw-tag').textContent = S.population.toLocaleString('en-US') + ' people';
     /* T84 · once the base is the goal the checklist never changes again — "base established, grow to
        10,000, keep landing cargo" is three rows of decoration. They are gone; the window is its title
        and the one number that moves.
        T85 · that number on ONE line, tenths, and the unit against the target it belongs to. */
     $('gw-todo').textContent = '';
-    $('gw-dv').textContent = S.cargoT.toFixed(1) + ' / ' + BASE_CARGO_T + ' T';
+    /* T101 · once it is built the target stops being the point — the window says so and then just
+       counts what the base is, instead of asking forever for a number already passed. */
+    /* T100 · the rate does NOT go on this line. Measured at 360 and 390 wide it pushed the line to
+       146 px against 134–140 available and ellipsised the tonnage — the same overflow T85 fixed.
+       It lives in the window's tooltip, and in the payoff flash after every run, which is the
+       moment "how many people did that add" is actually being asked. */
+    g.title = '+' + perRun.toLocaleString('en-US') + ' people a run at this ship and these base levels';
+    $('gw-dv').textContent = S.won
+      ? 'BUILT · ' + S.cargoT.toFixed(0) + ' T landed'
+      : S.cargoT.toFixed(1) + ' / ' + BASE_CARGO_T + ' T';
+    g.classList.toggle('won', !!S.won);
     return;
   }
   const next = MISSIONS[S.mission + 1], p = plan || replan(), am = armedMission();
@@ -9531,7 +9558,9 @@ function ladderProgress() {
    widest that actually fits rather than letting it run off the edge. */
 function ladderCaption() {
   const m = S.mission, pop = (S.population || 0).toLocaleString('en-US');
-  if (m >= 5) return [[pop + ' people on the Moon', pop + ' people', pop], true];
+  if (m >= 5) return S.won
+    ? [['moon base built · ' + pop + ' people', 'built · ' + pop, 'built'], true]
+    : [[pop + ' people on the Moon', pop + ' people', pop], true];
   if (m >= 4) return [['base landed · ' + pop + ' people', 'landed · ' + pop, pop], true];
   /* T67b · `fmtMi` prints the word MOON at and past lunar distance, which is right for the altitude
      readout and nonsense in a sentence — this line read "MOON MI OF MOON TO THE MOON". So the
@@ -9708,7 +9737,8 @@ function shopHint() {
   const next = S.mission + 1;
   if (S.mission >= 5) { const raw = Math.max(0, BASE_CARGO_T - S.cargoT);
     const left = raw >= 10 ? Math.round(raw) : Math.round(raw * 10) / 10;   /* whole tonnes until the last run or two */
-    return { text: left ? 'The base needs ' + left + ' more tonnes' : 'The base is built', ok: true }; }
+    if (S.won) return { text: 'MOON BASE BUILT on launch ' + S.won.launch + ' — keep flying if you like', ok: true };
+    return { text: 'The base needs ' + left + ' more tonnes', ok: true }; }
   const am = armedMission(); if (am) return { text: 'READY: press LAUNCH to ' + MISSIONS[am].flight.toLowerCase(), ok: true };
   /* T63 · no "buy the two items below". The cards are directly under this line and the to-do box
      already lists them by name; a third copy of the same instruction was noise. When equipment is
@@ -9842,7 +9872,8 @@ function paintLog() {
   const rows = [['Best altitude', S.bestKm >= MOON_KM ? 'THE MOON' : fmtMi(S.bestKm) + ' mi'], ['Top velocity', fmtV(S.bestV)],
                 ['Launches', S.launches.toLocaleString('en-US')], ['Earned, all time', fmtMoney(S.earned)],
                 ['Mission', S.mission ? S.mission + ' · ' + MISSIONS[S.mission].name : 'sub-orbital'],
-                ['Moon base', S.mission >= 4 ? S.cargoT + ' of ' + BASE_CARGO_T + ' t landed · ' + S.population.toLocaleString('en-US') + ' people' : 'not yet'],
+                ['Moon base', S.won ? 'BUILT on launch ' + S.won.launch + ' · ' + S.cargoT + ' t landed · ' + S.population.toLocaleString('en-US') + ' people'
+                              : S.mission >= 4 ? S.cargoT + ' of ' + BASE_CARGO_T + ' t landed · ' + S.population.toLocaleString('en-US') + ' people' : 'not yet'],
                 ['Railgun', S.shipments ? S.shipments.toLocaleString('en-US') + (S.shipments === 1 ? ' shipment home' : ' shipments home') : railgunPay(S.population) ? 'ready' : 'needs 1,000 people']];
   for (const [k, v] of rows) { const d = document.createElement('div'); d.className = 'stat';
     d.innerHTML = '<div class="k"></div><div class="v"></div>'; d.children[0].textContent = k; d.children[1].textContent = v; st.appendChild(d); }
